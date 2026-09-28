@@ -1,0 +1,229 @@
+import { useEffect, useMemo } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  clearAuditLogs as clearAuditLogsService,
+  exportAuditLogs as exportAuditLogsService,
+  getAuditLogs,
+  importAuditLogs as importAuditLogsService,
+} from '@/services/settingsService'
+import { useSettingsStore } from '@/stores/useSettingsStore'
+import type { AuditLogEntry, AuditLogFilters } from '@/lib/types'
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+  return fallback
+}
+
+function matchesFilters(
+  entry: AuditLogEntry,
+  filters: AuditLogFilters,
+): boolean {
+  if (!filters.levels.includes(entry.level)) {
+    return false
+  }
+  if (filters.outcome === 'succeeded' && !entry.success) {
+    return false
+  }
+  if (filters.outcome === 'failed' && entry.success) {
+    return false
+  }
+  if (
+    filters.operation.trim() !== '' &&
+    !entry.operation
+      .toLowerCase()
+      .includes(filters.operation.trim().toLowerCase())
+  ) {
+    return false
+  }
+  const searchText = filters.text.trim().toLowerCase()
+  if (searchText === '') {
+    return true
+  }
+  return [entry.operation, entry.message, entry.details ?? '']
+    .join(' ')
+    .toLowerCase()
+    .includes(searchText)
+}
+
+const auditLogQueryKey = (limit: number) =>
+  ['settings', 'audit-logs', limit] as const
+
+export function useAuditLogs() {
+  const queryClient = useQueryClient()
+  const auditLogs = useSettingsStore((state) => state.auditLogs)
+  const auditLogLimit = useSettingsStore((state) => state.auditLogLimit)
+  const auditLogFilters = useSettingsStore((state) => state.auditLogFilters)
+  const selectedAuditLogId = useSettingsStore(
+    (state) => state.selectedAuditLogId,
+  )
+  const loadingAuditLogs = useSettingsStore((state) => state.loadingAuditLogs)
+  const clearingAuditLogs = useSettingsStore((state) => state.clearingAuditLogs)
+  const error = useSettingsStore((state) => state.auditLogsError)
+  const setAuditLogs = useSettingsStore((state) => state.setAuditLogs)
+  const setAuditLogLimit = useSettingsStore((state) => state.setAuditLogLimit)
+  const setAuditLogFilters = useSettingsStore(
+    (state) => state.setAuditLogFilters,
+  )
+  const setSelectedAuditLogId = useSettingsStore(
+    (state) => state.setSelectedAuditLogId,
+  )
+  const setLoadingAuditLogs = useSettingsStore(
+    (state) => state.setLoadingAuditLogs,
+  )
+  const setClearingAuditLogs = useSettingsStore(
+    (state) => state.setClearingAuditLogs,
+  )
+  const setAuditLogsError = useSettingsStore((state) => state.setAuditLogsError)
+  const setAuditLogsLoadedAt = useSettingsStore(
+    (state) => state.setAuditLogsLoadedAt,
+  )
+
+  const auditLogQuery = useQuery({
+    queryKey: auditLogQueryKey(auditLogLimit),
+    queryFn: () => getAuditLogs(auditLogLimit),
+  })
+
+  useEffect(() => {
+    setLoadingAuditLogs(auditLogQuery.isLoading || auditLogQuery.isFetching)
+    if (auditLogQuery.data) {
+      setAuditLogs(auditLogQuery.data)
+      setAuditLogsLoadedAt(Date.now())
+      if (
+        selectedAuditLogId !== null &&
+        !auditLogQuery.data.some((entry) => entry.id === selectedAuditLogId)
+      ) {
+        setSelectedAuditLogId(null)
+      }
+      setAuditLogsError(null)
+    }
+    if (auditLogQuery.error) {
+      setAuditLogsError(
+        getErrorMessage(auditLogQuery.error, 'Failed to load audit logs'),
+      )
+    }
+  }, [
+    auditLogQuery.data,
+    auditLogQuery.error,
+    auditLogQuery.isFetching,
+    auditLogQuery.isLoading,
+    selectedAuditLogId,
+    setAuditLogs,
+    setAuditLogsLoadedAt,
+    setAuditLogsError,
+    setLoadingAuditLogs,
+    setSelectedAuditLogId,
+  ])
+
+  const clearLogsMutation = useMutation({
+    mutationFn: clearAuditLogsService,
+    onSuccess: () => {
+      queryClient.setQueryData(auditLogQueryKey(auditLogLimit), [])
+      setAuditLogs([])
+      setSelectedAuditLogId(null)
+      setAuditLogsLoadedAt(Date.now())
+      setAuditLogsError(null)
+    },
+    onError: (clearError) => {
+      setAuditLogsError(getErrorMessage(clearError, 'Failed to clear audit logs'))
+    },
+  })
+
+  const exportLogsMutation = useMutation({
+    mutationFn: exportAuditLogsService,
+  })
+
+  const importLogsMutation = useMutation({
+    mutationFn: importAuditLogsService,
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: auditLogQueryKey(auditLogLimit) })
+      setAuditLogsLoadedAt(Date.now())
+      return count
+    },
+  })
+
+  useEffect(() => {
+    setClearingAuditLogs(clearLogsMutation.isPending)
+  }, [clearLogsMutation.isPending, setClearingAuditLogs])
+
+  async function clearLogs() {
+    setAuditLogsError(null)
+    return clearLogsMutation
+      .mutateAsync()
+      .then(() => true)
+      .catch(() => false)
+  }
+
+  async function exportLogs(path: string) {
+    try {
+      await exportLogsMutation.mutateAsync(path)
+      return true
+    } catch (error) {
+      setAuditLogsError(getErrorMessage(error, 'Failed to export audit logs'))
+      return false
+    }
+  }
+
+  async function importLogs(path: string): Promise<number | null> {
+    try {
+      const count = await importLogsMutation.mutateAsync(path)
+      return count
+    } catch (error) {
+      setAuditLogsError(getErrorMessage(error, 'Failed to import audit logs'))
+      return null
+    }
+  }
+
+  function changeLimit(limit: number) {
+    setAuditLogLimit(limit)
+    queryClient.invalidateQueries({ queryKey: auditLogQueryKey(limit) })
+  }
+
+  const filteredLogs = useMemo(() => {
+    const nextLogs = auditLogs.filter((entry) => matchesFilters(entry, auditLogFilters))
+    const direction = auditLogFilters.sort === 'newest' ? -1 : 1
+    return [...nextLogs].sort(
+      (left, right) =>
+        direction *
+        (new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime()),
+    )
+  }, [auditLogs, auditLogFilters])
+
+  const selectedEntry = useMemo(
+    () =>
+      filteredLogs.find((entry) => entry.id === selectedAuditLogId) ??
+      filteredLogs[0] ??
+      null,
+    [filteredLogs, selectedAuditLogId],
+  )
+
+  const availableOperations = useMemo(
+    () =>
+      Array.from(new Set(auditLogs.map((entry) => entry.operation))).sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    [auditLogs],
+  )
+
+  return {
+    auditLogs,
+    filteredLogs,
+    auditLogLimit,
+    auditLogFilters,
+    selectedAuditLogId,
+    selectedEntry,
+    loadingAuditLogs,
+    clearingAuditLogs,
+    error,
+    availableOperations,
+    setAuditLogFilters,
+    setSelectedAuditLogId,
+    loadAuditLogs: () =>
+      queryClient.invalidateQueries({ queryKey: auditLogQueryKey(auditLogLimit) }),
+    clearLogs,
+    exportLogs,
+    importLogs,
+    changeLimit,
+  }
+}
