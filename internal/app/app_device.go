@@ -71,6 +71,22 @@ func (a *App) RebootDevice(serial string, mode string) (string, error) {
 	})
 }
 
+func (a *App) DiscoverWireless() ([]device.MDNSService, error) {
+	return a.wireSvc.Discover(a.ctx)
+}
+
+func (a *App) AutoConnectWireless(selector string) (device.WirelessConnectResult, error) {
+	return auditAction(a, "auto_connect_wireless", func() (device.WirelessConnectResult, error) {
+		return a.wireSvc.AutoConnect(a.ctx, selector)
+	})
+}
+
+func (a *App) PairDiscoveredWireless(selector string, code string) (device.WirelessPairResult, error) {
+	return auditAction(a, "pair_discovered_wireless", func() (device.WirelessPairResult, error) {
+		return a.wireSvc.PairDiscovered(a.ctx, selector, code)
+	})
+}
+
 func (a *App) ConnectWireless(address string) (string, error) {
 	return auditAction(a, "connect_wireless", func() (string, error) {
 		return a.wireSvc.Connect(a.ctx, address)
