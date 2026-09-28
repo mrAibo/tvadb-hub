@@ -147,8 +147,7 @@ func (s *WirelessService) PairDiscovered(ctx context.Context, selector string, c
 func parseMDNSServices(output string) []MDNSService {
 	services := make([]MDNSService, 0)
 
-	for _, rawLine := range strings.Split(output, "
-") {
+	for _, rawLine := range strings.Split(output, "\n") {
 		line := strings.TrimSpace(rawLine)
 		if line == "" || strings.HasPrefix(strings.ToLower(line), "list of discovered mdns services") {
 			continue
