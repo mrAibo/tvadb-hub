@@ -75,6 +75,10 @@ func (a *App) DiscoverWireless() ([]device.MDNSService, error) {
 	return a.wireSvc.Discover(a.ctx)
 }
 
+func (a *App) DiscoverWirelessDevices() ([]device.DiscoveredWirelessDevice, error) {
+	return a.wireSvc.DiscoverDevices(a.ctx)
+}
+
 func (a *App) AutoConnectWireless(selector string) (device.WirelessConnectResult, error) {
 	return auditAction(a, "auto_connect_wireless", func() (device.WirelessConnectResult, error) {
 		return a.wireSvc.AutoConnect(a.ctx, selector)
