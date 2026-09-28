@@ -91,6 +91,12 @@ func (a *App) PairDiscoveredWireless(selector string, code string) (device.Wirel
 	})
 }
 
+func (a *App) PairAndConnectWireless(selector string, code string) (device.WirelessPairAndConnectResult, error) {
+	return auditAction(a, "pair_and_connect_wireless", func() (device.WirelessPairAndConnectResult, error) {
+		return a.wireSvc.PairAndConnect(a.ctx, selector, code)
+	})
+}
+
 func (a *App) ConnectWireless(address string) (string, error) {
 	return auditAction(a, "connect_wireless", func() (string, error) {
 		return a.wireSvc.Connect(a.ctx, address)

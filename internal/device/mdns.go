@@ -50,6 +50,13 @@ type WirelessPairResult struct {
 	Message string      `json:"message"`
 }
 
+type WirelessPairAndConnectResult struct {
+	PairingService MDNSService `json:"pairingService"`
+	ConnectService MDNSService `json:"connectService"`
+	PairMessage    string      `json:"pairMessage"`
+	ConnectMessage string      `json:"connectMessage"`
+}
+
 // Discover asks the bundled/configured adb executable for all mDNS services.
 // It deliberately relies on adb's own mDNS implementation instead of adding a
 // second platform-specific discovery stack.
@@ -142,6 +149,81 @@ func (s *WirelessService) PairDiscovered(ctx context.Context, selector string, c
 		Service: service,
 		Message: message,
 	}, nil
+}
+
+// PairAndConnect resolves the temporary pairing port, pairs the device, waits
+// for its normal TLS connect advertisement, then connects automatically.
+// This is the backend primitive for the TV wizard where the user should only
+// have to enter the six-digit code shown on the TV.
+func (s *WirelessService) PairAndConnect(ctx context.Context, selector string, code string) (WirelessPairAndConnectResult, error) {
+	services, err := s.Discover(ctx)
+	if err != nil {
+		return WirelessPairAndConnectResult{}, err
+	}
+
+	pairingService, err := resolvePairingService(services, selector)
+	if err != nil {
+		return WirelessPairAndConnectResult{}, core.NewOperationError(
+			"pair_and_connect_wireless",
+			"could not resolve a wireless ADB pairing endpoint",
+			err.Error(),
+			true,
+		)
+	}
+
+	pairMessage, err := s.Pair(ctx, pairingService.Address, code)
+	if err != nil {
+		return WirelessPairAndConnectResult{PairingService: pairingService}, err
+	}
+
+	result := WirelessPairAndConnectResult{
+		PairingService: pairingService,
+		PairMessage:    pairMessage,
+	}
+
+	deadline := time.Now().Add(12 * time.Second)
+	lastDetail := "connect service did not appear"
+	for {
+		services, discoverErr := s.Discover(ctx)
+		if discoverErr == nil {
+			connectService, resolveErr := resolveConnectForPairing(services, pairingService)
+			if resolveErr == nil {
+				result.ConnectService = connectService
+				connectMessage, connectErr := s.Connect(ctx, connectService.Address)
+				if connectErr == nil {
+					result.ConnectMessage = connectMessage
+					return result, nil
+				}
+				lastDetail = connectErr.Error()
+			} else {
+				lastDetail = resolveErr.Error()
+			}
+		} else {
+			lastDetail = discoverErr.Error()
+		}
+
+		if time.Now().After(deadline) {
+			break
+		}
+
+		select {
+		case <-ctx.Done():
+			return result, core.NewOperationError(
+				"pair_and_connect_wireless",
+				"wireless ADB connection was cancelled",
+				ctx.Err().Error(),
+				true,
+			)
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+
+	return result, core.NewOperationError(
+		"pair_and_connect_wireless",
+		"paired successfully but could not connect to the device",
+		lastDetail,
+		true,
+	)
 }
 
 func parseMDNSServices(output string) []MDNSService {
@@ -260,6 +342,18 @@ func resolvePairingService(services []MDNSService, selector string) (MDNSService
 		}
 	}
 	return resolveMDNSService(candidates, selector, false)
+}
+
+func resolveConnectForPairing(services []MDNSService, pairing MDNSService) (MDNSService, error) {
+	if pairing.InstanceName != "" {
+		if service, err := resolveConnectService(services, pairing.InstanceName); err == nil {
+			return service, nil
+		}
+	}
+	if pairing.Host != "" {
+		return resolveConnectService(services, pairing.Host)
+	}
+	return MDNSService{}, fmt.Errorf("paired device has no usable discovery identity")
 }
 
 func resolveMDNSService(candidates []MDNSService, selector string, preferSecureConnect bool) (MDNSService, error) {

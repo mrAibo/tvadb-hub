@@ -174,3 +174,25 @@ func TestResolvePairingService_AllowsCodeOnlyWhenUnambiguous(t *testing.T) {
 		t.Fatalf("unexpected pairing endpoint: %#v", got)
 	}
 }
+
+func TestResolveConnectForPairing_PrefersInstanceThenFallsBackToHost(t *testing.T) {
+	pairing := MDNSService{
+		InstanceName: "adb-tv-pair",
+		Kind:         MDNSServicePairing,
+		Address:      "192.168.1.50:42000",
+		Host:         "192.168.1.50",
+		Port:         "42000",
+	}
+	services := []MDNSService{
+		{InstanceName: "different-connect-name", Kind: MDNSServiceConnect, Address: "192.168.1.50:43000", Host: "192.168.1.50", Port: "43000", Secure: true},
+		{InstanceName: "other-device", Kind: MDNSServiceConnect, Address: "192.168.1.60:44000", Host: "192.168.1.60", Port: "44000", Secure: true},
+	}
+
+	got, err := resolveConnectForPairing(services, pairing)
+	if err != nil {
+		t.Fatalf("resolveConnectForPairing returned error: %v", err)
+	}
+	if got.Address != "192.168.1.50:43000" {
+		t.Fatalf("expected host fallback to resolve TV connect endpoint, got %#v", got)
+	}
+}
