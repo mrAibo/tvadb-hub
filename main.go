@@ -59,8 +59,8 @@ func main() {
 
 	service := appservice.NewApp()
 	app := application.New(application.Options{
-		Name:        "TVADB Hub",
-		Description: "Automatic ADB manager for Android TV and Google TV",
+		Name:        "DroidSphere",
+		Description: "Cross-platform Android device manager powered by ADB, Fastboot and scrcpy",
 		Services: []application.Service{
 			application.NewService(service),
 		},
@@ -76,7 +76,7 @@ func main() {
 	})
 
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "TVADB Hub",
+		Title:            "DroidSphere",
 		Width:            1280,
 		Height:           800,
 		MinWidth:         1024,
