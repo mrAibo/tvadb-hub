@@ -110,3 +110,20 @@ func TestRememberedWirelessRoundTrip(t *testing.T) {
 		t.Fatalf("loaded remembered wireless = %#v, want %#v", loaded.RememberedWireless, expected.RememberedWireless)
 	}
 }
+
+
+func TestLoadConfigClampsOversizedLogcatBuffer(t *testing.T) {
+	dataDir := t.TempDir()
+	configPath := filepath.Join(dataDir, "config.json")
+	if err := os.WriteFile(configPath, []byte(`{"logcat_buffer_limit":500000}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	config, err := LoadConfig(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.LogcatBufferLimit != MaxLogcatBufferLimit {
+		t.Fatalf("buffer limit=%d want=%d", config.LogcatBufferLimit, MaxLogcatBufferLimit)
+	}
+}
