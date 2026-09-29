@@ -5,12 +5,12 @@ version: '3'
 
 # This information is used to generate the build assets.
 info:
-  companyName: "TVADB Hub contributors" # The name of the company
-  productName: "TVADB Hub" # The name of the application
-  productIdentifier: "io.github.mraibo.tvadbhub" # The unique product identifier
-  description: "Automatic ADB manager for Android TV and Google TV" # The application description
-  copyright: "Copyright (c) 2026 TVADB Hub contributors" # Copyright text
-  comments: "Android TV and Google TV ADB management desktop toolkit" # Comments
+  companyName: "DroidSphere contributors" # The name of the company
+  productName: "DroidSphere" # The name of the application
+  productIdentifier: "io.github.mraibo.droidsphere" # The unique product identifier
+  description: "Cross-platform Android device manager powered by ADB, Fastboot and scrcpy" # The application description
+  copyright: "Copyright (c) 2026 DroidSphere contributors" # Copyright text
+  comments: "Android device management, diagnostics, files, apps, tuning, Fastboot and screen tools" # Comments
   version: "0.1.0" # The application version
   # cfBundleIconName: "appicon" # The macOS icon name in Assets.car icon bundles (optional)
   #                               # Should match the name of your .icon file without the extension
