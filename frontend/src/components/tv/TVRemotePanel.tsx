@@ -8,9 +8,9 @@ import {
   IconCircleDot as Select,
   IconHome as Home,
   IconMenu2 as Menu,
+  IconMoon as Sleep,
   IconPlayerPlayFilled as PlayPause,
   IconPower as Power,
-  IconVolume as Volume,
   IconVolume2 as VolumeUp,
   IconVolume3 as Mute,
   IconVolumeOff as VolumeDown,
@@ -131,7 +131,7 @@ export function TVRemotePanel({ serial }: TVRemotePanelProps) {
           <RemoteButton label="Volume up" remoteKey="volume_up" busyKey={busyKey} onPress={press} icon={VolumeUp} />
           <RemoteButton label="Volume down" remoteKey="volume_down" busyKey={busyKey} onPress={press} icon={VolumeDown} />
           <RemoteButton label="Mute" remoteKey="mute" busyKey={busyKey} onPress={press} icon={Mute} />
-          <RemoteButton label="Sleep" remoteKey="sleep" busyKey={busyKey} onPress={press} icon={Volume} />
+          <RemoteButton label="Sleep" remoteKey="sleep" busyKey={busyKey} onPress={press} icon={Sleep} />
         </div>
       </CardContent>
     </Card>
