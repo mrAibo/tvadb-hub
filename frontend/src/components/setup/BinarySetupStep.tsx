@@ -78,7 +78,7 @@ export function BinarySetupStep() {
         }}
       >
         <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-[1.6rem]">
-          Set up the binaries ADBKit needs.
+          Set up the Android tools DroidSphere needs.
         </h1>
         <p className="max-w-xl text-sm leading-6 text-muted-foreground">
           Scan the host first, then link or download ADB, Fastboot, and Scrcpy from one workspace.
