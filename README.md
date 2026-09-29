@@ -26,13 +26,19 @@ endpoint, not as the identity of the TV.
 
 - ADBKit v2.0.0 source baseline imported.
 - Upstream MIT license preserved.
-- ADB mDNS parser implemented.
-- Automatic pairing/connect endpoint resolution implemented.
+- ADB mDNS discovery and automatic dynamic pairing/connect endpoint resolution.
+- One-code pairing flow: enter the six-digit TV code; TVADB Hub resolves both ports.
 - TLS connect preferred over legacy ADB on the same host.
 - Ambiguous multi-device discovery is rejected instead of connecting randomly.
+- Successfully connected TVs are remembered and reconnected automatically.
+- Background recovery follows changed dynamic ports and can survive an IP change
+  when the remembered mDNS identity is still advertised.
+- Built-in Wireless ADB diagnostics check Platform Tools, mDNS, TCP reachability,
+  endpoint type, target selection, and current ADB state.
 - Parser/resolver tests include the real Google TV discovery output used during
   initial development.
-- Pull-request CI validates frontend checks and Go tests.
+- Pull-request CI validates frontend checks and Go tests; a Windows portable
+  build is generated as a workflow artifact.
 
 ## Planned TV workflow
 
@@ -59,13 +65,12 @@ discover pairing service
 
 ## Next milestones
 
-1. Stable logical TV model and remembered-device selection.
-2. Connection state machine and automatic reconnect/recovery.
-3. TV dashboard and pairing wizard.
-4. Connection diagnostics and Platform Tools version checks.
-5. APK install/update/downgrade and split-APK workflow.
-6. TV remote controls, screenshots, scrcpy, files, shell and logcat presets.
-7. Windows portable build and installer branded as TVADB Hub.
+1. Enrich remembered TVs with Android properties after connection for a stronger
+   identity than host/mDNS alone.
+2. TV dashboard and remote-control surface.
+3. APK install/update/downgrade and split-APK workflow.
+4. TV-specific screenshots, scrcpy, files, shell and logcat presets.
+5. Production Windows installer and release automation.
 
 See [docs/architecture/wireless.md](docs/architecture/wireless.md) for the
 wireless discovery design.
