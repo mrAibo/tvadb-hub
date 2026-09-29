@@ -1,24 +1,24 @@
-name: adbkit
+name: droidsphere
 arch: ${GOARCH}
 platform: linux
-version: "2.0.0"
+version: "0.1.0"
 section: utils
 priority: optional
-maintainer: "Drenzzz <realdrenzzz@gmail.com>"
-description: "Modern desktop toolkit for ADB, Fastboot, and scrcpy"
-vendor: "Drenzzz"
-homepage: "https://github.com/drenzzz/ADBKit"
+maintainer: "DroidSphere contributors"
+description: "Cross-platform Android device manager powered by ADB, Fastboot and scrcpy"
+vendor: "DroidSphere contributors"
+homepage: "https://github.com/mrAibo/tvadb-hub"
 license: "MIT"
 provides:
-  - adbkit
+  - droidsphere
 
 contents:
-  - src: "./bin/ADBKit"
-    dst: /usr/bin/ADBKit
-  - src: "./build/linux/ADBKit.desktop"
-    dst: /usr/share/applications/ADBKit.desktop
+  - src: "./bin/DroidSphere"
+    dst: /usr/bin/DroidSphere
+  - src: "./build/linux/DroidSphere.desktop"
+    dst: /usr/share/applications/DroidSphere.desktop
   - src: "./build/appicon.png"
-    dst: /usr/share/icons/hicolor/256x256/apps/ADBKit.png
+    dst: /usr/share/icons/hicolor/256x256/apps/DroidSphere.png
 
 depends:
   - libgtk-4-1
