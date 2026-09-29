@@ -1,6 +1,6 @@
 # Physical Google TV validation
 
-This checklist is the final manual gate before a TVADB Hub Windows release.
+This checklist is the final manual gate before a DroidSphere Windows release.
 Automated CI can verify the application and Windows packaging, but it cannot
 prove behavior against a real Android/Google TV on a home network.
 
@@ -9,7 +9,7 @@ prove behavior against a real Android/Google TV on a home network.
 - Windows PC and TV are on the same LAN.
 - Developer options are enabled on the TV.
 - Wireless debugging is enabled.
-- TVADB Hub uses a current managed or selected ADB binary.
+- DroidSphere uses a current managed or selected ADB binary.
 - For a first-time connection, keep the TV pairing-code screen open.
 
 ## 1. Discovery and first pairing
@@ -20,7 +20,7 @@ prove behavior against a real Android/Google TV on a home network.
    endpoint.
 4. Enter only the six-digit pairing code.
 5. Confirm pairing succeeds.
-6. Confirm TVADB Hub then connects to the separate
+6. Confirm DroidSphere then connects to the separate
    `_adb-tls-connect._tcp` endpoint.
 7. Confirm the connected device enters the ready state.
 
@@ -29,9 +29,9 @@ connect port.
 
 ## 2. Reconnect
 
-1. Close TVADB Hub.
+1. Close DroidSphere.
 2. Restart Wireless debugging on the TV so the dynamic port can change.
-3. Start TVADB Hub again.
+3. Start DroidSphere again.
 4. Confirm the remembered TV is rediscovered and reconnects with the new port.
 5. Use the reconnect UI to confirm the remembered-device state and last-seen
    information are sensible.
