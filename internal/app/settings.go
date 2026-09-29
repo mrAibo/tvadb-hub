@@ -120,6 +120,14 @@ func (a *App) UpdatePreferences(payload core.PreferencesPayload) (core.AppConfig
 		a.cfg.DeviceNicknames = cloneStringMap(payload.DeviceNicknames)
 	}
 	if payload.LogcatBufferLimit > 0 {
+		if payload.LogcatBufferLimit < core.MinLogcatBufferLimit || payload.LogcatBufferLimit > core.MaxLogcatBufferLimit {
+			return core.AppConfigSnapshot{}, core.NewOperationError(
+				"update_preferences",
+				"logcat buffer limit is out of range",
+				fmt.Sprintf("allowed range is %d..%d entries", core.MinLogcatBufferLimit, core.MaxLogcatBufferLimit),
+				false,
+			)
+		}
 		a.cfg.LogcatBufferLimit = payload.LogcatBufferLimit
 	}
 	if payload.ScrcpyPresets != nil {
