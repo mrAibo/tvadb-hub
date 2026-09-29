@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { BottomDock } from './BottomDock'
+import { CurrentPlusTopBar } from './CurrentPlusTopBar'
 import { SetupWizard } from '@/components/setup/SetupWizard'
 import { getSetupState } from '@/services/binaryService'
 import { getAppConfig } from '@/services/settingsService'
@@ -83,9 +84,10 @@ export function AppShell() {
     <>
       <DeviceSync />
       <div data-file-drop-target="app" className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+        <CurrentPlusTopBar />
         <main className="flex-1 min-h-0 flex flex-col">
           <div className={cn(
-            "flex-1 min-h-0 w-full flex flex-col p-6 pb-24",
+            "flex-1 min-h-0 w-full flex flex-col px-6 pt-4 pb-24",
             isNoGlobalScroll ? "overflow-hidden" : "overflow-y-auto"
           )}>
             <Outlet />
