@@ -30,7 +30,7 @@ func runWithPTY(ctx context.Context, command string, args []string, onLine func(
 		select {
 		case <-ctx.Done():
 			if cmd.Process != nil {
-				_ = cmd.Process.Kill()
+				_ = TerminateProcessTree(cmd)
 			}
 		case <-done:
 		}
