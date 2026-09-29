@@ -81,7 +81,14 @@ func (a *App) DiscoverWirelessDevices() ([]device.DiscoveredWirelessDevice, erro
 
 func (a *App) AutoConnectWireless(selector string) (device.WirelessConnectResult, error) {
 	return auditAction(a, "auto_connect_wireless", func() (device.WirelessConnectResult, error) {
-		return a.wireSvc.AutoConnect(a.ctx, selector)
+		result, err := a.wireSvc.AutoConnect(a.ctx, selector)
+		if err != nil {
+			return result, err
+		}
+		if err := a.rememberWirelessService(result.Service); err != nil {
+			return result, err
+		}
+		return result, nil
 	})
 }
 
@@ -93,7 +100,14 @@ func (a *App) PairDiscoveredWireless(selector string, code string) (device.Wirel
 
 func (a *App) PairAndConnectWireless(selector string, code string) (device.WirelessPairAndConnectResult, error) {
 	return auditAction(a, "pair_and_connect_wireless", func() (device.WirelessPairAndConnectResult, error) {
-		return a.wireSvc.PairAndConnect(a.ctx, selector, code)
+		result, err := a.wireSvc.PairAndConnect(a.ctx, selector, code)
+		if err != nil {
+			return result, err
+		}
+		if err := a.rememberWirelessService(result.ConnectService); err != nil {
+			return result, err
+		}
+		return result, nil
 	})
 }
 

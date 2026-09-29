@@ -16,6 +16,7 @@ type AppConfig struct {
 	BinaryVersions       map[string]string      `json:"binary_versions"`
 	DeviceNicknames      map[string]string      `json:"device_nicknames"`
 	WirelessHistory      []WirelessHistoryEntry `json:"wireless_history"`
+	RememberedWireless   []RememberedWirelessDevice `json:"remembered_wireless"`
 	LogcatBufferLimit    int                    `json:"logcat_buffer_limit"`
 	ScrcpyOptions        ScrcpyOptions          `json:"scrcpy_options"`
 	ScrcpyPresets        []ScrcpyPreset         `json:"scrcpy_presets"`
@@ -28,6 +29,15 @@ type AppConfig struct {
 type WirelessHistoryEntry struct {
 	Address string `json:"address"`
 	Name    string `json:"name"`
+}
+
+type RememberedWirelessDevice struct {
+	Key          string `json:"key"`
+	InstanceName string `json:"instance_name,omitempty"`
+	Host         string `json:"host"`
+	LastAddress  string `json:"last_address,omitempty"`
+	Name         string `json:"name,omitempty"`
+	AutoConnect  bool   `json:"auto_connect"`
 }
 
 const (
@@ -46,6 +56,7 @@ func DefaultConfig() *AppConfig {
 		BinaryVersions:       make(map[string]string),
 		DeviceNicknames:      make(map[string]string),
 		WirelessHistory:      []WirelessHistoryEntry{},
+		RememberedWireless:   []RememberedWirelessDevice{},
 		LogcatBufferLimit:    DefaultLogcatBufferLimit,
 		ScrcpyOptions:        DefaultScrcpyOptions(),
 		ScrcpyPresets:        []ScrcpyPreset{},
@@ -81,6 +92,9 @@ func LoadConfig(dataDir string) (*AppConfig, error) {
 	}
 	if cfg.WirelessHistory == nil {
 		cfg.WirelessHistory = []WirelessHistoryEntry{}
+	}
+	if cfg.RememberedWireless == nil {
+		cfg.RememberedWireless = []RememberedWirelessDevice{}
 	}
 	if cfg.LogcatBufferLimit <= 0 {
 		cfg.LogcatBufferLimit = DefaultLogcatBufferLimit

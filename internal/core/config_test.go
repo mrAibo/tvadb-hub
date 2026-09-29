@@ -78,3 +78,30 @@ func TestWirelessHistoryRoundTrip(t *testing.T) {
 		t.Fatalf("loaded wireless history = %#v, want %#v", loaded.WirelessHistory, expected.WirelessHistory)
 	}
 }
+
+func TestRememberedWirelessRoundTrip(t *testing.T) {
+	dataDir := t.TempDir()
+	expected := DefaultConfig()
+	expected.RememberedWireless = []RememberedWirelessDevice{
+		{
+			Key:          "adb-tv-123",
+			InstanceName: "adb-tv-123",
+			Host:         "192.168.1.20",
+			LastAddress:  "192.168.1.20:42001",
+			Name:         "Living room TV",
+			AutoConnect:  true,
+		},
+	}
+
+	if err := SaveConfig(dataDir, expected); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, err := LoadConfig(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(loaded.RememberedWireless, expected.RememberedWireless) {
+		t.Fatalf("loaded remembered wireless = %#v, want %#v", loaded.RememberedWireless, expected.RememberedWireless)
+	}
+}
