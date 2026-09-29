@@ -1,3 +1,4 @@
+import { Call as WailsCall } from '@wailsio/runtime'
 import {
   GetDevices,
   GetActiveSerial,
@@ -34,6 +35,7 @@ import type {
   WirelessConnectResult,
   WirelessPairAndConnectResult,
   WirelessDiagnosticsReport,
+  TVRemoteKey,
 } from '@/lib/types'
 
 export async function getDevices(): Promise<DeviceSummary[]> {
@@ -64,6 +66,18 @@ export async function rebootDevice(
   mode: string = 'system',
 ): Promise<string> {
   return RebootDevice(serial ?? '', mode)
+}
+
+export async function sendTVRemoteKey(
+  key: TVRemoteKey,
+  serial?: string,
+): Promise<string> {
+  const result = await WailsCall.ByName(
+    'ADBKit/internal/app.App.SendTVRemoteKey',
+    serial ?? '',
+    key,
+  )
+  return String(result ?? '')
 }
 
 export async function connectWireless(address: string): Promise<string> {

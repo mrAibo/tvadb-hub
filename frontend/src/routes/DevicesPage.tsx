@@ -14,6 +14,7 @@ import { PerformancePanel } from '@/components/devices/PerformancePanel'
 import { RenameDialog } from '@/components/devices/RenameDialog'
 import { DeviceSidebar } from '@/components/devices/DeviceSidebar'
 import { SidebarStatusPanel } from '@/components/devices/SidebarStatusPanel'
+import { TVRemotePanel } from '@/components/tv/TVRemotePanel'
 import { useDevices } from '@/hooks/useDevices'
 import { useMonitor } from '@/hooks/useMonitor'
 
@@ -97,6 +98,7 @@ export default function DevicesPage() {
               {/* Left 2 Columns */}
               <motion.div variants={itemVariants(reduced)} className="lg:col-span-2 flex flex-col gap-5">
                 <DeviceActions />
+                {isOnline && activeSerial && <TVRemotePanel serial={activeSerial} />}
                 {isOnline && (
                   <>
                     <PerformancePanel snapshot={snapshot} error={monitorError} />

@@ -18,7 +18,7 @@
 
 - [x] Enrich remembered identity with Android properties after connect
 - [ ] TV-oriented dashboard
-- [ ] Remote control: D-pad, Home, Back, volume, power/wake
+- [x] Remote control: D-pad, Home, Back, volume, power/wake
 - [ ] TV-focused device information
 - [ ] Reconnect state/history UI
 
