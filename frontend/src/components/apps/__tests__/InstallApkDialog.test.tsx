@@ -12,14 +12,14 @@ describe('InstallApkDialog', () => {
         onOpenChange={() => {}}
         onInstall={onInstall}
         onSelectFile={async () => ''}
-        initialFilePath="C:\\apps\\demo.apk"
+        initialFilePath="C:/apps/demo.apk"
       />,
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Install Now' }))
 
     await waitFor(() => {
-      expect(onInstall).toHaveBeenCalledWith('C:\\apps\\demo.apk', 'replace')
+      expect(onInstall).toHaveBeenCalledWith('C:/apps/demo.apk', 'replace')
     })
   })
 
@@ -32,7 +32,7 @@ describe('InstallApkDialog', () => {
         onOpenChange={() => {}}
         onInstall={onInstall}
         onSelectFile={async () => ''}
-        initialFilePath="C:\\apps\\demo.apk"
+        initialFilePath="C:/apps/demo.apk"
       />,
     )
 
@@ -40,7 +40,7 @@ describe('InstallApkDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Install Now' }))
 
     await waitFor(() => {
-      expect(onInstall).toHaveBeenCalledWith('C:\\apps\\demo.apk', 'downgrade')
+      expect(onInstall).toHaveBeenCalledWith('C:/apps/demo.apk', 'downgrade')
     })
   })
 })

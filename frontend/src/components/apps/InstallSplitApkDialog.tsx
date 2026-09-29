@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  IconBoxMultiple as BoxMultiple,
+  IconBox as PackageBox,
   IconCircleCheck as CheckCircle2,
   IconCircleXFilled as XCircle,
   IconLoader2 as Loader2,
@@ -32,7 +32,7 @@ export function InstallSplitApkDialog({
   onOpenChange,
   onInstall,
   onSelectFiles,
-  initialFilePaths = [],
+  initialFilePaths,
 }: InstallSplitApkDialogProps) {
   const [filePaths, setFilePaths] = useState<string[]>([])
   const [installMode, setInstallMode] = useState<PackageInstallMode>('replace')
@@ -41,7 +41,7 @@ export function InstallSplitApkDialog({
 
   useEffect(() => {
     if (!open) return
-    setFilePaths(initialFilePaths)
+    setFilePaths(initialFilePaths ?? [])
     setInstallMode('replace')
     setStatus('idle')
     setErrorMessage('')
@@ -110,7 +110,7 @@ export function InstallSplitApkDialog({
                 onClick={browse}
                 disabled={status === 'installing'}
               >
-                <BoxMultiple className="mr-1.5 h-3.5 w-3.5" />
+                <PackageBox className="mr-1.5 h-3.5 w-3.5" />
                 Select APKs
               </Button>
             </div>
@@ -233,7 +233,9 @@ export function InstallSplitApkDialog({
                 disabled={filePaths.length < 2 || status === 'installing'}
                 onClick={install}
               >
-                Install {filePaths.length > 0 ? `${filePaths.length} APKs` : 'APKs'}
+                {filePaths.length === 0
+                  ? 'Install APKs'
+                  : `Install ${filePaths.length} APK${filePaths.length === 1 ? '' : 's'}`}
               </Button>
             </>
           )}

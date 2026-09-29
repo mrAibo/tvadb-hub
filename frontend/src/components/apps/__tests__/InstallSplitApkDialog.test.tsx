@@ -6,8 +6,8 @@ describe('InstallSplitApkDialog', () => {
   it('installs all selected APKs in replace mode by default', async () => {
     const onInstall = vi.fn().mockResolvedValue(true)
     const paths = [
-      'C:\\apks\\base.apk',
-      'C:\\apks\\split_config.arm64_v8a.apk',
+      'C:/apks/base.apk',
+      'C:/apks/split_config.arm64_v8a.apk',
     ]
 
     render(
@@ -34,10 +34,10 @@ describe('InstallSplitApkDialog', () => {
         onOpenChange={() => {}}
         onInstall={vi.fn().mockResolvedValue(true)}
         onSelectFiles={async () => []}
-        initialFilePaths={['C:\\apks\\base.apk']}
+        initialFilePaths={['C:/apks/base.apk']}
       />,
     )
 
-    expect(screen.getByRole('button', { name: 'Install 1 APKs' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Install 1 APK' })).toBeDisabled()
   })
 })

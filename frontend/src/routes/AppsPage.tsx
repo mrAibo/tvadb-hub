@@ -5,7 +5,6 @@ import {
   IconRefresh as RefreshCw,
   IconBox as Package,
   IconUpload as Upload,
-  IconBoxMultiple as BoxMultiple,
   IconLoader2 as Loader2,
   IconArrowsSort as ArrowUpDown
 } from "@tabler/icons-react"
@@ -253,7 +252,7 @@ export default function AppsPage() {
               onClick={() => setSplitDialogOpen(true)}
               disabled={appManager.installing}
             >
-              <BoxMultiple className="h-3.5 w-3.5" />
+              <Package className="h-3.5 w-3.5" />
               Split APKs
             </Button>
           </motion.div>
