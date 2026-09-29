@@ -1,0 +1,186 @@
+name: Build Distribution Packages
+
+on:
+  push:
+    branches: [feat/connection-doctor]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: droidsphere-distribution-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[distribution]')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+      - name: Install Wails CLI
+        shell: pwsh
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          $nsisPath = Join-Path ${env:ProgramFiles(x86)} "NSIS"
+          if (-not (Test-Path (Join-Path $nsisPath "makensis.exe"))) {
+            winget install --id NSIS.NSIS --exact --silent --accept-package-agreements --accept-source-agreements
+          }
+          $nsisPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+      - name: Build Windows portable executable and installer
+        shell: pwsh
+        run: wails3 package GOOS=windows
+      - name: Canonical Windows filenames
+        shell: bash
+        run: bash scripts/rename-release-assets.sh windows
+      - name: Upload Windows distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: droidsphere-dist-windows
+          path: |
+            bin/DroidSphere-*-windows-amd64.exe
+            bin/DroidSphere-*-windows-amd64-installer.exe
+          if-no-files-found: error
+
+  linux:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[distribution]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libfuse2
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+      - name: Build AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: wails3 task linux:create:appimage
+      - name: Build DEB
+        run: wails3 task linux:create:deb
+      - name: Canonical Linux filenames
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(awk '/^VERSION :=/ {print $3; exit}' Makefile)"
+          APPIMAGE="$(find bin -maxdepth 1 -type f -name '*.AppImage' | head -n 1)"
+          DEB="$(find bin -maxdepth 1 -type f -name '*.deb' | head -n 1)"
+          test -n "$APPIMAGE"
+          test -n "$DEB"
+          if [ "$APPIMAGE" != "bin/DroidSphere-$VERSION-linux-amd64.AppImage" ]; then
+            cp "$APPIMAGE" "bin/DroidSphere-$VERSION-linux-amd64.AppImage"
+          fi
+          if [ "$DEB" != "bin/DroidSphere-$VERSION-linux-amd64.deb" ]; then
+            cp "$DEB" "bin/DroidSphere-$VERSION-linux-amd64.deb"
+          fi
+          chmod +x "bin/DroidSphere-$VERSION-linux-amd64.AppImage"
+      - name: Upload Linux distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: droidsphere-dist-linux
+          path: |
+            bin/DroidSphere-*-linux-amd64.AppImage
+            bin/DroidSphere-*-linux-amd64.deb
+          if-no-files-found: error
+
+  macos:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[distribution]')
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+      - name: Verify Xcode Command Line Tools
+        run: xcode-select -p
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+      - name: Build universal macOS app bundle
+        run: wails3 task darwin:package:universal
+      - name: Verify universal binary and archive app
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(awk '/^VERSION :=/ {print $3; exit}' Makefile)"
+          lipo -info bin/DroidSphere.app/Contents/MacOS/DroidSphere
+          ditto -c -k --sequesterRsrc --keepParent             bin/DroidSphere.app             "bin/DroidSphere-$VERSION-macos-universal.zip"
+      - name: Upload macOS distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: droidsphere-dist-macos
+          path: bin/DroidSphere-*-macos-universal.zip
+          if-no-files-found: error
+
+  collect:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[distribution]')
+    needs: [windows, linux, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download all platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: droidsphere-dist-*
+          path: _distribution
+          merge-multiple: true
+      - name: Populate distribution directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf distribution/windows distribution/linux distribution/macos
+          mkdir -p distribution/windows distribution/linux distribution/macos
+
+          cp _distribution/*windows-amd64*.exe distribution/windows/
+          cp _distribution/*linux-amd64.AppImage distribution/linux/
+          cp _distribution/*linux-amd64.deb distribution/linux/
+          cp _distribution/*macos-universal.zip distribution/macos/
+
+          chmod +x distribution/linux/*.AppImage
+
+          find distribution -type f ! -name SHA256SUMS.txt -print0             | sort -z             | xargs -0 sha256sum > distribution/SHA256SUMS.txt
+
+          echo "Distribution contents:"
+          find distribution -maxdepth 2 -type f -printf '%p %s bytes\n' | sort
+      - name: Upload complete distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: droidsphere-complete-distribution
+          path: distribution/
+          if-no-files-found: error
+      - name: Commit packages to distribution
+        if: github.ref_name == 'feat/connection-doctor'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f distribution
+          if git diff --cached --quiet; then
+            echo "Distribution is already current."
+            exit 0
+          fi
+          git commit -m "chore(distribution): add DroidSphere multi-platform packages [distribution]"
+          git push origin HEAD:feat/connection-doctor
