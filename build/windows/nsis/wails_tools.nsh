@@ -5,19 +5,19 @@
 !include "FileFunc.nsh"
 
 !ifndef INFO_PROJECTNAME
-    !define INFO_PROJECTNAME "ADBKit"
+    !define INFO_PROJECTNAME "TVADB-Hub"
 !endif
 !ifndef INFO_COMPANYNAME
-    !define INFO_COMPANYNAME "Drenzzz"
+    !define INFO_COMPANYNAME "TVADB Hub contributors"
 !endif
 !ifndef INFO_PRODUCTNAME
-    !define INFO_PRODUCTNAME "ADBKit"
+    !define INFO_PRODUCTNAME "TVADB Hub"
 !endif
 !ifndef INFO_PRODUCTVERSION
-    !define INFO_PRODUCTVERSION "2.0.0"
+    !define INFO_PRODUCTVERSION "0.1.0"
 !endif
 !ifndef INFO_COPYRIGHT
-    !define INFO_COPYRIGHT "(c) 2026, Drenzzz"
+    !define INFO_COPYRIGHT "Copyright (c) 2026 TVADB Hub contributors"
 !endif
 !ifndef PRODUCT_EXECUTABLE
     !define PRODUCT_EXECUTABLE "${INFO_PROJECTNAME}.exe"

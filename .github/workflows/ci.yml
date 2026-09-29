@@ -64,12 +64,33 @@ jobs:
       - name: Install Wails CLI
         shell: pwsh
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
-      - name: Build TVADB Hub for Windows
+      - name: Install NSIS
         shell: pwsh
-        run: wails3 build GOOS=windows
-      - name: Upload Windows portable build
+        run: |
+          $nsisPath = Join-Path ${env:ProgramFiles(x86)} "NSIS"
+          if (-not (Test-Path (Join-Path $nsisPath "makensis.exe"))) {
+            winget install --id NSIS.NSIS --exact --silent --accept-package-agreements --accept-source-agreements
+          }
+          if (-not (Test-Path (Join-Path $nsisPath "makensis.exe"))) {
+            throw "NSIS installation completed but makensis.exe was not found at $nsisPath."
+          }
+          $env:Path = "$nsisPath;$env:Path"
+          $nsisPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $nsisPath "makensis.exe") /VERSION
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+      - name: Build Windows executable and installer
+        shell: pwsh
+        run: wails3 package GOOS=windows
+      - name: Rename Windows CI assets
+        shell: bash
+        run: bash scripts/rename-release-assets.sh windows
+      - name: Upload Windows portable build and installer
         uses: actions/upload-artifact@v4
         with:
           name: tvadb-hub-windows-amd64
-          path: bin/TVADB-Hub.exe
+          path: |
+            bin/TVADB-Hub-*-windows-amd64.exe
+            bin/TVADB-Hub-*-windows-amd64-installer.exe
           if-no-files-found: error

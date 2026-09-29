@@ -1,0 +1,213 @@
+name: Windows Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tvadb-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows-release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+
+      - name: Resolve and validate release version
+        id: version
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          $makeLine = Select-String -Path Makefile -Pattern '^VERSION :=\s*(\d+\.\d+\.\d+)\s*$'
+          if (-not $makeLine) {
+            throw "Makefile VERSION must be a stable three-part version (for example 0.1.0)."
+          }
+          $version = $makeLine.Matches[0].Groups[1].Value
+
+          $configLine = Select-String -Path build/config.yml -Pattern '^\s*version:\s*"?(\d+\.\d+\.\d+)"?\s*$'
+          if (-not $configLine) {
+            throw "build/config.yml version is missing or not a stable three-part version."
+          }
+          $configVersion = $configLine.Matches[0].Groups[1].Value
+          if ($configVersion -ne $version) {
+            throw "Version mismatch: Makefile=$version, build/config.yml=$configVersion"
+          }
+
+          $tag = "v$version"
+          if ($env:EVENT_NAME -eq "push" -and $env:REF_NAME -ne $tag) {
+            throw "Tag '$($env:REF_NAME)' does not match project version '$tag'."
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Install Wails CLI
+        shell: pwsh
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          $nsisPath = Join-Path ${env:ProgramFiles(x86)} "NSIS"
+          if (-not (Test-Path (Join-Path $nsisPath "makensis.exe"))) {
+            winget install --id NSIS.NSIS --exact --silent --accept-package-agreements --accept-source-agreements
+          }
+          if (-not (Test-Path (Join-Path $nsisPath "makensis.exe"))) {
+            throw "NSIS installation completed but makensis.exe was not found at $nsisPath."
+          }
+          $env:Path = "$nsisPath;$env:Path"
+          $nsisPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $nsisPath "makensis.exe") /VERSION
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+
+      - name: Verify frontend
+        working-directory: frontend
+        run: |
+          bun run lint
+          bun run typecheck
+          bun run test
+          bun run build
+
+      - name: Run Go tests
+        run: go test ./...
+
+      - name: Build Windows executable and NSIS installer
+        shell: pwsh
+        run: wails3 package GOOS=windows
+
+      - name: Optionally sign Windows executable and installer
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+          WINDOWS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERTIFICATE_BASE64) -or
+              [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERTIFICATE_PASSWORD)) {
+            Write-Host "Windows signing secrets are not configured; release assets will be unsigned."
+            exit 0
+          }
+
+          $certificatePath = Join-Path $env:RUNNER_TEMP "tvadb-hub-signing.pfx"
+          $binaryPath = Join-Path $env:GITHUB_WORKSPACE "bin\TVADB-Hub.exe"
+          $installerPath = Join-Path $env:GITHUB_WORKSPACE "bin\TVADB-Hub-amd64-installer.exe"
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse |
+            Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+
+          if (-not $signtool) {
+            throw "signtool.exe was not found on the Windows runner."
+          }
+
+          $timestampUrl = $env:WINDOWS_TIMESTAMP_URL
+          if ([string]::IsNullOrWhiteSpace($timestampUrl)) {
+            $timestampUrl = "http://timestamp.digicert.com"
+          }
+
+          try {
+            [IO.File]::WriteAllBytes(
+              $certificatePath,
+              [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERTIFICATE_BASE64)
+            )
+
+            & $signtool.FullName sign /fd SHA256 /f $certificatePath /p $env:WINDOWS_SIGNING_CERTIFICATE_PASSWORD /tr $timestampUrl /td SHA256 $binaryPath
+            if ($LASTEXITCODE -ne 0) { throw "Executable signing failed." }
+
+            Remove-Item -Force -ErrorAction SilentlyContinue $installerPath
+            Push-Location "build\windows\nsis"
+            try {
+              & makensis "-DWAILS_INSTALL_SCOPE=user" "-DREQUEST_EXECUTION_LEVEL=user" "-DARG_WAILS_AMD64_BINARY=$binaryPath" project.nsi
+              if ($LASTEXITCODE -ne 0) { throw "NSIS repackaging failed." }
+            }
+            finally {
+              Pop-Location
+            }
+
+            & $signtool.FullName sign /fd SHA256 /f $certificatePath /p $env:WINDOWS_SIGNING_CERTIFICATE_PASSWORD /tr $timestampUrl /td SHA256 $installerPath
+            if ($LASTEXITCODE -ne 0) { throw "Installer signing failed." }
+
+            & $signtool.FullName verify /pa /all $binaryPath
+            if ($LASTEXITCODE -ne 0) { throw "Executable signature verification failed." }
+            & $signtool.FullName verify /pa /all $installerPath
+            if ($LASTEXITCODE -ne 0) { throw "Installer signature verification failed." }
+          }
+          finally {
+            Remove-Item -Force -ErrorAction SilentlyContinue $certificatePath
+          }
+
+      - name: Rename release assets
+        shell: bash
+        run: bash scripts/rename-release-assets.sh windows
+
+      - name: Generate SHA256 checksums
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $portable = "bin\TVADB-Hub-$env:VERSION-windows-amd64.exe"
+          $installer = "bin\TVADB-Hub-$env:VERSION-windows-amd64-installer.exe"
+          foreach ($path in @($portable, $installer)) {
+            if (-not (Test-Path $path)) {
+              throw "Expected release asset is missing: $path"
+            }
+          }
+
+          $lines = foreach ($path in @($portable, $installer)) {
+            $hash = (Get-FileHash -Algorithm SHA256 $path).Hash.ToLowerInvariant()
+            "$hash *$(Split-Path -Leaf $path)"
+          }
+          $lines | Set-Content -Encoding ascii "bin\SHA256SUMS.txt"
+
+      - name: Upload release build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tvadb-hub-${{ steps.version.outputs.version }}-windows-amd64
+          path: |
+            bin/TVADB-Hub-${{ steps.version.outputs.version }}-windows-amd64.exe
+            bin/TVADB-Hub-${{ steps.version.outputs.version }}-windows-amd64-installer.exe
+            bin/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $assets = @(
+            "bin\TVADB-Hub-$env:VERSION-windows-amd64.exe",
+            "bin\TVADB-Hub-$env:VERSION-windows-amd64-installer.exe",
+            "bin\SHA256SUMS.txt"
+          )
+
+          gh release view $env:RELEASE_TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:RELEASE_TAG @assets --clobber
+            if ($LASTEXITCODE -ne 0) { throw "Failed to upload release assets." }
+          }
+          else {
+            gh release create $env:RELEASE_TAG @assets --target $env:GITHUB_SHA --title "TVADB Hub $env:RELEASE_TAG" --generate-notes
+            if ($LASTEXITCODE -ne 0) { throw "Failed to create GitHub Release." }
+          }
