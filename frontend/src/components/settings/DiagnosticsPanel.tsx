@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { getRuntimeRuntime Diagnostics } from '@/services/settingsService'
+import { getRuntimeDiagnostics } from '@/services/settingsService'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -55,10 +55,10 @@ function Capabilities({ capabilities }: { capabilities: Record<string, boolean> 
   )
 }
 
-export function Runtime DiagnosticsPanel() {
+export function DiagnosticsPanel() {
   const query = useQuery({
     queryKey: ['settings', 'runtime-diagnostics'],
-    queryFn: getRuntimeRuntime Diagnostics,
+    queryFn: getRuntimeDiagnostics,
   })
 
   if (query.isLoading) {
