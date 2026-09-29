@@ -82,7 +82,7 @@ export function ToolLocationsSummary({
         path: managedDir ?? '',
         ready: Boolean(managedDir),
         version: '—',
-        source: 'TVADB Hub data',
+        source: 'DroidSphere data',
       },
     ],
     [adb, fastboot, scrcpy, managedDir],
@@ -116,7 +116,7 @@ export function ToolLocationsSummary({
         <div>
           <p className="text-xs font-semibold text-foreground">Tool locations</p>
           <p className="text-[11px] text-muted-foreground">
-            Exact executables and directories TVADB Hub is using on this computer.
+            Exact executables and directories DroidSphere is using on this computer.
           </p>
         </div>
       </div>
