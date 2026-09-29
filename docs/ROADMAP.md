@@ -33,7 +33,7 @@
 ## 0.4 — Debug and screen tools
 
 - [ ] TV presets for scrcpy
-- [ ] Screenshot workflow
+- [x] Screenshot workflow
 - [ ] Logcat presets and export
 - [ ] Shell shortcuts
 - [ ] File push/pull

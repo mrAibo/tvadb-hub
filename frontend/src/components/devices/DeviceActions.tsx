@@ -6,11 +6,13 @@ import {
   IconRefresh as RefreshCw,
   IconArrowRight as ArrowRight,
   IconLoader2 as Loader2,
-  IconWifiOff as WifiOff
+  IconWifiOff as WifiOff,
+  IconCamera as Camera
 } from "@tabler/icons-react"
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { rebootDevice, disconnectWireless } from '@/services/deviceService'
+import { captureScreenshot, rebootDevice, disconnectWireless } from '@/services/deviceService'
+import { selectSaveFile } from '@/services/binaryService'
 import { useDevices } from '@/hooks/useDevices'
 import { toast } from 'sonner'
 import type { DeviceState } from '@/lib/types'
@@ -77,6 +79,7 @@ export function DeviceActions() {
   const { activeSerial, deviceInfo, refreshing, refreshDevices } = useDevices()
   const [rebooting, setRebooting] = useState<string | null>(null)
   const [confirmMode, setConfirmMode] = useState<string | null>(null)
+  const [capturingScreenshot, setCapturingScreenshot] = useState(false)
 
   const state = deviceInfo?.state ?? 'unknown'
   const options = getOptionsForState(state)
@@ -96,6 +99,26 @@ export function DeviceActions() {
     } finally {
       setRebooting(null)
       setConfirmMode(null)
+    }
+  }
+
+  const handleScreenshot = async () => {
+    if (!activeSerial) return
+    setCapturingScreenshot(true)
+    try {
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+      const target = await selectSaveFile(`TVADB-Hub-${stamp}.png`)
+      if (!target) return
+      const result = await captureScreenshot(target, activeSerial)
+      toast.success('Screenshot saved', {
+        description: `${result.path} · ${Math.max(1, Math.round(result.bytes / 1024))} KiB`,
+      })
+    } catch (e) {
+      toast.error('Screenshot failed', {
+        description: e instanceof Error ? e.message : String(e),
+      })
+    } finally {
+      setCapturingScreenshot(false)
     }
   }
 
@@ -145,6 +168,23 @@ export function DeviceActions() {
           <p className="text-xs text-muted-foreground">No operations available for the current device state.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
+            {state === 'device' && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs font-medium"
+                onClick={() => void handleScreenshot()}
+                disabled={rebooting !== null || capturingScreenshot}
+              >
+                {capturingScreenshot ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Camera className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                )}
+                Screenshot
+              </Button>
+            )}
+
             {options.map(({ mode, label, icon: Icon, variant }) => (
               <div key={mode}>
                 {confirmMode === mode ? (

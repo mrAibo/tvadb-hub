@@ -36,6 +36,7 @@ import type {
   WirelessPairAndConnectResult,
   WirelessDiagnosticsReport,
   WirelessReconnectReport,
+  ScreenshotResult,
   TVRemoteKey,
 } from '@/lib/types'
 
@@ -67,6 +68,18 @@ export async function rebootDevice(
   mode: string = 'system',
 ): Promise<string> {
   return RebootDevice(serial ?? '', mode)
+}
+
+export async function captureScreenshot(
+  localPath: string,
+  serial?: string,
+): Promise<ScreenshotResult> {
+  const result = await WailsCall.ByName(
+    'ADBKit/internal/app.App.CaptureScreenshot',
+    serial ?? '',
+    localPath,
+  )
+  return result as ScreenshotResult
 }
 
 export async function sendTVRemoteKey(
