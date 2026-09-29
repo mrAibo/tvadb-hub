@@ -62,7 +62,7 @@ export function CurrentPlusTopBar() {
     ? nicknames[activeSerial] || deviceInfo?.model || deviceInfo?.product || activeSerial
     : 'No device selected'
   const connected = deviceInfo?.state === 'device'
-  const secondary = deviceInfo?.ipAddress || activeSerial || 'Connect a TV or Android device to begin'
+  const secondary = deviceInfo?.ipAddress || activeSerial || 'Connect an Android device to begin'
 
   const connectedHosts = useMemo(
     () => new Set(devices.map((device) => hostFromSerial(device.serial).toLowerCase())),
@@ -104,7 +104,7 @@ export function CurrentPlusTopBar() {
         >
           <img src="/logo.png" alt="" className="h-7 w-7 rounded-lg object-contain" />
           <div className="hidden text-left sm:block">
-            <div className="text-xs font-bold leading-none text-foreground">TVADB Hub</div>
+            <div className="text-xs font-bold leading-none text-foreground">DroidSphere</div>
             <div className="mt-1 text-[9px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
               Current+
             </div>
