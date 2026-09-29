@@ -1,290 +1,555 @@
-import { useEffect, useState } from 'react'
-import { motion, AnimatePresence } from 'motion/react'
-import { useReducedMotion } from '@/hooks/useReducedMotion'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  IconDownload as Download,
+  IconArrowLeft as ArrowLeft,
+  IconArrowRight as ArrowRight,
+  IconArrowsExchange as ArrowsExchange,
+  IconDeviceMobile as DeviceMobile,
+  IconEye as Eye,
+  IconEyeOff as EyeOff,
+  IconFolderPlus as FolderPlus,
+  IconHome as Home,
   IconPencil as Pencil,
+  IconRefresh as RefreshCw,
+  IconServer as Server,
   IconTrash as Trash2,
-  IconX as X
-} from "@tabler/icons-react"
+} from '@tabler/icons-react'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { StorageBar } from '@/components/files/StorageBar'
+import { DualPaneFileList } from '@/components/files/DualPaneFileList'
+import { FileActionDialogs } from '@/components/files/FileActionDialogs'
+import { TransferProgressOverlay } from '@/components/files/TransferProgressOverlay'
+import { UnblockPathDialog } from '@/components/files/UnblockPathDialog'
 import { useDevices } from '@/hooks/useDevices'
 import { useFileExplorer } from '@/hooks/useFileExplorer'
 import { useFileExplorerStore } from '@/stores/useFileExplorerStore'
-import { getStorageInfo, pushMultipleFiles, unblockPath } from '@/services/fileService'
-import { toast } from 'sonner'
-import { Breadcrumb } from '@/components/files/Breadcrumb'
-import { StorageBar } from '@/components/files/StorageBar'
-import { FileActionBar } from '@/components/files/FileActionBar'
-import { FileTable } from '@/components/files/FileTable'
-import { FileActionDialogs } from '@/components/files/FileActionDialogs'
-import { TransferProgressOverlay } from '@/components/files/TransferProgressOverlay'
-import { NoDeviceState, EmptyFolderState } from '@/components/files/EmptyStates'
-import { UnblockPathDialog } from '@/components/files/UnblockPathDialog'
-import { UnmountedSdCardState } from '@/components/files/EmptyStates'
-import { Button } from '@/components/ui/button'
-import type { StorageInfo, UnblockResult } from '@/lib/types'
+import {
+  getHostFileSystemInfo,
+  getLocalParentPath,
+  getStorageInfo,
+  listLocalFiles,
+  pullMultipleFiles,
+  pushMultipleFiles,
+  unblockPath,
+} from '@/services/fileService'
+import type {
+  FileEntry,
+  HostFileSystemInfo,
+  StorageInfo,
+  UnblockResult,
+} from '@/lib/types'
+import { cn } from '@/lib/utils'
 
-function isSdCardMountPath(path: string): boolean {
-  return /^\/storage\/[a-f0-9]{4,}-[a-f0-9]{4,}(\/|$)/i.test(path) ||
-    /^\/mnt\/media_rw\/[a-f0-9]{4,}-[a-f0-9]{4,}(\/|$)/i.test(path)
+function filterLocal(files: FileEntry[], search: string) {
+  const term = search.trim().toLowerCase()
+  if (!term) return files
+  return files.filter((file) => file.name.toLowerCase().includes(term))
+}
+
+function PaneHeader({
+  title,
+  subtitle,
+  icon: Icon,
+  selectedCount,
+}: {
+  title: string
+  subtitle: string
+  icon: typeof Server
+  selectedCount: number
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-border/50 px-3 py-2.5">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Icon className="h-3.5 w-3.5" />
+        </div>
+        <div className="min-w-0">
+          <div className="text-xs font-semibold">{title}</div>
+          <div className="truncate text-[9px] text-muted-foreground">{subtitle}</div>
+        </div>
+      </div>
+      {selectedCount > 0 && (
+        <span className="rounded-full border border-primary/20 bg-primary/8 px-2 py-0.5 text-[9px] font-semibold text-primary">
+          {selectedCount} selected
+        </span>
+      )}
+    </div>
+  )
 }
 
 export default function FilesPage() {
-  const reduced = useReducedMotion()
-  const { activeSerial } = useDevices()
+  const { activeSerial, deviceInfo } = useDevices()
   const fe = useFileExplorer()
+
+  const [hostInfo, setHostInfo] = useState<HostFileSystemInfo | null>(null)
+  const [localPath, setLocalPath] = useState('')
+  const [localDraft, setLocalDraft] = useState('')
+  const [localFiles, setLocalFiles] = useState<FileEntry[]>([])
+  const [localSelected, setLocalSelected] = useState<string[]>([])
+  const [localSearch, setLocalSearch] = useState('')
+  const [localShowHidden, setLocalShowHidden] = useState(false)
+  const [localLoading, setLocalLoading] = useState(true)
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  const [remoteDraft, setRemoteDraft] = useState(fe.currentPath)
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null)
+  const [transferBusy, setTransferBusy] = useState<'push' | 'pull' | null>(null)
   const [unblockResult, setUnblockResult] = useState<UnblockResult | null>(null)
   const [isUnblockDialogOpen, setIsUnblockDialogOpen] = useState(false)
+
+  const loadLocal = useCallback(async (targetPath: string, showHidden = localShowHidden) => {
+    setLocalLoading(true)
+    setLocalError(null)
+    try {
+      const files = await listLocalFiles(targetPath, showHidden)
+      const nextPath = targetPath.trim() || hostInfo?.home || ''
+      setLocalPath(nextPath)
+      setLocalDraft(nextPath)
+      setLocalFiles(files)
+      setLocalSelected([])
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setLocalLoading(false)
+    }
+  }, [hostInfo?.home, localShowHidden])
+
+  useEffect(() => {
+    let cancelled = false
+    void getHostFileSystemInfo()
+      .then((info) => {
+        if (cancelled) return
+        setHostInfo(info)
+        setLocalPath(info.home)
+        setLocalDraft(info.home)
+        return listLocalFiles(info.home, localShowHidden)
+      })
+      .then((files) => {
+        if (!cancelled && files) setLocalFiles(files)
+      })
+      .catch((error) => {
+        if (!cancelled) setLocalError(error instanceof Error ? error.message : String(error))
+      })
+      .finally(() => {
+        if (!cancelled) setLocalLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!localPath) return
+    void loadLocal(localPath, localShowHidden)
+  }, [localShowHidden])
+
+  useEffect(() => {
+    setRemoteDraft(fe.currentPath)
+  }, [fe.currentPath])
 
   useEffect(() => {
     if (!activeSerial) {
       setStorageInfo(null)
       return
     }
-    getStorageInfo()
+    void getStorageInfo()
       .then(setStorageInfo)
       .catch(() => setStorageInfo(null))
   }, [activeSerial, fe.lastUpdatedAt])
 
-  // When the file explorer surfaces an error that looks like a protected-path
-  // failure, call unblockPath to get honest recovery guidance.
   useEffect(() => {
     if (!fe.error) return
     const lower = fe.error.toLowerCase()
-    const isProtected =
-      lower.includes('protected') ||
-      lower.includes('permission') ||
-      lower.includes('access denied') ||
-      lower.includes('scoped storage')
-    if (!isProtected) return
+    if (
+      !lower.includes('protected') &&
+      !lower.includes('permission') &&
+      !lower.includes('access denied') &&
+      !lower.includes('scoped storage')
+    ) {
+      return
+    }
     const pathMatch = fe.error.match(/\/[^\s]+/)
     const path = pathMatch ? pathMatch[0] : fe.currentPath
-    unblockPath(path)
+    void unblockPath(path)
       .then(setUnblockResult)
       .catch(() => setUnblockResult(null))
-      .finally(() => {
-        if (isProtected) setIsUnblockDialogOpen(true)
+      .finally(() => setIsUnblockDialogOpen(true))
+  }, [fe.error, fe.currentPath])
+
+  const visibleLocalFiles = useMemo(
+    () => filterLocal(localFiles, localSearch),
+    [localFiles, localSearch],
+  )
+
+  const selectedRemoteEntry = useMemo(() => {
+    if (fe.selectedFiles.length !== 1) return null
+    return fe.files.find((file) => file.path === fe.selectedFiles[0]) ?? null
+  }, [fe.files, fe.selectedFiles])
+
+  function toggleLocal(path: string) {
+    setLocalSelected((current) =>
+      current.includes(path)
+        ? current.filter((item) => item !== path)
+        : [...current, path],
+    )
+  }
+
+  function selectAllLocal() {
+    const paths = visibleLocalFiles.map((file) => file.path)
+    const allSelected = paths.length > 0 && paths.every((path) => localSelected.includes(path))
+    setLocalSelected(allSelected ? [] : paths)
+  }
+
+  async function goLocalUp() {
+    if (!localPath) return
+    const parent = await getLocalParentPath(localPath)
+    await loadLocal(parent)
+  }
+
+  async function pushToAndroid() {
+    if (!activeSerial || localSelected.length === 0) return
+    setTransferBusy('push')
+    try {
+      await toast.promise(pushMultipleFiles(localSelected, fe.currentPath), {
+        loading: `Sending ${localSelected.length} item(s) to Android…`,
+        success: (message) => message,
+        error: (error) => error instanceof Error ? error.message : 'Transfer failed',
       })
-  }, [fe.error])
+      await fe.refreshFiles()
+    } finally {
+      setTransferBusy(null)
+    }
+  }
+
+  async function pullToComputer() {
+    if (fe.selectedFiles.length === 0 || !localPath) return
+    setTransferBusy('pull')
+    try {
+      await toast.promise(pullMultipleFiles(fe.selectedFiles, localPath), {
+        loading: `Receiving ${fe.selectedFiles.length} item(s) from Android…`,
+        success: (message) => message,
+        error: (error) => error instanceof Error ? error.message : 'Transfer failed',
+      })
+      await loadLocal(localPath)
+    } finally {
+      setTransferBusy(null)
+    }
+  }
+
+  function openRemoteAction(action: 'rename' | 'move' | 'delete') {
+    if (!selectedRemoteEntry) return
+    if (action === 'rename') fe.openRenameDialog(selectedRemoteEntry)
+    if (action === 'move') fe.openMoveDialog(selectedRemoteEntry)
+    if (action === 'delete') fe.openDeleteDialog(selectedRemoteEntry)
+  }
 
   if (!activeSerial) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex h-full flex-col gap-4">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">File Explorer</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Browse, push, pull, and manage files on connected devices.
+          <h1 className="text-2xl font-bold tracking-tight">Dual-pane File Manager</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Browse your computer and an Android device side by side.
           </p>
         </div>
-        <NoDeviceState />
+        <Card className="flex flex-1 items-center justify-center rounded-2xl border-border/60 bg-card/60">
+          <div className="max-w-md p-8 text-center">
+            <ArrowsExchange className="mx-auto h-10 w-10 text-muted-foreground" />
+            <h2 className="mt-4 font-semibold">Connect an Android device</h2>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              The local panel is ready, but Android browsing and transfer actions require an active ADB device.
+            </p>
+          </div>
+        </Card>
       </div>
     )
   }
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: reduced
-        ? { duration: 0, staggerChildren: 0 }
-        : { staggerChildren: 0.05 },
-    },
-  }
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 10 },
-    show: {
-      opacity: 1,
-      y: 0,
-      transition: reduced
-        ? { duration: 0 }
-        : { type: 'spring' as const, stiffness: 300, damping: 24 },
-    },
-  }
-
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="show"
-      className="flex-1 min-h-0 flex flex-col gap-4 font-sans"
-    >
-      {/* Header Panel */}
-      <motion.div
-        variants={itemVariants}
-        className="flex items-center justify-between gap-4"
-      >
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold tracking-tight">File Explorer</h1>
-          <div className="mt-1.5">
-            <Breadcrumb items={fe.breadcrumbs} onNavigate={fe.navigateTo} />
-          </div>
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
+      <div className="flex shrink-0 items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dual-pane File Manager</h1>
+          <p className="mt-1 text-xs text-muted-foreground">
+            PC ↔ {deviceInfo?.model || activeSerial}. Select files or folders, then transfer directly between panes.
+          </p>
         </div>
-        <div className="w-64 shrink-0">
+        <div className="w-56 shrink-0">
           <StorageBar info={storageInfo} />
         </div>
-      </motion.div>
+      </div>
 
-      {/* Toolbar */}
-      <motion.div variants={itemVariants}>
-        <FileActionBar
-          searchTerm={fe.searchTerm}
-          showHidden={fe.showHidden}
-          sortField={fe.sortField}
-          sortDirection={fe.sortDirection}
-          refreshing={fe.refreshing}
-          onSearchChange={fe.setSearchTerm}
-          onToggleHidden={() => fe.setShowHidden(!fe.showHidden)}
-          onSetSortField={(field) => fe.setSort(field)}
-          onSetSortDirection={(dir) => fe.setSortDirection(dir)}
-          onRefresh={fe.refreshFiles}
-          onNewFolder={fe.openNewFolderDialog}
-          onPushFiles={fe.handlePushFilesToCurrentDirectory}
-          onPushFolder={fe.openPushFolderDialog}
-          onSdCardSelect={(mountPoint) => {
-            fe.navigateTo(mountPoint)
-          }}
-          totalItems={fe.totalItems}
-          folderCount={fe.folderCount}
-          fileCount={fe.fileCount}
-          lastUpdatedAt={fe.lastUpdatedAt}
-        />
-      </motion.div>
-
-      {fe.error && (
-        <motion.div
-          variants={itemVariants}
-          className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
-        >
-          {fe.error}
-        </motion.div>
-      )}
-
-      {/* Dynamic Selection Context Bar (Only shown on selection) */}
-      <motion.div variants={itemVariants} className="relative empty:h-0 min-h-0">
-        <AnimatePresence mode="wait">
-          {fe.selectedCount > 0 && (
-            <motion.div
-              key="selection-bar"
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 h-9 text-xs shadow-sm mb-1"
-            >
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-primary tabular-nums">
-                  {fe.selectedCount} selected
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-[11px] font-semibold gap-1.5 px-2.5 rounded-full border-primary/20 hover:bg-primary/10 text-primary active:scale-95 cursor-pointer"
-                  onClick={fe.openBatchPullDialog}
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  Export
-                </Button>
-                {fe.selectedCount === 1 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[11px] font-semibold gap-1.5 px-2.5 rounded-full active:scale-95 cursor-pointer"
-                    onClick={() => {
-                      const selected = fe.visibleFiles.find((f) =>
-                        fe.selectedFiles.includes(f.path),
-                      )
-                      if (selected) fe.openRenameDialog(selected)
-                    }}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Rename
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-[11px] font-semibold gap-1.5 px-2.5 rounded-full text-destructive hover:bg-destructive/5 hover:text-destructive border-destructive/20 active:scale-95 cursor-pointer"
-                  onClick={fe.openBatchDeleteDialog}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Delete
-                </Button>
-                <div className="h-4 w-px bg-border" />
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7 rounded-full text-muted-foreground hover:text-foreground cursor-pointer"
-                  onClick={fe.clearSelection}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
-
-      {/* File List Wrapper */}
-      <motion.div
-        variants={itemVariants}
-        className="overflow-hidden rounded-2xl border border-border/50 bg-card flex-1 min-h-0 flex flex-col"
-      >
-        {fe.files.length === 0 && !fe.loading && isSdCardMountPath(fe.currentPath) && (
-          <UnmountedSdCardState
-            mountPoint={fe.currentPath}
-            onRetry={fe.refreshFiles}
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_72px_minmax(0,1fr)] gap-3">
+        <Card className="flex min-h-0 flex-col overflow-hidden rounded-2xl border-border/60 bg-card/65">
+          <PaneHeader
+            title="This computer"
+            subtitle={hostInfo ? `${hostInfo.os} · local filesystem` : 'Local filesystem'}
+            icon={Server}
+            selectedCount={localSelected.length}
           />
-        )}
-        {fe.files.length === 0 && !fe.loading && !isSdCardMountPath(fe.currentPath) && (
-          <EmptyFolderState />
-        )}
-        <FileTable
-          files={fe.visibleFiles}
-          selectedFiles={fe.selectedFiles}
-          loading={fe.loading}
-          searchTerm={fe.searchTerm}
-          sortField={fe.sortField}
-          sortDirection={fe.sortDirection}
-          busyFilePath={fe.busyFilePath}
-          onSelect={fe.toggleFileSelection}
-          onSelectAll={fe.toggleVisibleSelection}
-          onSort={fe.setSort}
-          onOpen={fe.openDirectory}
-          onPull={fe.openPullDialog}
-          onPush={async (targetDir) => {
-            const paths = await fe.chooseMultipleLocalFiles()
-            if (paths.length === 0) return
-            const remoteDir = `${targetDir.path}`
-            try {
-              await toast.promise(pushMultipleFiles(paths, remoteDir), {
-                loading: `Importing ${paths.length} file(s)...`,
-                success: (msg) => msg,
-                error: (err) =>
-                  err instanceof Error ? err.message : 'Failed to import files',
-              })
-              await fe.refreshFiles()
-            } catch {
-              // error is already surfaced by toast.promise
-            }
-          }}
-          onPushFolder={async (targetDir) => {
-            const localPath = await fe.chooseLocalDirectory()
-            if (localPath) {
-              const folderName = localPath.split(/[/\\]/).pop() ?? localPath
-              await fe.pushSingleFile(localPath, `${targetDir.path}/${folderName}`)
-            }
-          }}
-          onMove={fe.openMoveDialog}
-          onRename={fe.openRenameDialog}
-          onDelete={fe.openDeleteDialog}
-          onGetSize={fe.getSizeForFile}
-        />
-      </motion.div>
 
-      {/* Action Dialogs */}
+          <div className="space-y-2 border-b border-border/50 p-2.5">
+            <div className="flex items-center gap-1.5">
+              <Button size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => void goLocalUp()} title="Parent folder">
+                <ArrowLeft className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-7 w-7 shrink-0"
+                onClick={() => hostInfo && void loadLocal(hostInfo.home)}
+                title="Home"
+              >
+                <Home className="h-3.5 w-3.5" />
+              </Button>
+              <Input
+                value={localDraft}
+                onChange={(event) => setLocalDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') void loadLocal(localDraft)
+                }}
+                className="h-7 min-w-0 flex-1 rounded-lg font-mono text-[10px]"
+                aria-label="Local path"
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 shrink-0"
+                onClick={() => void loadLocal(localPath)}
+                title="Refresh local"
+              >
+                <RefreshCw className={cn('h-3.5 w-3.5', localLoading && 'animate-spin')} />
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={localSearch}
+                onChange={(event) => setLocalSearch(event.target.value)}
+                placeholder="Search local…"
+                className="h-7 min-w-0 flex-1 rounded-lg text-[10px]"
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 gap-1 px-2 text-[9px]"
+                onClick={() => setLocalShowHidden((value) => !value)}
+              >
+                {localShowHidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                Hidden
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-[9px]" onClick={selectAllLocal}>
+                Select all
+              </Button>
+            </div>
+
+            {hostInfo && hostInfo.roots.length > 1 && (
+              <div className="flex flex-wrap gap-1">
+                {hostInfo.roots.map((root) => (
+                  <button
+                    key={root}
+                    type="button"
+                    onClick={() => void loadLocal(root)}
+                    className="rounded-md border border-border/50 bg-muted/20 px-2 py-0.5 font-mono text-[9px] text-muted-foreground hover:text-foreground"
+                  >
+                    {root}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {localError && (
+              <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-2.5 py-1.5 text-[9px] text-destructive">
+                {localError}
+              </div>
+            )}
+          </div>
+
+          <DualPaneFileList
+            files={visibleLocalFiles}
+            selected={localSelected}
+            loading={localLoading}
+            emptyLabel={localSearch ? 'No matching local files.' : 'This local folder is empty.'}
+            onToggle={toggleLocal}
+            onOpenDirectory={(file) => void loadLocal(file.path)}
+          />
+        </Card>
+
+        <div className="flex min-h-0 flex-col items-center justify-center gap-2">
+          <Button
+            size="icon"
+            className="h-10 w-10 rounded-xl"
+            disabled={localSelected.length === 0 || transferBusy !== null}
+            onClick={() => void pushToAndroid()}
+            title="Send selected PC items to Android"
+          >
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-10 w-10 rounded-xl"
+            disabled={fe.selectedFiles.length === 0 || transferBusy !== null}
+            onClick={() => void pullToComputer()}
+            title="Copy selected Android items to PC"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="mt-1 text-center text-[8px] leading-relaxed text-muted-foreground">
+            PC<br />↔<br />Android
+          </div>
+        </div>
+
+        <Card className="flex min-h-0 flex-col overflow-hidden rounded-2xl border-border/60 bg-card/65">
+          <PaneHeader
+            title={deviceInfo?.model || 'Android device'}
+            subtitle={activeSerial}
+            icon={DeviceMobile}
+            selectedCount={fe.selectedCount}
+          />
+
+          <div className="space-y-2 border-b border-border/50 p-2.5">
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-7 w-7 shrink-0"
+                onClick={fe.navigateUp}
+                title="Parent folder"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 shrink-0 px-2 text-[9px]"
+                onClick={() => fe.navigateTo('/sdcard')}
+                title="Internal storage"
+              >
+                Internal
+              </Button>
+              <Input
+                value={remoteDraft}
+                onChange={(event) => setRemoteDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') fe.navigateTo(remoteDraft)
+                }}
+                className="h-7 min-w-0 flex-1 rounded-lg font-mono text-[10px]"
+                aria-label="Android path"
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 shrink-0"
+                onClick={fe.refreshFiles}
+                title="Refresh Android"
+              >
+                <RefreshCw className={cn('h-3.5 w-3.5', fe.refreshing && 'animate-spin')} />
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={fe.searchTerm}
+                onChange={(event) => fe.setSearchTerm(event.target.value)}
+                placeholder="Search Android…"
+                className="h-7 min-w-0 flex-1 rounded-lg text-[10px]"
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 gap-1 px-2 text-[9px]"
+                onClick={() => fe.setShowHidden(!fe.showHidden)}
+              >
+                {fe.showHidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                Hidden
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-[9px]"
+                onClick={fe.toggleVisibleSelection}
+              >
+                Select all
+              </Button>
+            </div>
+
+            <div className="flex min-h-7 items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 px-2 text-[9px]"
+                onClick={fe.openNewFolderDialog}
+              >
+                <FolderPlus className="h-3 w-3" />
+                New folder
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 px-2 text-[9px]"
+                disabled={!selectedRemoteEntry}
+                onClick={() => openRemoteAction('rename')}
+              >
+                <Pencil className="h-3 w-3" />
+                Rename
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-[9px]"
+                disabled={!selectedRemoteEntry}
+                onClick={() => openRemoteAction('move')}
+              >
+                Move
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 px-2 text-[9px] text-destructive"
+                disabled={fe.selectedCount === 0}
+                onClick={() => {
+                  if (fe.selectedCount === 1) openRemoteAction('delete')
+                  else fe.openBatchDeleteDialog()
+                }}
+              >
+                <Trash2 className="h-3 w-3" />
+                Delete
+              </Button>
+              <span className="ml-auto text-[9px] text-muted-foreground">
+                {fe.folderCount} folders · {fe.fileCount} files
+              </span>
+            </div>
+
+            {fe.error && (
+              <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-2.5 py-1.5 text-[9px] text-destructive">
+                {fe.error}
+              </div>
+            )}
+          </div>
+
+          <DualPaneFileList
+            files={fe.visibleFiles}
+            selected={fe.selectedFiles}
+            loading={fe.loading}
+            emptyLabel={fe.searchTerm ? 'No matching Android files.' : 'This Android folder is empty.'}
+            onToggle={fe.toggleFileSelection}
+            onOpenDirectory={fe.openDirectory}
+          />
+        </Card>
+      </div>
+
+      <div className="flex shrink-0 items-center justify-between rounded-xl border border-border/50 bg-muted/15 px-3 py-2 text-[9px] text-muted-foreground">
+        <span>
+          Transfers use the existing ADB push/pull engine, including folders, retries, progress and cancellation.
+        </span>
+        <span className="font-mono">
+          {hostInfo?.os ?? 'host'} {hostInfo?.separator ?? ''} · Android {deviceInfo?.androidVersion || ''}
+        </span>
+      </div>
+
       <FileActionDialogs
         dialogTargetFile={fe.dialogTargetFile}
         selectedCount={fe.selectedCount}
@@ -320,7 +585,6 @@ export default function FilesPage() {
         chooseLocalDirectory={fe.chooseLocalDirectory}
       />
 
-      {/* Transfer Progress Overlay */}
       {fe.transferProgress?.active && (
         <TransferProgressOverlay
           fileName={fe.transferProgress.fileName}
@@ -330,7 +594,6 @@ export default function FilesPage() {
         />
       )}
 
-      {/* Protected-path unblock guidance dialog */}
       <UnblockPathDialog
         result={unblockResult}
         open={isUnblockDialogOpen}
@@ -348,6 +611,6 @@ export default function FilesPage() {
           fe.refreshFiles()
         }}
       />
-    </motion.div>
+    </div>
   )
 }

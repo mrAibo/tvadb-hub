@@ -1,3 +1,4 @@
+import { Call as WailsCall } from '@wailsio/runtime'
 import {
   ListFiles,
   GetDirectorySize,
@@ -19,7 +20,7 @@ import {
   UnblockPath,
 } from '../../bindings/ADBKit/internal/app/app'
 import { Events } from '@wailsio/runtime'
-import type { FileEntry, StorageInfo, SdCard, UnblockResult } from '@/lib/types'
+import type { FileEntry, HostFileSystemInfo, StorageInfo, SdCard, UnblockResult } from '@/lib/types'
 
 export const FILE_TRANSFER_PROGRESS_EVENT = 'file_transfer_progress'
 
@@ -117,4 +118,24 @@ export async function unblockPath(remotePath: string): Promise<UnblockResult> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw = await (UnblockPath as (...args: unknown[]) => Promise<unknown>)(remotePath)
   return raw as UnblockResult
+}
+
+
+export async function getHostFileSystemInfo(): Promise<HostFileSystemInfo> {
+  const raw = await WailsCall.ByName('ADBKit/internal/app.App.GetHostFileSystemInfo')
+  return raw as HostFileSystemInfo
+}
+
+export async function listLocalFiles(localPath: string, showHidden: boolean): Promise<FileEntry[]> {
+  const raw = await WailsCall.ByName(
+    'ADBKit/internal/app.App.ListLocalFiles',
+    localPath,
+    showHidden,
+  )
+  return (raw as FileEntry[] | null) ?? []
+}
+
+export async function getLocalParentPath(localPath: string): Promise<string> {
+  const raw = await WailsCall.ByName('ADBKit/internal/app.App.GetLocalParentPath', localPath)
+  return String(raw ?? localPath)
 }
