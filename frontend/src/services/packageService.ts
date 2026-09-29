@@ -1,6 +1,6 @@
+import { Call as WailsCall } from '@wailsio/runtime'
 import {
   ListPackages,
-  InstallPackage,
   UninstallPackage,
   UninstallMultiplePackages,
   EnablePackage,
@@ -18,6 +18,7 @@ import type {
   PackageDetails,
   PackageFilter,
   PackageInfo,
+  PackageInstallMode,
 } from '@/lib/types'
 
 export async function listPackages(filter: PackageFilter): Promise<PackageInfo[]> {
@@ -25,8 +26,16 @@ export async function listPackages(filter: PackageFilter): Promise<PackageInfo[]
   return raw as unknown as PackageInfo[]
 }
 
-export async function installPackage(filePath: string): Promise<string> {
-  return InstallPackage(filePath)
+export async function installPackage(
+  filePath: string,
+  mode: PackageInstallMode = 'replace',
+): Promise<string> {
+  const result = await WailsCall.ByName(
+    'ADBKit/internal/app.App.InstallPackageWithMode',
+    filePath,
+    mode,
+  )
+  return String(result ?? '')
 }
 
 export async function uninstallPackage(packageName: string): Promise<string> {

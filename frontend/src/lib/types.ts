@@ -227,6 +227,8 @@ export interface WirelessDiagnosticsReport {
   healthy: boolean
 }
 
+export type PackageInstallMode = 'install' | 'replace' | 'downgrade'
+
 export type PackageFilter = 'user' | 'system' | 'all'
 
 export type PackageStatusFilter = 'all' | 'enabled' | 'disabled'

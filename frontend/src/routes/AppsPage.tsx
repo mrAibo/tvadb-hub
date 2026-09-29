@@ -418,8 +418,8 @@ export default function AppsPage() {
           setInstallDialogOpen(open)
           if (!open) setInstallApkPath(undefined)
         }}
-        onInstall={async (filePath) => {
-          const success = await appManager.installApkFromPath(filePath)
+        onInstall={async (filePath, mode) => {
+          const success = await appManager.installApkFromPath(filePath, mode)
           if (success) setInstallDialogOpen(false)
           return success
         }}
