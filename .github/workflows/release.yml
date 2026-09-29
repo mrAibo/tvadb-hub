@@ -239,6 +239,6 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Failed to upload release assets." }
           }
           else {
-            gh release create $env:RELEASE_TAG @assets --target $env:GITHUB_SHA --title "TVADB Hub $env:RELEASE_TAG" --generate-notes
+            gh release create $env:RELEASE_TAG @assets --target $env:GITHUB_SHA --title "DroidSphere $env:RELEASE_TAG" --generate-notes
             if ($LASTEXITCODE -ne 0) { throw "Failed to create GitHub Release." }
           }
