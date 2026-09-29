@@ -5,19 +5,19 @@
 !include "FileFunc.nsh"
 
 !ifndef INFO_PROJECTNAME
-    !define INFO_PROJECTNAME "TVADB-Hub"
+    !define INFO_PROJECTNAME "DroidSphere"
 !endif
 !ifndef INFO_COMPANYNAME
-    !define INFO_COMPANYNAME "TVADB Hub contributors"
+    !define INFO_COMPANYNAME "DroidSphere contributors"
 !endif
 !ifndef INFO_PRODUCTNAME
-    !define INFO_PRODUCTNAME "TVADB Hub"
+    !define INFO_PRODUCTNAME "DroidSphere"
 !endif
 !ifndef INFO_PRODUCTVERSION
     !define INFO_PRODUCTVERSION "0.1.0"
 !endif
 !ifndef INFO_COPYRIGHT
-    !define INFO_COPYRIGHT "Copyright (c) 2026 TVADB Hub contributors"
+    !define INFO_COPYRIGHT "Copyright (c) 2026 DroidSphere contributors"
 !endif
 !ifndef PRODUCT_EXECUTABLE
     !define PRODUCT_EXECUTABLE "${INFO_PROJECTNAME}.exe"
