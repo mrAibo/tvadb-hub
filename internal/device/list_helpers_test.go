@@ -117,3 +117,28 @@ func TestExtractHardwareSerial(t *testing.T) {
 		}
 	})
 }
+
+
+func TestIsTVDevice(t *testing.T) {
+	cases := []struct {
+		name  string
+		value string
+		want  bool
+	}{
+		{name: "tv only", value: "tv", want: true},
+		{name: "tv among characteristics", value: "nosdcard,tv", want: true},
+		{name: "case and whitespace", value: "  TV , nosdcard ", want: true},
+		{name: "phone", value: "default", want: false},
+		{name: "tablet-like", value: "tablet,nosdcard", want: false},
+		{name: "missing", value: "", want: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			props := map[string]string{"ro.build.characteristics": tc.value}
+			if got := isTVDevice(props); got != tc.want {
+				t.Fatalf("isTVDevice(%q) = %v, want %v", tc.value, got, tc.want)
+			}
+		})
+	}
+}

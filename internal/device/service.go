@@ -77,6 +77,8 @@ func (s *Service) GetDeviceInfo(ctx context.Context, serial string) (*Info, erro
 	if err == nil {
 		info.Manufacturer = props["ro.product.manufacturer"]
 		info.Brand = props["ro.product.brand"]
+		info.Characteristics = extractBuildCharacteristics(props)
+		info.IsTV = isTVDevice(props)
 		info.AndroidVersion = props["ro.build.version.release"]
 		info.SDKVersion = props["ro.build.version.sdk"]
 		info.BuildID = props["ro.build.display.id"]

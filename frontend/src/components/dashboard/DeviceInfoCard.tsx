@@ -12,12 +12,16 @@ export function DeviceInfoCard() {
 
   const infoItems = deviceInfo
     ? [
+        { label: 'Device Type', value: deviceInfo.isTV ? 'Android / Google TV' : 'Android device' },
         { label: 'Android Version', value: deviceInfo.androidVersion },
         { label: 'SDK API Level', value: deviceInfo.sdkVersion },
         { label: 'Build Identifier', value: deviceInfo.buildId },
         { label: 'Security Patch', value: deviceInfo.securityPatch },
         { label: 'CPU Architecture', value: deviceInfo.abis },
         { label: 'Manufacturer', value: deviceInfo.manufacturer },
+        { label: 'Network Address', value: deviceInfo.ipAddress },
+        { label: 'Connection', value: deviceInfo.connectionLabel },
+        { label: 'Characteristics', value: deviceInfo.characteristics },
       ]
     : []
 

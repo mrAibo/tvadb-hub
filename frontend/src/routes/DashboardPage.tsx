@@ -17,10 +17,11 @@ function getTimeGreeting(): string {
   return 'Good evening'
 }
 
-type TaglineContext = 'online' | 'unauthorized' | 'offline' | 'empty'
+type TaglineContext = 'online' | 'online-tv' | 'unauthorized' | 'offline' | 'empty'
 
 const TAGLINES: Record<TaglineContext, string> = {
   online: 'All systems nominal. Your workspace is connected and ready.',
+  'online-tv': 'Android / Google TV connected. Wireless ADB controls are ready.',
   unauthorized: 'USB authorization pending. Check your device screen to allow debugging.',
   offline: 'Device is offline. Verify the USB connection or restart USB debugging.',
   empty: 'Workspace is idle. Plug in a device or link via wireless ADB below.',
@@ -44,8 +45,9 @@ export default function DashboardPage() {
     if (!hasDevices) return 'empty'
     if (deviceInfo?.state === 'unauthorized') return 'unauthorized'
     if (deviceInfo?.state === 'offline' || !isOnline) return 'offline'
+    if (deviceInfo?.isTV) return 'online-tv'
     return 'online'
-  }, [hasDevices, deviceInfo?.state, isOnline])
+  }, [hasDevices, deviceInfo?.state, deviceInfo?.isTV, isOnline])
 
   const tagline = TAGLINES[taglineContext]
 
