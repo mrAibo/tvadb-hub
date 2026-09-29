@@ -22,6 +22,7 @@ devices.
 - [x] Portable JSON settings backup
 - [x] Connection Doctor for ADB/toolchain/authorization/transport diagnostics
 - [x] Windows installer + native Windows/Linux/macOS CI builds
+- [x] Release-candidate packages committed under `distribution/` for Windows, Linux and macOS
 
 ## Next: files and backups
 
