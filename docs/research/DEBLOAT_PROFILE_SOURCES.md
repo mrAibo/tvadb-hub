@@ -1,6 +1,6 @@
 # Safe Tuning profile sources
 
-TVADB Hub Safe Tuning is intentionally built around **reversible user-scoped
+DroidSphere Safe Tuning is intentionally built around **reversible user-scoped
 changes**, explicit risk levels and device/brand matching. A package appearing
 in a source list is not treated as proof that it is safe on every firmware.
 
@@ -34,7 +34,7 @@ Used for conservative brand profiles and risk annotations for:
 - OnePlus / OxygenOS
 
 Only packages with a clear purpose/risk classification were imported into the
-initial TVADB Hub profiles. Dangerous entries are intentionally informational
+initial DroidSphere profiles. Dangerous entries are intentionally informational
 and cannot be selected in Safe Tuning.
 
 ### farag2/ADB-Debloating — MIT
@@ -43,13 +43,13 @@ Source: https://github.com/farag2/ADB-Debloating
 
 Used as a secondary cross-check for package names and labels, especially common
 Samsung and Xiaomi optional packages. It is not the sole basis for a
-TVADB Hub "safe" classification.
+DroidSphere "safe" classification.
 
 ### seun-novodev/android-tv-debloat-toolkit — MIT
 
 Source: https://github.com/seun-novodev/android-tv-debloat-toolkit
 
-Used for the initial TCL Android/Google TV profile. TVADB Hub deliberately
+Used for the initial TCL Android/Google TV profile. DroidSphere deliberately
 changes the default behaviour from user-0 uninstall to the more reversible
 `pm disable-user --user 0`; user-0 uninstall remains an explicit advanced
 mode.
@@ -63,12 +63,12 @@ mode.
 
 UAD was reviewed for architecture and UX ideas: risk tiers, package-state
 snapshots, restore, multi-user awareness and explicit warnings. Its GPL/LGPL
-licensed code/data is **not vendored into TVADB Hub's MIT source tree**.
+licensed code/data is **not vendored into DroidSphere's MIT source tree**.
 
 Other repositories without a clearly compatible license are likewise treated
 as research references only.
 
-## TVADB Hub safety rules
+## DroidSphere safety rules
 
 1. The default operation is `pm disable-user --user 0`.
 2. A snapshot is written **before** any change.
