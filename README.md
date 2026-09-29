@@ -17,7 +17,8 @@ The upstream MIT license and attribution are preserved.
 - Automatic resolution of dynamic pairing and connect ports.
 - First-time pairing with only the six-digit code shown by Android/Google TV.
 - Secure TLS connect preferred over legacy ADB TCP/IP.
-- Remembered TVs with background reconnect and dynamic-port recovery.
+- Remembered TVs/devices with background reconnect and dynamic-port recovery.
+- Current+ device dropdown for switching connected devices and reconnecting remembered devices.
 - Multi-device-safe target selection.
 - Wireless diagnostics for Platform Tools, mDNS, TCP reachability, endpoint
   type and current ADB state.
@@ -40,11 +41,25 @@ The upstream MIT license and attribution are preserved.
 - Launch, force-stop, enable, disable and uninstall packages.
 - Android TV launcher compatibility hints using `LEANBACK_LAUNCHER`.
 
+### Safe Tuning
+
+- Reversible debloat/tuning profiles for Android TV, phones and tablets.
+- Device-specific Fire TV, Sharp Google TV and TCL profiles.
+- Brand profiles for Samsung, Xiaomi/Redmi/POCO, Pixel and OnePlus, plus a
+  conservative generic Android fallback.
+- Safe/caution/dangerous/blocked risk classification.
+- `pm disable-user --user 0` as the default action.
+- Per-device snapshots and exact restore of changes made by TVADB Hub.
+- Advanced reversible user-0 uninstall for eligible preinstalled packages.
+- Profile-specific keep-lists protect known launcher, DRM, input, remote and
+  playback packages on validated TV profiles.
+
 ### Debugging and screen tools
 
 - Scrcpy control with TV Balanced, High Quality and Low Bandwidth presets.
 - PNG screenshot capture through `adb exec-out screencap -p`.
-- File Explorer with push, pull and multi-file transfers.
+- Dual-pane File Manager with local PC/macOS/Linux browsing on the left and Android browsing on the right.
+- Direct PC ↔ Android file and folder transfers with progress, retries and cancellation.
 - Logcat streaming, export and TV-focused diagnostic presets.
 - Interactive ADB shell plus safe read-only TV diagnostic shortcuts.
 
@@ -53,6 +68,14 @@ The upstream MIT license and attribution are preserved.
 TVADB Hub can download and manage its own copies of Android SDK Platform Tools
 and scrcpy. Validated managed downloads are adopted automatically, while custom
 binary paths remain available for advanced setups.
+
+Settings → Tool locations shows the resolved version, source and exact path for
+ADB, Fastboot, scrcpy and managed tools, with copy/open-location actions.
+
+Settings can export/import a portable JSON backup containing preferences,
+binary paths, device nicknames, Scrcpy presets, remembered wireless devices and
+window state. Machine-specific paths can be re-detected after import on another
+computer.
 
 ## First connection
 
@@ -128,10 +151,18 @@ Run the normal checks:
 make check
 ```
 
-Build:
+Build the current platform:
 
 ```bash
 make build
+```
+
+Explicit desktop targets:
+
+```bash
+make windows
+make linux
+make macos
 ```
 
 Package the current platform:
@@ -139,6 +170,19 @@ Package the current platform:
 ```bash
 make package
 ```
+
+## Cross-platform status
+
+PR CI compiles TVADB Hub on Windows, Linux and macOS. The application code,
+managed Platform Tools downloads and managed scrcpy downloads are already
+OS-aware; Linux/macOS do not require an application rewrite.
+
+Windows remains the current published release target. Linux package publishing
+and macOS signed/notarized distribution are separate release-engineering
+milestones.
+
+See [docs/PORTABILITY.md](docs/PORTABILITY.md) for build requirements and the
+remaining distribution work.
 
 ## Windows distribution
 

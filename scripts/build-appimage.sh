@@ -1,16 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="ADBKit"
-VERSION="${VERSION:-2.0.0}"
+APP_NAME="TVADB-Hub"
+VERSION="${VERSION:-$(awk '/^VERSION :=/ {print $3; exit}' Makefile)}"
 BUILD_DIR="bin"
 APPIMAGE_TOOL="build/tools/appimagetool-x86_64.AppImage"
 APPIMAGE_OUT="build/AppImage-out"
 DIST_DIR="bin"
 
+if [ -z "$VERSION" ]; then
+    echo "Error: Could not resolve VERSION from Makefile."
+    exit 1
+fi
+
 if [ ! -f "$BUILD_DIR/$APP_NAME" ]; then
     echo "Error: Binary not found at $BUILD_DIR/$APP_NAME"
-    echo "Run 'wails3 build' first."
+    echo "Run 'wails3 build GOOS=linux' first."
+    exit 1
+fi
+
+if [ ! -f "build/linux/$APP_NAME.desktop" ]; then
+    echo "Error: Desktop file not found at build/linux/$APP_NAME.desktop"
+    echo "The Linux build task should generate it automatically."
     exit 1
 fi
 
@@ -39,7 +50,7 @@ SELF=$(readlink -f "$0")
 HERE=${SELF%/*}
 export PATH="${HERE}/usr/bin:${PATH}"
 export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH:-}"
-exec "${HERE}/usr/bin/ADBKit" "$@"
+exec "${HERE}/usr/bin/TVADB-Hub" "$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"
 
