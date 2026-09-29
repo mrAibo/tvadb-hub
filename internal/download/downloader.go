@@ -5,6 +5,7 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"context"
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -163,6 +164,43 @@ func isTransientDownloadError(err error) bool {
 		return true
 	}
 	return false
+}
+
+// VerifySHA1 confirms a downloaded archive matches the SHA-1 digest published
+// by upstream metadata. Android's SDK repository currently publishes SHA-1
+// digests for Platform Tools archives.
+func VerifySHA1(path, expected string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return core.NewOperationError("verify_checksum", "failed to open archive", err.Error(), true)
+	}
+	defer f.Close()
+
+	h := sha1.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return core.NewOperationError("verify_checksum", "failed to hash archive", err.Error(), true)
+	}
+	if actual := hex.EncodeToString(h.Sum(nil)); !strings.EqualFold(actual, expected) {
+		return core.NewOperationError("verify_checksum", "downloaded archive checksum mismatch", "expected "+expected+", got "+actual, false)
+	}
+	return nil
+}
+
+// VerifyFileSize rejects a republished or truncated archive before extraction.
+func VerifyFileSize(path string, expected int64) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return core.NewOperationError("verify_download_size", "failed to stat downloaded archive", err.Error(), true)
+	}
+	if expected > 0 && info.Size() != expected {
+		return core.NewOperationError(
+			"verify_download_size",
+			"downloaded archive size mismatch",
+			fmt.Sprintf("expected %d bytes, got %d", expected, info.Size()),
+			false,
+		)
+	}
+	return nil
 }
 
 // VerifySHA256 confirms a downloaded archive matches its pinned SHA-256 digest.
