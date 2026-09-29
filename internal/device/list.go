@@ -190,6 +190,20 @@ func parseGetpropOutput(output string) map[string]string {
 	return properties
 }
 
+func extractHardwareSerial(props map[string]string) string {
+	for _, key := range []string{
+		"ro.serialno",
+		"ro.boot.serialno",
+	} {
+		value := strings.TrimSpace(props[key])
+		if value == "" || strings.EqualFold(value, "unknown") {
+			continue
+		}
+		return value
+	}
+	return ""
+}
+
 func extractDeviceIPAddress(props map[string]string) string {
 	for _, key := range []string{
 		"dhcp.wlan0.ipaddress",

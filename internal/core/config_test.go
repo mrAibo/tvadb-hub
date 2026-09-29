@@ -88,8 +88,13 @@ func TestRememberedWirelessRoundTrip(t *testing.T) {
 			InstanceName: "adb-tv-123",
 			Host:         "192.168.1.20",
 			LastAddress:  "192.168.1.20:42001",
-			Name:         "Living room TV",
-			AutoConnect:  true,
+			Name:           "Living room TV",
+			HardwareSerial: "TVSERIAL123",
+			Model:          "Google TV",
+			Manufacturer:   "Google",
+			AndroidVersion: "14",
+			LastSeenAt:     "2026-09-29T01:00:00Z",
+			AutoConnect:    true,
 		},
 	}
 

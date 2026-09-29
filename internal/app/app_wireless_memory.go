@@ -4,6 +4,7 @@ import (
 	"ADBKit/internal/core"
 	"ADBKit/internal/device"
 	"strings"
+	"time"
 )
 
 type WirelessReconnectReport struct {
@@ -140,9 +141,11 @@ func (a *App) rememberWirelessService(service device.MDNSService) error {
 		)
 	}
 
-	key := strings.TrimSpace(service.InstanceName)
-	if key == "" {
-		key = service.Host
+	// Enrichment is best-effort. Remembering the dynamic mDNS endpoint must
+	// still succeed when the device is connected but a property query fails.
+	var info *device.Info
+	if candidate, err := a.devSvc.GetDeviceInfo(a.ctx, service.Address); err == nil {
+		info = candidate
 	}
 
 	a.mu.Lock()
@@ -159,38 +162,122 @@ func (a *App) rememberWirelessService(service device.MDNSService) error {
 		a.cfg.RememberedWireless = []core.RememberedWirelessDevice{}
 	}
 
-	match := -1
-	for i, entry := range a.cfg.RememberedWireless {
-		sameInstance := service.InstanceName != "" &&
-			entry.InstanceName != "" &&
-			strings.EqualFold(entry.InstanceName, service.InstanceName)
-		sameHost := entry.Host != "" && strings.EqualFold(entry.Host, service.Host)
-		if sameInstance || sameHost {
-			match = i
-			break
-		}
+	match := findRememberedWirelessMatch(a.cfg.RememberedWireless, service, info)
+	var existing *core.RememberedWirelessDevice
+	if match >= 0 {
+		snapshot := a.cfg.RememberedWireless[match]
+		existing = &snapshot
 	}
 
-	entry := core.RememberedWirelessDevice{
-		Key:          key,
-		InstanceName: service.InstanceName,
-		Host:         service.Host,
-		LastAddress:  service.Address,
-		Name:         service.Host,
-		AutoConnect:  true,
-	}
+	entry := buildRememberedWirelessEntry(existing, service, info, time.Now().UTC())
 	if match >= 0 {
-		existing := a.cfg.RememberedWireless[match]
-		if existing.Name != "" {
-			entry.Name = existing.Name
-		}
-		entry.AutoConnect = true
 		a.cfg.RememberedWireless[match] = entry
 	} else {
 		a.cfg.RememberedWireless = append(a.cfg.RememberedWireless, entry)
 	}
 
 	return core.SaveConfig(a.dataDir, a.cfg)
+}
+
+func findRememberedWirelessMatch(
+	entries []core.RememberedWirelessDevice,
+	service device.MDNSService,
+	info *device.Info,
+) int {
+	hardwareSerial := ""
+	if info != nil {
+		hardwareSerial = strings.TrimSpace(info.HardwareSerial)
+	}
+
+	if hardwareSerial != "" {
+		for i, entry := range entries {
+			if entry.HardwareSerial != "" &&
+				strings.EqualFold(entry.HardwareSerial, hardwareSerial) {
+				return i
+			}
+		}
+	}
+
+	for i, entry := range entries {
+		sameInstance := service.InstanceName != "" &&
+			entry.InstanceName != "" &&
+			strings.EqualFold(entry.InstanceName, service.InstanceName)
+		if sameInstance {
+			return i
+		}
+	}
+
+	for i, entry := range entries {
+		if entry.Host != "" && strings.EqualFold(entry.Host, service.Host) {
+			return i
+		}
+	}
+
+	return -1
+}
+
+func buildRememberedWirelessEntry(
+	existing *core.RememberedWirelessDevice,
+	service device.MDNSService,
+	info *device.Info,
+	seenAt time.Time,
+) core.RememberedWirelessDevice {
+	entry := core.RememberedWirelessDevice{}
+	oldHost := ""
+	if existing != nil {
+		entry = *existing
+		oldHost = existing.Host
+	}
+
+	hardwareSerial := strings.TrimSpace(entry.HardwareSerial)
+	if info != nil && strings.TrimSpace(info.HardwareSerial) != "" {
+		hardwareSerial = strings.TrimSpace(info.HardwareSerial)
+	}
+
+	if entry.Key == "" {
+		switch {
+		case hardwareSerial != "":
+			entry.Key = "serial:" + hardwareSerial
+		case strings.TrimSpace(service.InstanceName) != "":
+			entry.Key = strings.TrimSpace(service.InstanceName)
+		default:
+			entry.Key = service.Host
+		}
+	}
+
+	customName := entry.Name != "" && entry.Name != oldHost
+
+	entry.InstanceName = service.InstanceName
+	entry.Host = service.Host
+	entry.LastAddress = service.Address
+	entry.HardwareSerial = hardwareSerial
+	entry.AutoConnect = true
+	entry.LastSeenAt = seenAt.UTC().Format(time.RFC3339)
+
+	if info != nil {
+		if strings.TrimSpace(info.Model) != "" {
+			entry.Model = strings.TrimSpace(info.Model)
+		}
+		if strings.TrimSpace(info.Manufacturer) != "" {
+			entry.Manufacturer = strings.TrimSpace(info.Manufacturer)
+		}
+		if strings.TrimSpace(info.AndroidVersion) != "" {
+			entry.AndroidVersion = strings.TrimSpace(info.AndroidVersion)
+		}
+	}
+
+	if !customName {
+		switch {
+		case entry.Model != "":
+			entry.Name = entry.Model
+		case entry.Name != "":
+			// Preserve the previous generated name if enrichment is unavailable.
+		default:
+			entry.Name = service.Host
+		}
+	}
+
+	return entry
 }
 
 func resolveRememberedWirelessService(
