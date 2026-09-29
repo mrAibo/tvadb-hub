@@ -1,8 +1,10 @@
 import { useSettings } from '@/hooks/useSettings'
 import { BinaryModuleCard } from './BinaryModuleCard'
+import { ToolLocationsSummary } from './ToolLocationsSummary'
 import {
   clearCustomBinary,
   getBinaryStatus,
+  getManagedBinaryDir,
   selectBinaryFile,
   selectPlatformToolsDirectory,
   setCustomBinary,
@@ -35,6 +37,11 @@ export function BinaryManager() {
   const binaryQuery = useQuery({
     queryKey: ['settings', 'binary-status'],
     queryFn: getBinaryStatus,
+  })
+
+  const managedDirQuery = useQuery({
+    queryKey: ['settings', 'managed-binary-dir'],
+    queryFn: getManagedBinaryDir,
   })
 
   const status = binaryQuery.data
@@ -159,6 +166,13 @@ export function BinaryManager() {
             />
           )}
         </div>
+
+        <ToolLocationsSummary
+          adb={status?.adb}
+          fastboot={status?.fastboot}
+          scrcpy={status?.scrcpy}
+          managedDir={managedDirQuery.data}
+        />
 
         {loading && !status ? (
           <div className="space-y-2 p-4">
