@@ -121,7 +121,7 @@ require **Control-click → Open** on first launch.
 Choose one of:
 
 - `distribution/linux/DroidSphere-<version>-linux-amd64.AppImage`
-- `distribution/linux/droidsphere_<version>_amd64.deb`
+- `distribution/linux/DroidSphere-<version>-linux-amd64.deb`
 
 For AppImage:
 
@@ -133,7 +133,7 @@ chmod +x DroidSphere-<version>-linux-amd64.AppImage
 For Debian/Ubuntu:
 
 ```bash
-sudo apt install ./droidsphere_<version>_amd64.deb
+sudo apt install ./DroidSphere-<version>-linux-amd64.deb
 ```
 
 Linux desktop builds require a compatible GTK4/WebKitGTK 6.0 runtime. See
@@ -197,21 +197,20 @@ engineering details.
 
 ## Recommended next features
 
-The next additions with the strongest practical value are:
+The strongest candidates after Connection Doctor are:
 
-1. **App backup & restore** — preview images/text, compare folder changes,
-   define include/exclude patterns and choose conflict handling before sync.
+1. **App backup & restore** — export base/split APK sets and restore them as a
+   unit; add user-data backup only where Android actually permits it.
 2. **Logcat 2.0** — app/PID filtering, crash and ANR highlighting, saved filter
    presets and pinned events.
 3. **File preview + folder sync** — preview images/text, compare folder changes,
    define include/exclude patterns and choose conflict handling before sync.
 4. **Permission/AppOps inspector** — begin read-only, then expose carefully
    scoped changes with before/after state.
-6. **Quick Share integration** — longer-term, ordinary Android file exchange
+5. **Quick Share integration** — longer-term, ordinary Android file exchange
    without requiring ADB for every transfer.
 
-The first four fit the current architecture especially well. See
-[docs/ROADMAP.md](docs/ROADMAP.md) for the maintained roadmap.
+See [docs/ROADMAP.md](docs/ROADMAP.md) for the maintained roadmap.
 
 ## Development
 
