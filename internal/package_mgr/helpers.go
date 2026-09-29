@@ -3,14 +3,35 @@ package packagemgr
 import (
 	"ADBKit/internal/core"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
+)
+
+var validPackageNamePattern = regexp.MustCompile(`^[A-Za-z0-9._]+package packagemgr
+
+import (
+	"ADBKit/internal/core"
+	"fmt"
+	"regexp"
+	"sort"
+	"strings"
+)
+
 )
 
 func validatePackageName(packageName string) (string, error) {
 	trimmed := strings.TrimSpace(packageName)
 	if trimmed == "" {
 		return "", core.NewOperationError("validate_package_name", "Package name is required", "package name must not be empty", false)
+	}
+	if len(trimmed) > 255 || !validPackageNamePattern.MatchString(trimmed) {
+		return "", core.NewOperationError(
+			"validate_package_name",
+			"Package name is invalid",
+			"only letters, numbers, dots and underscores are allowed",
+			false,
+		)
 	}
 	return trimmed, nil
 }
