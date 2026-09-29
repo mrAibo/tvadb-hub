@@ -6,6 +6,7 @@ import { BinaryManager } from './BinaryManager'
 import { PreferencesPanel } from './PreferencesPanel'
 import { AuditLogsPanel } from './AuditLogsPanel'
 import { DiagnosticsPanel } from './DiagnosticsPanel'
+import { UpdatePanel } from './UpdatePanel'
 
 export function SettingsShell() {
   const reduced = useReducedMotion()
@@ -95,12 +96,17 @@ export function SettingsShell() {
           />
         </motion.div>
 
-        {/* Box 3: Audit Logs (Full Width) */}
+        {/* Box 3: Update check */}
+        <motion.div variants={itemVariants} className="lg:col-span-3 flex flex-col min-w-0">
+          <UpdatePanel />
+        </motion.div>
+
+        {/* Box 4: Audit Logs (Full Width) */}
         <motion.div variants={itemVariants} className="lg:col-span-3 flex flex-col min-w-0">
           <AuditLogsPanel />
         </motion.div>
 
-        {/* Box 4: Diagnostics (Full Width at the very bottom) */}
+        {/* Box 5: Diagnostics (Full Width at the very bottom) */}
         <motion.div variants={itemVariants} className="lg:col-span-3 flex flex-col min-w-0">
           <DiagnosticsPanel />
         </motion.div>

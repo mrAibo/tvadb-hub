@@ -548,6 +548,15 @@ export interface ScrcpyState {
   lastEventAt: number | null
 }
 
+export interface UpdateInfo {
+  currentVersion: string
+  latestVersion: string
+  updateAvailable: boolean
+  releaseUrl: string
+  releaseName: string
+  publishedAt: string
+}
+
 export type AuditLogLevel = 'info' | 'warning' | 'error' | 'debug' | 'success'
 
 export type AuditLogOutcome = 'all' | 'succeeded' | 'failed'
