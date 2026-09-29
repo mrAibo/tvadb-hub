@@ -19,11 +19,11 @@ Unicode true
 ####
 ## The following information is taken from the wails_tools.nsh file, but they can be overwritten here.
 ####
-## !define INFO_PROJECTNAME    "TVADB-Hub" # Default "TVADB-Hub"
-## !define INFO_COMPANYNAME    "TVADB Hub contributors" # Default "TVADB Hub contributors"
-## !define INFO_PRODUCTNAME    "TVADB Hub" # Default "TVADB Hub"
+## !define INFO_PROJECTNAME    "DroidSphere" # Default "DroidSphere"
+## !define INFO_COMPANYNAME    "DroidSphere contributors" # Default "DroidSphere contributors"
+## !define INFO_PRODUCTNAME    "DroidSphere" # Default "DroidSphere"
 ## !define INFO_PRODUCTVERSION "0.1.0" # Default "0.1.0"
-## !define INFO_COPYRIGHT      "Copyright (c) 2026 TVADB Hub contributors"
+## !define INFO_COPYRIGHT      "Copyright (c) 2026 DroidSphere contributors"
 ###
 ## !define PRODUCT_EXECUTABLE  "Application.exe"      # Default "${INFO_PROJECTNAME}.exe"
 ## !define UNINST_KEY_NAME     "UninstKeyInRegistry"  # Default "${INFO_COMPANYNAME}${INFO_PRODUCTNAME}"

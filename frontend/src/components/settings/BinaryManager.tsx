@@ -121,7 +121,7 @@ export function BinaryManager() {
           <div className="mb-2">
             <p className="text-xs font-semibold text-foreground">Managed tools</p>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              Install or refresh TVADB Hub's managed Platform Tools and scrcpy copies.
+              Install or refresh DroidSphere's managed Platform Tools and scrcpy copies.
               The downloaded binaries become the active configured versions automatically.
             </p>
           </div>

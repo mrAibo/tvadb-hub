@@ -10,7 +10,7 @@ import (
 func TestGetAppInfo(t *testing.T) {
 	info := NewApp().GetAppInfo()
 
-	if info.Name != "TVADB Hub" {
+	if info.Name != "DroidSphere" {
 		t.Fatalf("unexpected name: %q", info.Name)
 	}
 	if info.Version != core.Version {

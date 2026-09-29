@@ -9,7 +9,8 @@ import (
 	"ADBKit/internal/core"
 )
 
-const settingsBackupFormat = "tvadb-hub-settings"
+const settingsBackupFormat = "droidsphere-settings"
+const legacySettingsBackupFormat = "tvadb-hub-settings"
 const settingsBackupVersion = 1
 
 type settingsBackupEnvelope struct {
@@ -70,7 +71,7 @@ func (a *App) ImportSettings(path string) (core.AppConfigSnapshot, error) {
 		if err := json.Unmarshal(data, &envelope); err != nil {
 			return core.AppConfigSnapshot{}, core.NewOperationError("import_settings", "settings backup is not valid JSON", err.Error(), false)
 		}
-		if envelope.Format != settingsBackupFormat {
+		if envelope.Format != settingsBackupFormat && envelope.Format != legacySettingsBackupFormat {
 			return core.AppConfigSnapshot{}, core.NewOperationError("import_settings", "unsupported settings backup format", envelope.Format, false)
 		}
 		if envelope.Version != settingsBackupVersion {

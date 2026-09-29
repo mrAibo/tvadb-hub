@@ -66,10 +66,10 @@ export function WelcomeStep() {
         }}
       >
         <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="TVADB Hub" className="h-12 w-12 object-contain" />
+          <img src="/logo.png" alt="DroidSphere" className="h-12 w-12 object-contain" />
           <div className="flex flex-col">
-            <span className="text-lg font-semibold tracking-tight text-foreground">Welcome to TVADB Hub.</span>
-            <span className="text-xs text-muted-foreground">Set up the Android tools TVADB Hub uses for TV discovery, pairing, apps, files, and screen control.</span>
+            <span className="text-lg font-semibold tracking-tight text-foreground">Welcome to DroidSphere.</span>
+            <span className="text-xs text-muted-foreground">Set up the Android tools DroidSphere uses for device discovery, pairing, apps, files, tuning, Fastboot, and screen control.</span>
           </div>
         </div>
       </header>

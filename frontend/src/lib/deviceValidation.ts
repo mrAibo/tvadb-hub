@@ -1,15 +1,15 @@
 import type { DeviceInfo, WirelessDiagnosticsReport } from '@/lib/types'
 
-export type TVValidationStatus = 'pass' | 'warning' | 'fail'
+export type DeviceValidationStatus = 'pass' | 'warning' | 'fail'
 
-export interface TVValidationCheck {
+export interface DeviceValidationCheck {
   id: string
   label: string
-  status: TVValidationStatus
+  status: DeviceValidationStatus
   detail: string
 }
 
-export interface TVValidationReport {
+export interface DeviceValidationReport {
   generatedAt: string
   serial: string
   model?: string
@@ -19,16 +19,14 @@ export interface TVValidationReport {
   ipAddress?: string
   isTV: boolean
   healthy: boolean
-  checks: TVValidationCheck[]
+  checks: DeviceValidationCheck[]
   wirelessDiagnostics: WirelessDiagnosticsReport
 }
 
 function isNetworkADBSerial(serial: string): boolean {
   const value = serial.trim()
   if (!value) return false
-  if (value.startsWith('[')) {
-    return /\]:\d+$/.test(value)
-  }
+  if (value.startsWith('[')) return /\]:\d+$/.test(value)
   return /:\d+$/.test(value)
 }
 
@@ -46,12 +44,12 @@ export function selectorFromDeviceInfo(info: DeviceInfo): string {
   return serial
 }
 
-export function buildTVValidationReport(
+export function buildDeviceValidationReport(
   info: DeviceInfo,
   wirelessDiagnostics: WirelessDiagnosticsReport,
   generatedAt: string = new Date().toISOString(),
-): TVValidationReport {
-  const checks: TVValidationCheck[] = []
+): DeviceValidationReport {
+  const checks: DeviceValidationCheck[] = []
 
   checks.push({
     id: 'adb-ready',
@@ -64,12 +62,12 @@ export function buildTVValidationReport(
   })
 
   checks.push({
-    id: 'tv-classification',
-    label: 'Android / Google TV classification',
-    status: info.isTV ? 'pass' : 'fail',
+    id: 'device-classification',
+    label: 'Device classification',
+    status: 'pass',
     detail: info.isTV
-      ? `${info.manufacturer || 'Unknown manufacturer'} ${info.model || info.device || info.serial} reports TV characteristics.`
-      : `The connected device does not report the Android TV build characteristic (${info.characteristics || 'no characteristics returned'}).`,
+      ? `${info.manufacturer || 'Unknown manufacturer'} ${info.model || info.device || info.serial} is classified as Android TV / Google TV.`
+      : `${info.manufacturer || 'Unknown manufacturer'} ${info.model || info.device || info.serial} is treated as a general Android device.`,
   })
 
   checks.push({
@@ -90,28 +88,26 @@ export function buildTVValidationReport(
     status: mdnsPass ? 'pass' : 'warning',
     detail: mdnsPass
       ? 'A secure _adb-tls-connect._tcp service is advertised.'
-      : 'No secure _adb-tls-connect._tcp service is currently advertised.',
+      : 'No secure _adb-tls-connect._tcp service is currently advertised. This is expected for USB-only validation.',
   })
 
-  const adbStateCheck = wirelessDiagnostics.checks.find(
-    (check) => check.id === 'adb_state',
-  )
+  const adbStateCheck = wirelessDiagnostics.checks.find((check) => check.id === 'adb_state')
   checks.push({
     id: 'wireless-diagnostics',
-    label: 'Wireless diagnostics',
+    label: 'ADB diagnostics',
     status: wirelessDiagnostics.healthy
       ? 'pass'
       : adbStateCheck?.status === 'fail'
         ? 'fail'
         : 'warning',
     detail: wirelessDiagnostics.healthy
-      ? 'Wireless ADB diagnostics completed without a failed check.'
-      : 'Wireless diagnostics reported at least one failed check; inspect the detailed Wireless ADB diagnostics before release.',
+      ? 'ADB diagnostics completed without a failed check.'
+      : 'Diagnostics reported at least one failed check; inspect the detailed diagnostics before release.',
   })
 
   checks.push({
     id: 'device-metadata',
-    label: 'TV metadata',
+    label: 'Device metadata',
     status: info.model && info.androidVersion ? 'pass' : 'warning',
     detail:
       info.model && info.androidVersion

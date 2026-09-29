@@ -11,8 +11,8 @@ on:
         required: false
         type: boolean
         default: false
-      physical_tv_validated:
-        description: 'Confirm the physical Google TV validation gate is complete'
+      physical_device_validated:
+        description: 'Confirm the physical Android-device validation gate is complete'
         required: false
         type: boolean
         default: false
@@ -21,7 +21,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: tvadb-release-${{ github.ref }}
+  group: droidsphere-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -76,8 +76,8 @@ jobs:
 
           if ($env:EVENT_NAME -eq "workflow_dispatch" -and
               "${{ inputs.publish }}" -eq "true" -and
-              "${{ inputs.physical_tv_validated }}" -ne "true") {
-            throw "Manual publishing requires physical_tv_validated=true."
+              "${{ inputs.physical_device_validated }}" -ne "true") {
+            throw "Manual publishing requires physical_device_validated=true."
           }
 
           $tag = "v$version"
@@ -138,9 +138,9 @@ jobs:
             exit 0
           }
 
-          $certificatePath = Join-Path $env:RUNNER_TEMP "tvadb-hub-signing.pfx"
-          $binaryPath = Join-Path $env:GITHUB_WORKSPACE "bin\TVADB-Hub.exe"
-          $installerPath = Join-Path $env:GITHUB_WORKSPACE "bin\TVADB-Hub-amd64-installer.exe"
+          $certificatePath = Join-Path $env:RUNNER_TEMP "droidsphere-signing.pfx"
+          $binaryPath = Join-Path $env:GITHUB_WORKSPACE "bin\DroidSphere.exe"
+          $installerPath = Join-Path $env:GITHUB_WORKSPACE "bin\DroidSphere-amd64-installer.exe"
           $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse |
             Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
             Sort-Object FullName -Descending |
@@ -195,8 +195,8 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          $portable = "bin\TVADB-Hub-$env:VERSION-windows-amd64.exe"
-          $installer = "bin\TVADB-Hub-$env:VERSION-windows-amd64-installer.exe"
+          $portable = "bin\DroidSphere-$env:VERSION-windows-amd64.exe"
+          $installer = "bin\DroidSphere-$env:VERSION-windows-amd64-installer.exe"
           foreach ($path in @($portable, $installer)) {
             if (-not (Test-Path $path)) {
               throw "Expected release asset is missing: $path"
@@ -212,10 +212,10 @@ jobs:
       - name: Upload release build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tvadb-hub-${{ steps.version.outputs.version }}-windows-amd64
+          name: droidsphere-${{ steps.version.outputs.version }}-windows-amd64
           path: |
-            bin/TVADB-Hub-${{ steps.version.outputs.version }}-windows-amd64.exe
-            bin/TVADB-Hub-${{ steps.version.outputs.version }}-windows-amd64-installer.exe
+            bin/DroidSphere-${{ steps.version.outputs.version }}-windows-amd64.exe
+            bin/DroidSphere-${{ steps.version.outputs.version }}-windows-amd64-installer.exe
             bin/SHA256SUMS.txt
           if-no-files-found: error
 
@@ -228,8 +228,8 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           $assets = @(
-            "bin\TVADB-Hub-$env:VERSION-windows-amd64.exe",
-            "bin\TVADB-Hub-$env:VERSION-windows-amd64-installer.exe",
+            "bin\DroidSphere-$env:VERSION-windows-amd64.exe",
+            "bin\DroidSphere-$env:VERSION-windows-amd64-installer.exe",
             "bin\SHA256SUMS.txt"
           )
 
@@ -239,6 +239,6 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Failed to upload release assets." }
           }
           else {
-            gh release create $env:RELEASE_TAG @assets --target $env:GITHUB_SHA --title "TVADB Hub $env:RELEASE_TAG" --generate-notes
+            gh release create $env:RELEASE_TAG @assets --target $env:GITHUB_SHA --title "DroidSphere $env:RELEASE_TAG" --generate-notes
             if ($LASTEXITCODE -ne 0) { throw "Failed to create GitHub Release." }
           }

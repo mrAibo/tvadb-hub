@@ -1,6 +1,6 @@
 # Wireless ADB architecture
 
-TVADB Hub keeps ADB itself as the source of truth for wireless discovery.
+DroidSphere keeps ADB itself as the source of truth for wireless discovery.
 
 ## Why
 

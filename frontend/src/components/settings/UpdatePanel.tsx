@@ -43,7 +43,7 @@ export function UpdatePanel() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Check the official TVADB Hub GitHub Releases feed. No update is installed automatically.
+          Check the official DroidSphere GitHub Releases feed. No update is installed automatically.
         </p>
 
         {info && (

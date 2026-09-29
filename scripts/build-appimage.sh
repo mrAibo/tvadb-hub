@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="TVADB-Hub"
+APP_NAME="DroidSphere"
 VERSION="${VERSION:-$(awk '/^VERSION :=/ {print $3; exit}' Makefile)}"
 BUILD_DIR="bin"
 APPIMAGE_TOOL="build/tools/appimagetool-x86_64.AppImage"
@@ -50,7 +50,7 @@ SELF=$(readlink -f "$0")
 HERE=${SELF%/*}
 export PATH="${HERE}/usr/bin:${PATH}"
 export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH:-}"
-exec "${HERE}/usr/bin/TVADB-Hub" "$@"
+exec "${HERE}/usr/bin/DroidSphere" "$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"
 

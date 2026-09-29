@@ -1,15 +1,15 @@
 # Current+ UI direction
 
-Current+ is the selected TVADB Hub interface direction. It evolves the existing
+Current+ is the selected DroidSphere interface direction. It evolves the existing
 bottom-dock design instead of replacing it with a generic desktop sidebar.
 
 ## Design principles
 
 1. Keep the bottom dock as the primary navigation identity.
-2. Keep the active TV visible at all times through a compact top status bar.
+2. Keep the active device visible at all times through a compact top status bar.
 3. Make connection state, address and refresh actions discoverable without
    opening Device Manager.
-4. Keep the Dashboard focused on the current TV: health, quick actions and
+4. Keep the Dashboard focused on the current device: health, quick actions and
    recent activity.
 5. Keep host-machine configuration in Settings: binary versions, resolved
    executable paths, managed tool directory and diagnostics.
@@ -20,7 +20,7 @@ bottom-dock design instead of replacing it with a generic desktop sidebar.
 
 ## Current+ first pass
 
-- Persistent TVADB Hub / active-device top bar.
+- Persistent DroidSphere / active-device top bar.
 - Existing bottom dock retained.
 - Settings shows full resolved locations for ADB, Fastboot and scrcpy.
 - Settings shows the managed tools directory.
@@ -39,9 +39,9 @@ bottom-dock design instead of replacing it with a generic desktop sidebar.
 ## Planned workflow improvements
 
 - Safe, device-specific tuning profiles with backup, dry-run and exact restore.
-- Dual-pane PC <-> TV file manager with search, favorites and transfer queue.
+- Dual-pane PC <-> Android file manager with search, favorites and transfer queue.
 - Scrcpy Pro controls for recording, audio, clipboard, virtual display and
   gamepad where supported.
-- Fleet/group actions for multiple TVs.
-- Remote macros and reusable TV action sequences.
+- Fleet/group actions for multiple devices.
+- Remote macros and reusable device action sequences.
 - Sanitized diagnostics/support bundle generation.

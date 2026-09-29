@@ -25,9 +25,9 @@ type AppInfo struct {
 
 func (a *App) GetAppInfo() AppInfo {
 	return AppInfo{
-		Name:         "TVADB Hub",
+		Name:         "DroidSphere",
 		Version:      core.Version,
-		Description:  "Automatic ADB manager for Android TV and Google TV",
+		Description:  "Cross-platform Android device manager powered by ADB, Fastboot and scrcpy",
 		OS:           runtime.GOOS,
 		Arch:         runtime.GOARCH,
 		GoVersion:    runtime.Version(),

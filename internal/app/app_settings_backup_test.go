@@ -31,3 +31,13 @@ func TestNormalizeImportedConfig(t *testing.T) {
 		t.Fatal("maps/slices must be normalized")
 	}
 }
+
+
+func TestSettingsBackupFormatsKeepLegacyCompatibility(t *testing.T) {
+	if settingsBackupFormat != "droidsphere-settings" {
+		t.Fatalf("new backup format=%q", settingsBackupFormat)
+	}
+	if legacySettingsBackupFormat != "tvadb-hub-settings" {
+		t.Fatalf("legacy backup format=%q", legacySettingsBackupFormat)
+	}
+}

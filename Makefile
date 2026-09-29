@@ -1,4 +1,4 @@
-APP_NAME := TVADB-Hub
+APP_NAME := DroidSphere
 VERSION := 0.1.0
 
 .PHONY: help deps frontend-install doctor dev build build-upx windows linux macos run lint typecheck test test-coverage check check-all package deb rpm arch appimage appimage-lite release-assets all
