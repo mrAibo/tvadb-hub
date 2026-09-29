@@ -656,3 +656,76 @@ export interface SettingsState {
   auditLogsError: string | null
   auditLogsLoadedAt: number | null
 }
+
+
+export type TuningRisk = 'safe' | 'caution' | 'dangerous' | 'blocked'
+export type SafeTuningActionMode = 'disable' | 'uninstall-user'
+
+export interface SafeTuningProfileSummary {
+  id: string
+  name: string
+  deviceFamily: string
+  description: string
+  sourceName: string
+  sourceUrl: string
+  sourceLicense: string
+  matchScore: number
+  recommended: boolean
+}
+
+export interface SafeTuningPackageMatch {
+  packageName: string
+  label: string
+  category: string
+  risk: TuningRisk
+  reason: string
+  defaultSelected: boolean
+  isEnabled: boolean
+  isSystemApp: boolean
+  protected: boolean
+  actionable: boolean
+}
+
+export interface SafeTuningAnalysis {
+  serial: string
+  model: string
+  manufacturer: string
+  androidVersion: string
+  isTV: boolean
+  selectedProfile: SafeTuningProfileSummary
+  availableProfiles: SafeTuningProfileSummary[]
+  matches: SafeTuningPackageMatch[]
+  installedCount: number
+  defaultSelected: string[]
+  protectedInstalled: string[]
+}
+
+export interface SafeTuningApplyRequest {
+  profileId: string
+  packageNames: string[]
+  mode: SafeTuningActionMode
+  acknowledgeCaution: boolean
+}
+
+export interface SafeTuningApplyResult {
+  snapshotId: string
+  changed: string[]
+  skipped: string[]
+  failed: Record<string, string>
+}
+
+export interface TuningSnapshotSummary {
+  id: string
+  createdAt: string
+  serial: string
+  profileId: string
+  profileName: string
+  mode: SafeTuningActionMode
+  applied: number
+}
+
+export interface TuningRestoreResult {
+  snapshotId: string
+  restored: string[]
+  failed: Record<string, string>
+}
