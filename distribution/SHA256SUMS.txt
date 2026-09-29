@@ -1,6 +1,6 @@
 40886a8fb67f45a601b3823c3efd75a78d3ab64d88fda588c252735f1abf95a5  distribution/README.md
-14b9353b911a4a864f54cfaae3a21ef1e9425d4d757f8780f88c8553e78e1077  distribution/linux/DroidSphere-0.1.1-linux-amd64.AppImage
-6f2f9d35e680e36e4803b828b5cdddfb7fad56b5a45c2f6ff33c0c8f49eea812  distribution/linux/DroidSphere-0.1.1-linux-amd64.deb
-5e2a44132a95608f28f5e4dfaffe49c90a4f87cb480250bd200641a36e2a2550  distribution/macos/DroidSphere-0.1.1-macos-universal.zip
-40d6e940791014c48a0bdc9d93df16a209b8d3eb7ae3da9a86b4210f12d547e6  distribution/windows/DroidSphere-0.1.1-windows-amd64-installer.exe
-f0c33224a3d07f3b508fcf970df260efd4576f61491854456d990d79084b0aef  distribution/windows/DroidSphere-0.1.1-windows-amd64.exe
+7e2bb8a626e69da346bba0d15d47b3c5b1b5c40c119ec3ce62e643464bb987ee  distribution/linux/DroidSphere-0.1.1-linux-amd64.AppImage
+a466003cec76df7b771419662ddde1e03310b8547affc52d6ddda825c3a0424a  distribution/linux/DroidSphere-0.1.1-linux-amd64.deb
+9e7e90a61bdcd3fdbb30415ead8d39ea5eb3a5972a8679d4271e30430b2957c2  distribution/macos/DroidSphere-0.1.1-macos-universal.zip
+d8c3bb82602a092569267c832beaf94a4d55b99eda74239051287e2037a7c7b9  distribution/windows/DroidSphere-0.1.1-windows-amd64-installer.exe
+e69a33f0d9c688f2fae6a86f3f6dafeaa46a444fc6543dc0cbebaa58d948f3c8  distribution/windows/DroidSphere-0.1.1-windows-amd64.exe
