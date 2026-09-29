@@ -1,6 +1,6 @@
 # Maintainer: DroidSphere contributors
 pkgname=droidsphere
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="Cross-platform Android device manager powered by ADB, Fastboot and scrcpy"
 arch=('x86_64')
