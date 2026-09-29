@@ -29,13 +29,13 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v5
         with:
           go-version: '1.26.x'
 
@@ -65,7 +65,8 @@ jobs:
             throw "Version mismatch: Makefile=$version, build/config.yml=$configVersion"
           }
 
-          $coreLine = Select-String -Path internal/core/version.go -Pattern '^const Version = "(\d+\.\d+\.\d+)"\s*          if ($env:EVENT_NAME -eq "push" -and $env:REF_NAME -ne $tag) {
+          $coreLine = Select-String -Path internal/core/version.go -Pattern '^const Version = "(\d+\.\d+\.\d+)"\s*
+          if ($env:EVENT_NAME -eq "push" -and $env:REF_NAME -ne $tag) {
             throw "Tag '$($env:REF_NAME)' does not match project version '$tag'."
           }
 
