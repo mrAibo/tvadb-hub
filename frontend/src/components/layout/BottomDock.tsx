@@ -11,6 +11,7 @@ import {
   IconTerminal as Terminal,
   IconCast as MonitorPlay,
   IconSettings as Settings,
+  IconInfoCircle as InfoCircle,
   IconSun as Sun,
   IconMoon as Moon
 } from "@tabler/icons-react"
@@ -29,6 +30,7 @@ const navItems = [
   { to: '/terminal', icon: Terminal, label: 'Terminal' },
   { to: '/scrcpy', icon: MonitorPlay, label: 'Scrcpy' },
   { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: '/about', icon: InfoCircle, label: 'About' },
 ]
 
 const HIDE_DELAY_MS = 300
