@@ -7,7 +7,7 @@ import { PreferencesPanel } from './PreferencesPanel'
 import { AuditLogsPanel } from './AuditLogsPanel'
 import { DiagnosticsPanel } from './DiagnosticsPanel'
 import { UpdatePanel } from './UpdatePanel'
-import { PhysicalTVValidationPanel } from './PhysicalTVValidationPanel'
+import { PhysicalDeviceValidationPanel } from './PhysicalDeviceValidationPanel'
 import { SettingsBackupPanel } from './SettingsBackupPanel'
 
 export function SettingsShell() {
@@ -108,9 +108,9 @@ export function SettingsShell() {
           <UpdatePanel />
         </motion.div>
 
-        {/* Box 4: Physical TV validation */}
+        {/* Box 4: Physical Android device validation */}
         <motion.div variants={itemVariants} className="lg:col-span-3 flex flex-col min-w-0">
-          <PhysicalTVValidationPanel />
+          <PhysicalDeviceValidationPanel />
         </motion.div>
 
         {/* Box 5: Audit Logs (Full Width) */}
