@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 import {
   IconClipboard as Clipboard,
   IconFolder as Folder,
-  IconTerminal2 as Terminal2,
 } from '@tabler/icons-react'
 import { toast } from 'sonner'
 import type { BinaryInfo } from '@/lib/types'
@@ -18,12 +17,6 @@ interface ToolRow {
   label: string
   path: string
   ready: boolean
-}
-
-function shortenMiddle(value: string, max = 72) {
-  if (value.length <= max) return value
-  const keep = Math.floor((max - 3) / 2)
-  return `${value.slice(0, keep)}...${value.slice(-keep)}`
 }
 
 export function ToolLocationsSummary({
@@ -77,10 +70,10 @@ export function ToolLocationsSummary({
             </div>
 
             <div
-              className="min-w-0 truncate font-mono text-[11px] text-foreground"
+              className="min-w-0 break-all font-mono text-[11px] leading-relaxed text-foreground"
               title={row.path || 'Not resolved'}
             >
-              {row.path ? shortenMiddle(row.path) : 'Not resolved'}
+              {row.path || 'Not resolved'}
             </div>
 
             <button
@@ -91,12 +84,7 @@ export function ToolLocationsSummary({
               aria-label={`Copy ${row.label} path`}
               title={row.path ? `Copy ${row.label} path` : 'Path not available'}
             >
-              {row.label === 'Managed tools' ? (
-                <Folder className="h-3.5 w-3.5" />
-              ) : (
-                <Terminal2 className="h-3.5 w-3.5" />
-              )}
-              <Clipboard className="sr-only" />
+              <Clipboard className="h-3.5 w-3.5" />
             </button>
           </div>
         ))}
