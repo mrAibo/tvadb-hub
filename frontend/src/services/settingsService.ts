@@ -1,3 +1,4 @@
+import { Call as WailsCall } from '@wailsio/runtime'
 import {
   ClearAuditLogs,
   ExportAuditLogs,
@@ -75,3 +76,17 @@ export async function setWindowState(state: WindowStateOption): Promise<void> {
 export const AUDIT_LOG_LIMIT_OPTIONS = [50, 100, 200, 500, 1000] as const
 
 export type AuditLogLimitOption = (typeof AUDIT_LOG_LIMIT_OPTIONS)[number]
+
+
+export async function openPathLocation(path: string): Promise<void> {
+  await WailsCall.ByName('ADBKit/internal/app.App.OpenPathLocation', path)
+}
+
+export async function exportSettings(path: string): Promise<void> {
+  await WailsCall.ByName('ADBKit/internal/app.App.ExportSettings', path)
+}
+
+export async function importSettings(path: string): Promise<AppConfigSnapshot> {
+  const raw = await WailsCall.ByName('ADBKit/internal/app.App.ImportSettings', path)
+  return raw as AppConfigSnapshot
+}

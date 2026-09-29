@@ -8,6 +8,7 @@ import { AuditLogsPanel } from './AuditLogsPanel'
 import { DiagnosticsPanel } from './DiagnosticsPanel'
 import { UpdatePanel } from './UpdatePanel'
 import { PhysicalTVValidationPanel } from './PhysicalTVValidationPanel'
+import { SettingsBackupPanel } from './SettingsBackupPanel'
 
 export function SettingsShell() {
   const reduced = useReducedMotion()
@@ -97,7 +98,12 @@ export function SettingsShell() {
           />
         </motion.div>
 
-        {/* Box 3: Update check */}
+        {/* Box 3: Settings backup */}
+        <motion.div variants={itemVariants} className="lg:col-span-3 flex flex-col min-w-0">
+          <SettingsBackupPanel />
+        </motion.div>
+
+        {/* Box 4: Update check */}
         <motion.div variants={itemVariants} className="lg:col-span-3 flex flex-col min-w-0">
           <UpdatePanel />
         </motion.div>
