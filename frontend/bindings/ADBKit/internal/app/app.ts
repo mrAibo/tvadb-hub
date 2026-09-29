@@ -224,6 +224,10 @@ export function GetRuntimeDiagnostics(): $CancellablePromise<core$0.RuntimeDiagn
     return $Call.ByID(1841691581);
 }
 
+export function GetWirelessDiagnostics(selector: string): $CancellablePromise<unknown> {
+    return $Call.ByID(3649810751, selector);
+}
+
 export function GetScrcpyClipboard(serial: string): $CancellablePromise<string> {
     return $Call.ByID(2301369359, serial);
 }

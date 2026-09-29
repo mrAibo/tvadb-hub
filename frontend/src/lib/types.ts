@@ -174,6 +174,27 @@ export interface WirelessPairAndConnectResult {
   connectMessage: string
 }
 
+export type WirelessDiagnosticStatus = 'pass' | 'warning' | 'fail' | 'info'
+
+export interface WirelessDiagnosticCheck {
+  id: string
+  label: string
+  status: WirelessDiagnosticStatus
+  detail: string
+  recommendation?: string
+}
+
+export interface WirelessDiagnosticsReport {
+  adbPath?: string
+  adbVersion?: string
+  services: MDNSService[]
+  devices: DiscoveredWirelessDevice[]
+  selectedHost?: string
+  selectedEndpoint?: string
+  checks: WirelessDiagnosticCheck[]
+  healthy: boolean
+}
+
 export type PackageFilter = 'user' | 'system' | 'all'
 
 export type PackageStatusFilter = 'all' | 'enabled' | 'disabled'

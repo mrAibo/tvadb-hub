@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  IconAlertTriangle as AlertTriangle,
+  IconBug as Bug,
+  IconCircleCheck as CheckCircle,
+  IconCircleX as XCircle,
+  IconInfoCircle as InfoCircle,
   IconLoader2 as Loader2,
   IconRefresh as RefreshCw,
   IconWifi as Wifi,
@@ -17,9 +22,14 @@ import {
   autoConnectWireless,
   connectWireless,
   discoverWirelessDevices,
+  getWirelessDiagnostics,
   pairAndConnectWireless,
 } from '@/services/deviceService'
-import type { DiscoveredWirelessDevice } from '@/lib/types'
+import type {
+  DiscoveredWirelessDevice,
+  WirelessDiagnosticCheck,
+  WirelessDiagnosticsReport,
+} from '@/lib/types'
 import { toast } from 'sonner'
 
 interface WirelessConnectDialogProps {
@@ -35,6 +45,75 @@ function endpointLabel(device: DiscoveredWirelessDevice): string {
   return device.host
 }
 
+function DiagnosticIcon({ check }: { check: WirelessDiagnosticCheck }) {
+  switch (check.status) {
+    case 'pass':
+      return <CheckCircle className="h-4 w-4 text-green-500" />
+    case 'warning':
+      return <AlertTriangle className="h-4 w-4 text-yellow-500" />
+    case 'fail':
+      return <XCircle className="h-4 w-4 text-destructive" />
+    default:
+      return <InfoCircle className="h-4 w-4 text-blue-400" />
+  }
+}
+
+function DiagnosticsPanel({
+  report,
+  onClose,
+}: {
+  report: WirelessDiagnosticsReport
+  onClose: () => void
+}) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-muted/10 p-3">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold">Connection diagnostics</p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            {report.selectedHost
+              ? `Target: ${report.selectedHost}`
+              : 'General Wireless ADB checks'}
+          </p>
+        </div>
+        <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={onClose}>
+          Hide
+        </Button>
+      </div>
+
+      <div className="space-y-2">
+        {report.checks.map((check) => (
+          <div key={check.id} className="flex items-start gap-2 rounded-md border border-border/40 bg-card/60 p-2.5">
+            <DiagnosticIcon check={check} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold">{check.label}</p>
+                <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {check.status}
+                </span>
+              </div>
+              <p className="mt-0.5 break-words text-[10px] leading-relaxed text-muted-foreground">
+                {check.detail}
+              </p>
+              {check.recommendation && (
+                <p className="mt-1 text-[10px] leading-relaxed text-foreground/80">
+                  {check.recommendation}
+                </p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {report.adbVersion && (
+        <div className="mt-2 border-t border-border/40 pt-2 text-[9px] text-muted-foreground">
+          <span className="font-medium">ADB:</span> {report.adbVersion}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function WirelessConnectDialog({
   open,
   onOpenChange,
@@ -47,6 +126,8 @@ export function WirelessConnectDialog({
   const [pairCode, setPairCode] = useState('')
   const [manualAddress, setManualAddress] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [diagnosing, setDiagnosing] = useState(false)
+  const [diagnostics, setDiagnostics] = useState<WirelessDiagnosticsReport | null>(null)
 
   const scan = useCallback(async () => {
     setScanning(true)
@@ -67,6 +148,7 @@ export function WirelessConnectDialog({
     setPairHost('')
     setPairCode('')
     setError(null)
+    setDiagnostics(null)
     void scan()
   }, [open, scan])
 
@@ -130,9 +212,25 @@ export function WirelessConnectDialog({
     }
   }
 
+  async function handleDiagnose(selector: string = '') {
+    setDiagnosing(true)
+    setError(null)
+    try {
+      const report = await getWirelessDiagnostics(selector)
+      setDiagnostics(report)
+    } catch (diagnosticError) {
+      setDiagnostics(null)
+      setError(
+        diagnosticError instanceof Error ? diagnosticError.message : 'Diagnostics failed',
+      )
+    } finally {
+      setDiagnosing(false)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={(next) => busyHost === '' && onOpenChange(next)}>
-      <DialogContent className="sm:max-w-[560px]">
+      <DialogContent className="sm:max-w-[620px] max-h-[88vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Wireless Android TV</DialogTitle>
           <DialogDescription>
@@ -149,14 +247,34 @@ export function WirelessConnectDialog({
                 Pairing and connect ports may change whenever Wireless debugging restarts.
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => void scan()} disabled={scanning || busyHost !== ''}>
-              {scanning ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-              )}
-              Scan
-            </Button>
+            <div className="flex gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleDiagnose('')}
+                disabled={diagnosing || scanning || busyHost !== ''}
+              >
+                {diagnosing ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Bug className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Diagnose
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void scan()}
+                disabled={scanning || busyHost !== ''}
+              >
+                {scanning ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Scan
+              </Button>
+            </div>
           </div>
 
           <div className="max-h-64 space-y-2 overflow-y-auto">
@@ -203,6 +321,16 @@ export function WirelessConnectDialog({
                       </div>
 
                       <div className="flex shrink-0 gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[10px]"
+                          onClick={() => void handleDiagnose(device.host)}
+                          disabled={diagnosing || busyHost !== ''}
+                        >
+                          <Bug className="mr-1 h-3 w-3" />
+                          Diagnose
+                        </Button>
                         {connectable && (
                           <Button
                             size="sm"
@@ -272,6 +400,10 @@ export function WirelessConnectDialog({
               })
             )}
           </div>
+
+          {diagnostics && (
+            <DiagnosticsPanel report={diagnostics} onClose={() => setDiagnostics(null)} />
+          )}
 
           <div className="border-t border-border/50 pt-3">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">

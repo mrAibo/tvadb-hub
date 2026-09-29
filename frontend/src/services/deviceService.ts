@@ -9,6 +9,7 @@ import {
   DiscoverWirelessDevices,
   AutoConnectWireless,
   PairAndConnectWireless,
+  GetWirelessDiagnostics,
   EnableWirelessTCPIP,
   DisconnectWireless,
   GetWirelessHistory,
@@ -28,6 +29,7 @@ import type {
   DiscoveredWirelessDevice,
   WirelessConnectResult,
   WirelessPairAndConnectResult,
+  WirelessDiagnosticsReport,
 } from '@/lib/types'
 
 export async function getDevices(): Promise<DeviceSummary[]> {
@@ -80,6 +82,13 @@ export async function pairAndConnectWireless(
 ): Promise<WirelessPairAndConnectResult> {
   const raw = await PairAndConnectWireless(selector, code)
   return raw as unknown as WirelessPairAndConnectResult
+}
+
+export async function getWirelessDiagnostics(
+  selector: string = '',
+): Promise<WirelessDiagnosticsReport> {
+  const raw = await GetWirelessDiagnostics(selector)
+  return raw as WirelessDiagnosticsReport
 }
 
 export async function enableWirelessTCPIP(
