@@ -17,7 +17,7 @@ export function useLogcat() {
   const clearLogs = useLogcatStore((state) => state.clearLogs)
   const applyLineEvent = useLogcatStore((state) => state.applyLineEvent)
   const applyStatusEvent = useLogcatStore((state) => state.applyStatusEvent)
-  const reset = useLogcatStore((state) => state.reset)
+  const setError = useLogcatStore((state) => state.setError)
 
   const activeSerial = useDeviceStore((state) => state.activeSerial)
   const [showScrollButton, setShowScrollButton] = useState(false)
@@ -40,7 +40,8 @@ export function useLogcat() {
       return
     }
 
-    reset()
+    clearLogs()
+    setError(null)
 
     try {
       await startLogcat(serial)
@@ -51,7 +52,7 @@ export function useLogcat() {
         : 'Failed to start logcat stream'
       toast.error(message)
     }
-  }, [reset])
+  }, [clearLogs, setError])
 
   const handleStop = useCallback(async () => {
     const serial = streamingSerialRef.current
