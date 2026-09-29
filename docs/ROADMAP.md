@@ -16,7 +16,7 @@
 
 ## 0.2 — TV workflow
 
-- [ ] Enrich remembered identity with Android properties after connect
+- [x] Enrich remembered identity with Android properties after connect
 - [ ] TV-oriented dashboard
 - [ ] Remote control: D-pad, Home, Back, volume, power/wake
 - [ ] TV-focused device information

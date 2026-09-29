@@ -32,6 +32,7 @@ type Summary struct {
 
 type Info struct {
 	Serial          string `json:"serial"`
+	HardwareSerial  string `json:"hardwareSerial,omitempty"`
 	State           State  `json:"state"`
 	Mode            Mode   `json:"mode"`
 	Product         string `json:"product,omitempty"`

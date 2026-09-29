@@ -88,3 +88,32 @@ func TestParseStorageInfo_ReturnsEmptyOnInvalid(t *testing.T) {
 		t.Errorf("expected empty string for invalid input, got %q", got)
 	}
 }
+
+func TestExtractHardwareSerial(t *testing.T) {
+	t.Run("prefers ro.serialno", func(t *testing.T) {
+		props := map[string]string{
+			"ro.serialno":      "TVSERIAL123",
+			"ro.boot.serialno": "BOOT456",
+		}
+		if got := extractHardwareSerial(props); got != "TVSERIAL123" {
+			t.Fatalf("extractHardwareSerial() = %q, want TVSERIAL123", got)
+		}
+	})
+
+	t.Run("falls back to boot serial", func(t *testing.T) {
+		props := map[string]string{
+			"ro.serialno":      "unknown",
+			"ro.boot.serialno": "BOOT456",
+		}
+		if got := extractHardwareSerial(props); got != "BOOT456" {
+			t.Fatalf("extractHardwareSerial() = %q, want BOOT456", got)
+		}
+	})
+
+	t.Run("ignores empty and unknown", func(t *testing.T) {
+		props := map[string]string{"ro.serialno": "unknown"}
+		if got := extractHardwareSerial(props); got != "" {
+			t.Fatalf("extractHardwareSerial() = %q, want empty", got)
+		}
+	})
+}

@@ -32,12 +32,17 @@ type WirelessHistoryEntry struct {
 }
 
 type RememberedWirelessDevice struct {
-	Key          string `json:"key"`
-	InstanceName string `json:"instance_name,omitempty"`
-	Host         string `json:"host"`
-	LastAddress  string `json:"last_address,omitempty"`
-	Name         string `json:"name,omitempty"`
-	AutoConnect  bool   `json:"auto_connect"`
+	Key            string `json:"key"`
+	InstanceName   string `json:"instance_name,omitempty"`
+	Host           string `json:"host"`
+	LastAddress    string `json:"last_address,omitempty"`
+	Name           string `json:"name,omitempty"`
+	HardwareSerial string `json:"hardware_serial,omitempty"`
+	Model          string `json:"model,omitempty"`
+	Manufacturer   string `json:"manufacturer,omitempty"`
+	AndroidVersion string `json:"android_version,omitempty"`
+	LastSeenAt     string `json:"last_seen_at,omitempty"`
+	AutoConnect    bool   `json:"auto_connect"`
 }
 
 const (

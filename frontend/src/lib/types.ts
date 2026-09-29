@@ -88,6 +88,7 @@ export interface DeviceSummary {
 
 export interface DeviceInfo {
   serial: string
+  hardwareSerial?: string
   state: DeviceState
   mode: DeviceMode
   product?: string
@@ -140,6 +141,11 @@ export interface RememberedWirelessDevice {
   host: string
   last_address?: string
   name?: string
+  hardware_serial?: string
+  model?: string
+  manufacturer?: string
+  android_version?: string
+  last_seen_at?: string
   auto_connect: boolean
 }
 

@@ -440,6 +440,13 @@ export function WirelessConnectDialog({
                       <p className="truncate text-[11px] font-medium">
                         {entry.name || entry.host}
                       </p>
+                      {(entry.manufacturer || entry.model || entry.android_version) && (
+                        <p className="truncate text-[9px] text-muted-foreground">
+                          {[entry.manufacturer, entry.model, entry.android_version && `Android ${entry.android_version}`]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </p>
+                      )}
                       <p className="truncate font-mono text-[9px] text-muted-foreground">
                         {entry.last_address || entry.host}
                       </p>
