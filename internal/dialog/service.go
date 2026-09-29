@@ -122,6 +122,24 @@ func (s *Service) SelectApkFile() (string, error) {
 	return path, nil
 }
 
+func (s *Service) SelectApkFiles() ([]string, error) {
+	if s.ctx == nil {
+		return nil, core.NewOperationError("select_apk_files", "application context is not initialized", "", true)
+	}
+	paths, err := application.Get().Dialog.OpenFileWithOptions(&application.OpenFileDialogOptions{
+		Title:                   "Select base and split APK files",
+		ShowHiddenFiles:         false,
+		AllowsMultipleSelection: true,
+		Filters: []application.FileFilter{
+			{DisplayName: "APK files", Pattern: "*.apk"},
+		},
+	}).PromptForMultipleSelection()
+	if err != nil {
+		return nil, err
+	}
+	return paths, nil
+}
+
 func (s *Service) SelectSaveFile(defaultFilename string) (string, error) {
 	if s.ctx == nil {
 		return "", core.NewOperationError("select_save_file", "application context is not initialized", "", true)

@@ -25,8 +25,8 @@
 ## 0.3 — Apps
 
 - [x] APK install modes: install, replace/update, downgrade
-- [ ] Split APK installation
-- [ ] Drag-and-drop installation
+- [x] Split APK installation
+- [x] Drag-and-drop installation
 - [ ] Installed-app launch/stop/enable/disable/uninstall
 - [ ] TV launcher compatibility hints
 

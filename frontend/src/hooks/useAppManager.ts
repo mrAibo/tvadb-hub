@@ -5,6 +5,7 @@ import { useDeviceStore } from '@/stores/useDeviceStore'
 import {
   listPackages,
   installPackage as svcInstallPackage,
+  installPackages as svcInstallPackages,
   uninstallPackage as svcUninstallPackage,
   uninstallMultiplePackages as svcUninstallBatch,
   enablePackage as svcEnablePackage,
@@ -17,6 +18,7 @@ import {
   forceStopPackage as svcForceStop,
   getPackageDetails as svcGetDetails,
   selectApkFile as svcSelectApk,
+  selectApkFiles as svcSelectApks,
 } from '@/services/packageService'
 import type { PackageDetails, DeviceSummary, PackageInstallMode } from '@/lib/types'
 
@@ -244,6 +246,36 @@ export function useAppManager() {
     },
     [fetchPackages],
   )
+
+  const installSplitApksFromPaths = useCallback(
+    async (
+      filePaths: string[],
+      mode: PackageInstallMode = 'replace',
+    ): Promise<boolean> => {
+      try {
+        store.setInstalling(true)
+        const message = await svcInstallPackages(filePaths, mode)
+        toast.success(message)
+        await fetchPackages(true)
+        return true
+      } catch (err) {
+        toast.error(getErrorMessage(err))
+        return false
+      } finally {
+        store.setInstalling(false)
+      }
+    },
+    [fetchPackages],
+  )
+
+  const selectSplitApks = useCallback(async (): Promise<string[]> => {
+    try {
+      return await svcSelectApks()
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+      return []
+    }
+  }, [])
 
   const uninstallSingle = useCallback(
     async (packageName: string) => {
@@ -537,6 +569,8 @@ export function useAppManager() {
     fetchPackages,
     installApk,
     installApkFromPath,
+    installSplitApksFromPaths,
+    selectSplitApks,
     uninstallSingle,
     uninstallBatch,
     enableSingle,

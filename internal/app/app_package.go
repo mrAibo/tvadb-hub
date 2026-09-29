@@ -20,6 +20,12 @@ func (a *App) InstallPackageWithMode(filePath string, mode string) (string, erro
 	})
 }
 
+func (a *App) InstallPackagesWithMode(filePaths []string, mode string) (string, error) {
+	return auditAction(a, "install_multiple_packages", func() (string, error) {
+		return a.pkgSvc.InstallPackagesWithMode(a.ctx, filePaths, mode)
+	})
+}
+
 func (a *App) UninstallPackage(packageName string) (string, error) {
 	return auditAction(a, "uninstall_package", func() (string, error) {
 		return a.pkgSvc.UninstallPackage(a.ctx, packageName)
@@ -88,4 +94,8 @@ func (a *App) GetPackageDetails(packageName string) (packagemgr.Details, error) 
 
 func (a *App) SelectApkFile() (string, error) {
 	return a.diaSvc.SelectApkFile()
+}
+
+func (a *App) SelectApkFiles() ([]string, error) {
+	return a.diaSvc.SelectApkFiles()
 }

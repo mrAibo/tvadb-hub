@@ -38,6 +38,18 @@ export async function installPackage(
   return String(result ?? '')
 }
 
+export async function installPackages(
+  filePaths: string[],
+  mode: PackageInstallMode = 'replace',
+): Promise<string> {
+  const result = await WailsCall.ByName(
+    'ADBKit/internal/app.App.InstallPackagesWithMode',
+    filePaths,
+    mode,
+  )
+  return String(result ?? '')
+}
+
 export async function uninstallPackage(packageName: string): Promise<string> {
   return UninstallPackage(packageName)
 }
@@ -85,4 +97,10 @@ export async function getPackageDetails(packageName: string): Promise<PackageDet
 
 export async function selectApkFile(): Promise<string> {
   return SelectApkFile()
+}
+
+
+export async function selectApkFiles(): Promise<string[]> {
+  const result = await WailsCall.ByName('ADBKit/internal/app.App.SelectApkFiles')
+  return (result as string[] | null) ?? []
 }
