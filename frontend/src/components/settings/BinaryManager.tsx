@@ -11,9 +11,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  IconBinary as Binary
+  IconBinary as Binary,
+  IconDownload as Download,
+  IconLoader2 as Loader2,
 } from "@tabler/icons-react"
 import { toast } from 'sonner'
+import { useBinaryDownload } from '@/hooks/useBinaryDownload'
+import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
 import type { BinaryInfo } from '@/lib/types'
 
 const BINARY_NAMES: { key: 'adb' | 'fastboot' | 'scrcpy'; displayName: string }[] = [
@@ -25,6 +30,7 @@ const BINARY_NAMES: { key: 'adb' | 'fastboot' | 'scrcpy'; displayName: string }[
 export function BinaryManager() {
   const queryClient = useQueryClient()
   const { loadConfig } = useSettings()
+  const { download, getState } = useBinaryDownload()
 
   const binaryQuery = useQuery({
     queryKey: ['settings', 'binary-status'],
@@ -37,6 +43,14 @@ export function BinaryManager() {
   function reload() {
     queryClient.invalidateQueries({ queryKey: ['settings', 'binary-status'] })
     void loadConfig()
+  }
+
+  const platformToolsDownload = getState('platform-tools')
+  const scrcpyDownload = getState('scrcpy')
+
+  async function handleManagedDownload(name: 'platform-tools' | 'scrcpy') {
+    await download(name)
+    reload()
   }
 
   async function handleSavePath(name: 'adb' | 'fastboot' | 'scrcpy', path: string) {
@@ -96,6 +110,56 @@ export function BinaryManager() {
       </CardHeader>
       
       <CardContent className="space-y-4 flex-grow p-0">
+        <div className="mx-4 rounded-xl border border-border/50 bg-muted/20 p-3">
+          <div className="mb-2">
+            <p className="text-xs font-semibold text-foreground">Managed tools</p>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Install or refresh TVADB Hub's managed Platform Tools and scrcpy copies.
+              The downloaded binaries become the active configured versions automatically.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              disabled={platformToolsDownload.downloading || scrcpyDownload.downloading}
+              onClick={() => void handleManagedDownload('platform-tools')}
+            >
+              {platformToolsDownload.downloading ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Install / update Platform Tools
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              disabled={scrcpyDownload.downloading || platformToolsDownload.downloading}
+              onClick={() => void handleManagedDownload('scrcpy')}
+            >
+              {scrcpyDownload.downloading ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Install / update scrcpy
+            </Button>
+          </div>
+          {(platformToolsDownload.downloading || scrcpyDownload.downloading) && (
+            <Progress
+              value={
+                platformToolsDownload.downloading
+                  ? platformToolsDownload.percent
+                  : scrcpyDownload.percent
+              }
+              className="mt-3 h-1.5"
+            />
+          )}
+        </div>
+
         {loading && !status ? (
           <div className="space-y-2 p-4">
             <Skeleton className="h-10 w-full rounded-xl" />

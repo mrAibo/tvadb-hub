@@ -137,6 +137,13 @@ func (bs *Service) GetManagedBinaryDir() string {
 	return joinManaged(bs.dataDir)
 }
 
+func (bs *Service) GetManagedBinaryPath(name string) (string, error) {
+	if !core.IsSupportedBinaryName(name) {
+		return "", core.NewOperationError("managed_binary_path", "unsupported binary name", name, false)
+	}
+	return joinManagedPath(bs.dataDir, name), nil
+}
+
 func (bs *Service) ListManagedBinaries() ([]string, error) {
 	dir := bs.GetManagedBinaryDir()
 	if err := osMkdirAll(dir); err != nil {
