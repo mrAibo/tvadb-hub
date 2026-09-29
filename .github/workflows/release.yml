@@ -5,6 +5,17 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish/update the GitHub Release after building the artifacts'
+        required: false
+        type: boolean
+        default: false
+      physical_tv_validated:
+        description: 'Confirm the physical Google TV validation gate is complete'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -28,6 +39,10 @@ jobs:
         with:
           go-version: '1.26.x'
 
+      - name: Validate version sources
+        shell: bash
+        run: bash scripts/check-version-consistency.sh
+
       - name: Resolve and validate release version
         id: version
         shell: pwsh
@@ -48,6 +63,21 @@ jobs:
           $configVersion = $configLine.Matches[0].Groups[1].Value
           if ($configVersion -ne $version) {
             throw "Version mismatch: Makefile=$version, build/config.yml=$configVersion"
+          }
+
+          $coreLine = Select-String -Path internal/core/version.go -Pattern '^const Version = "(\d+\.\d+\.\d+)"\s*$'
+          if (-not $coreLine) {
+            throw "internal/core/version.go must declare const Version with a stable three-part version."
+          }
+          $coreVersion = $coreLine.Matches[0].Groups[1].Value
+          if ($coreVersion -ne $version) {
+            throw "Version mismatch: Makefile=$version, internal/core/version.go=$coreVersion"
+          }
+
+          if ($env:EVENT_NAME -eq "workflow_dispatch" -and
+              "${{ inputs.publish }}" -eq "true" -and
+              "${{ inputs.physical_tv_validated }}" -ne "true") {
+            throw "Manual publishing requires physical_tv_validated=true."
           }
 
           $tag = "v$version"
@@ -190,6 +220,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish GitHub Release
+        if: github.event_name == 'push' || inputs.publish == true
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
