@@ -23,7 +23,7 @@ export function SettingsBackupPanel() {
   async function handleExport() {
     setBusy('export')
     try {
-      const path = await selectSaveFile('tvadb-hub-settings.json')
+      const path = await selectSaveFile('droidsphere-settings.json')
       if (!path) return
       await exportSettings(path)
       toast.success('Settings backup exported', { description: path })
@@ -68,7 +68,7 @@ export function SettingsBackupPanel() {
       </CardHeader>
       <CardContent className="flex flex-col gap-3 px-5 pb-5">
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Export a portable JSON backup of TVADB Hub preferences, binary paths, Scrcpy presets,
+          Export a portable JSON backup of DroidSphere preferences, binary paths, Scrcpy presets,
           nicknames, remembered wireless devices and window state. Machine-specific paths remain
           visible after import and can be corrected from Tool locations if they do not exist on
           the new computer.
