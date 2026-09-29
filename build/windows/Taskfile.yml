@@ -43,19 +43,15 @@ tasks:
             ref: .OBFUSCATED
           DEV:
             ref: .DEV
-      - task: common:generate:icons
     preconditions:
       - sh: '{{if eq .OBFUSCATED "true"}}command -v garble >/dev/null 2>&1{{else}}true{{end}}'
         msg: "garble is required for obfuscated builds. Install it with: go install mvdan.cc/garble@v0.16.0 (requires Go 1.24+). See https://github.com/burrowers/garble/releases for version/toolchain compatibility."
     cmds:
-      - task: generate:syso
-        vars:
-          ARCH: '{{.ARCH}}'
+      # The portable build intentionally does not depend on generated icon/syso
+      # resources. This keeps CI and developer builds reproducible even when
+      # branding assets are being iterated. Installer packaging can generate
+      # Windows resources separately.
       - '{{if eq .OBFUSCATED "true"}}garble {{.GARBLE_ARGS}} build{{else}}go build{{end}} {{.BUILD_FLAGS}} -o "{{.BIN_DIR}}/{{.APP_NAME}}.exe"'
-      - cmd: powershell Remove-item *.syso
-        platforms: [windows]
-      - cmd: rm -f *.syso
-        platforms: [linux, darwin]
     vars:
       BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -H windowsgui"{{end}}'
     env:
