@@ -1,13 +1,13 @@
-# Maintainer: Drenzzz <realdrenzzz@gmail.com>
-pkgname=adbkit
-pkgver=2.0.0
+# Maintainer: DroidSphere contributors
+pkgname=droidsphere
+pkgver=0.1.0
 pkgrel=1
-pkgdesc="Modern desktop toolkit for ADB, Fastboot, and scrcpy"
+pkgdesc="Cross-platform Android device manager powered by ADB, Fastboot and scrcpy"
 arch=('x86_64')
-url="https://github.com/drenzzz/ADBKit"
+url="https://github.com/mrAibo/tvadb-hub"
 license=('MIT')
 depends=('gtk4' 'webkitgtk-6.0')
-provides=('adbkit')
+provides=('droidsphere')
 source=()
 sha256sums=()
 
@@ -18,7 +18,7 @@ build() {
 
 package() {
   cd "$startdir/../.."
-  install -Dm755 bin/ADBKit "$pkgdir/usr/bin/ADBKit"
-  install -Dm644 build/linux/ADBKit.desktop "$pkgdir/usr/share/applications/ADBKit.desktop"
-  install -Dm644 build/appicon.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/ADBKit.png"
+  install -Dm755 bin/DroidSphere "$pkgdir/usr/bin/DroidSphere"
+  install -Dm644 build/linux/DroidSphere.desktop "$pkgdir/usr/share/applications/DroidSphere.desktop"
+  install -Dm644 build/appicon.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/DroidSphere.png"
 }
