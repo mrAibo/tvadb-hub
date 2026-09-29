@@ -59,8 +59,8 @@ func main() {
 
 	service := appservice.NewApp()
 	app := application.New(application.Options{
-		Name:        "ADBKit",
-		Description: "Modern desktop toolkit for ADB, Fastboot, and scrcpy",
+		Name:        "TVADB Hub",
+		Description: "Automatic ADB manager for Android TV and Google TV",
 		Services: []application.Service{
 			application.NewService(service),
 		},
@@ -76,7 +76,7 @@ func main() {
 	})
 
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "ADBKit",
+		Title:            "TVADB Hub",
 		Width:            1280,
 		Height:           800,
 		MinWidth:         1024,

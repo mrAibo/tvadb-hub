@@ -5,13 +5,13 @@ version: '3'
 
 # This information is used to generate the build assets.
 info:
-  companyName: "Drenzzz" # The name of the company
-  productName: "ADBKit" # The name of the application
-  productIdentifier: "com.drenzzz.adbkit" # The unique product identifier
-  description: "Modern desktop toolkit for ADB, Fastboot, and scrcpy" # The application description
-  copyright: "(c) 2026, Drenzzz" # Copyright text
-  comments: "Android device management desktop toolkit" # Comments
-  version: "2.0.0" # The application version
+  companyName: "TVADB Hub contributors" # The name of the company
+  productName: "TVADB Hub" # The name of the application
+  productIdentifier: "io.github.mraibo.tvadbhub" # The unique product identifier
+  description: "Automatic ADB manager for Android TV and Google TV" # The application description
+  copyright: "Copyright (c) 2026 TVADB Hub contributors" # Copyright text
+  comments: "Android TV and Google TV ADB management desktop toolkit" # Comments
+  version: "0.1.0" # The application version
   # cfBundleIconName: "appicon" # The macOS icon name in Assets.car icon bundles (optional)
   #                               # Should match the name of your .icon file without the extension
   #                               # If not set and Assets.car exists, defaults to "appicon"

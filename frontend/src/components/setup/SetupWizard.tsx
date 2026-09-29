@@ -40,10 +40,10 @@ function SidebarStepper({ current }: { current: SetupWizardStep }) {
             : 'opacity 320ms cubic-bezier(0.32, 0.72, 0, 1), transform 320ms cubic-bezier(0.32, 0.72, 0, 1)',
         }}
       >
-        <img src="/logo.webp" alt="ADBKit" className="h-8 w-8 object-contain" />
+        <img src="/logo.webp" alt="TVADB Hub" className="h-8 w-8 object-contain" />
         <div className="flex flex-col">
           <span className="select-none text-sm font-semibold tracking-tight text-foreground">
-            ADBKit
+            TVADB Hub
           </span>
           <span className="select-none text-xs text-muted-foreground">Setup</span>
         </div>

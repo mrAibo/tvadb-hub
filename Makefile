@@ -1,5 +1,5 @@
-APP_NAME := ADBKit
-VERSION := 2.0.0
+APP_NAME := TVADB-Hub
+VERSION := 0.1.0
 
 .PHONY: help deps frontend-install doctor dev build build-upx windows run lint typecheck test test-coverage check check-all package deb rpm arch appimage appimage-lite release-assets all
 
@@ -43,7 +43,7 @@ build:
 	wails3 build
 
 build-upx: build
-	upx bin/ADBKit$(if $(filter Windows_NT,$(OS)),.exe,)
+	upx bin/$(APP_NAME)$(if $(filter Windows_NT,$(OS)),.exe,)
 
 windows:
 	wails3 task windows:build
