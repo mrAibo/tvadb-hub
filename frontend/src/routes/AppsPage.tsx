@@ -23,6 +23,7 @@ import { selectApkFile } from '@/services/packageService'
 import { PackageTable } from '@/components/apps/PackageTable'
 import { BatchBar } from '@/components/apps/BatchBar'
 import { InstallApkDialog } from '@/components/apps/InstallApkDialog'
+import { InstallSplitApkDialog } from '@/components/apps/InstallSplitApkDialog'
 import { PackageDetailSheet } from '@/components/apps/PackageDetailSheet'
 import { ConfirmDialog } from '@/components/apps/ConfirmDialog'
 import {
@@ -120,6 +121,8 @@ export default function AppsPage() {
 
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const [installApkPath, setInstallApkPath] = useState<string | undefined>()
+  const [splitDialogOpen, setSplitDialogOpen] = useState(false)
+  const [splitApkPaths, setSplitApkPaths] = useState<string[]>([])
   const [detailPackage, setDetailPackage] = useState<string | null>(null)
   const [confirmAction, setConfirmAction] = useState<{
     title: string
@@ -131,10 +134,15 @@ export default function AppsPage() {
 
   useEffect(() => {
     return onFileDrop((paths) => {
-      const apkPath = paths.find((p) => p.toLowerCase().endsWith('.apk'))
-      if (!apkPath) return
-      setInstallApkPath(apkPath)
-      setInstallDialogOpen(true)
+      const apkPaths = paths.filter((p) => p.toLowerCase().endsWith('.apk'))
+      if (apkPaths.length === 0) return
+      if (apkPaths.length === 1) {
+        setInstallApkPath(apkPaths[0])
+        setInstallDialogOpen(true)
+        return
+      }
+      setSplitApkPaths(apkPaths)
+      setSplitDialogOpen(true)
     })
   }, [])
 
@@ -233,6 +241,19 @@ export default function AppsPage() {
                 <Upload className="h-3.5 w-3.5" />
               )}
               {appManager.installing ? 'Installing…' : 'Install APK'}
+            </Button>
+          </motion.div>
+
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => setSplitDialogOpen(true)}
+              disabled={appManager.installing}
+            >
+              <Package className="h-3.5 w-3.5" />
+              Split APKs
             </Button>
           </motion.div>
 
@@ -427,6 +448,21 @@ export default function AppsPage() {
           return selectApkFile()
         }}
         initialFilePath={installApkPath}
+      />
+
+      <InstallSplitApkDialog
+        open={splitDialogOpen}
+        onOpenChange={(open) => {
+          setSplitDialogOpen(open)
+          if (!open) setSplitApkPaths([])
+        }}
+        onInstall={async (filePaths, mode) => {
+          const success = await appManager.installSplitApksFromPaths(filePaths, mode)
+          if (success) setSplitDialogOpen(false)
+          return success
+        }}
+        onSelectFiles={appManager.selectSplitApks}
+        initialFilePaths={splitApkPaths}
       />
 
       <PackageDetailSheet

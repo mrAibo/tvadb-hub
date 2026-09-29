@@ -68,3 +68,48 @@ func TestBuildInstallArgs(t *testing.T) {
 		})
 	}
 }
+
+
+func TestBuildInstallMultipleArgs(t *testing.T) {
+	paths := []string{"base.apk", "split_config.arm64_v8a.apk", "split_config.en.apk"}
+
+	tests := []struct {
+		name string
+		mode InstallMode
+		want []string
+	}{
+		{
+			name: "clean install",
+			mode: InstallModeInstall,
+			want: []string{
+				"-s", "tv:1234", "install-multiple",
+				"base.apk", "split_config.arm64_v8a.apk", "split_config.en.apk",
+			},
+		},
+		{
+			name: "replace update",
+			mode: InstallModeReplace,
+			want: []string{
+				"-s", "tv:1234", "install-multiple", "-r",
+				"base.apk", "split_config.arm64_v8a.apk", "split_config.en.apk",
+			},
+		},
+		{
+			name: "downgrade",
+			mode: InstallModeDowngrade,
+			want: []string{
+				"-s", "tv:1234", "install-multiple", "-r", "-d",
+				"base.apk", "split_config.arm64_v8a.apk", "split_config.en.apk",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := buildInstallMultipleArgs("tv:1234", paths, tc.mode)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("buildInstallMultipleArgs() = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+}

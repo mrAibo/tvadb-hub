@@ -11,7 +11,7 @@
 - [x] Background auto-reconnect and dynamic-port recovery
 - [x] Wireless ADB diagnostics
 - [x] TVADB Hub product identity and initial icon
-- [ ] Green Windows portable build artifact
+- [x] Green Windows portable build artifact
 - [ ] Validate against a physical Google TV
 
 ## 0.2 — TV workflow
@@ -25,9 +25,9 @@
 ## 0.3 — Apps
 
 - [x] APK install modes: install, replace/update, downgrade
-- [ ] Split APK installation
-- [ ] Drag-and-drop installation
-- [ ] Installed-app launch/stop/enable/disable/uninstall
+- [x] Split APK installation
+- [x] Drag-and-drop installation
+- [x] Installed-app launch/stop/enable/disable/uninstall
 - [ ] TV launcher compatibility hints
 
 ## 0.4 — Debug and screen tools
