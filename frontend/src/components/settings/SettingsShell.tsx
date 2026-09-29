@@ -7,6 +7,7 @@ import { PreferencesPanel } from './PreferencesPanel'
 import { AuditLogsPanel } from './AuditLogsPanel'
 import { DiagnosticsPanel } from './DiagnosticsPanel'
 import { UpdatePanel } from './UpdatePanel'
+import { PhysicalTVValidationPanel } from './PhysicalTVValidationPanel'
 
 export function SettingsShell() {
   const reduced = useReducedMotion()
@@ -101,12 +102,17 @@ export function SettingsShell() {
           <UpdatePanel />
         </motion.div>
 
-        {/* Box 4: Audit Logs (Full Width) */}
+        {/* Box 4: Physical TV validation */}
+        <motion.div variants={itemVariants} className="lg:col-span-3 flex flex-col min-w-0">
+          <PhysicalTVValidationPanel />
+        </motion.div>
+
+        {/* Box 5: Audit Logs (Full Width) */}
         <motion.div variants={itemVariants} className="lg:col-span-3 flex flex-col min-w-0">
           <AuditLogsPanel />
         </motion.div>
 
-        {/* Box 5: Diagnostics (Full Width at the very bottom) */}
+        {/* Box 6: Diagnostics (Full Width at the very bottom) */}
         <motion.div variants={itemVariants} className="lg:col-span-3 flex flex-col min-w-0">
           <DiagnosticsPanel />
         </motion.div>
