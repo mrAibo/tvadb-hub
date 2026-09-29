@@ -81,6 +81,24 @@ export function PackageDetailSheet({
               </span>
             </div>
             <Separator />
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">TV launcher</span>
+                {details.tvLauncher ? (
+                  <Badge className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-300">
+                    Native TV
+                  </Badge>
+                ) : details.standardLauncher ? (
+                  <Badge variant="secondary">Standard only</Badge>
+                ) : (
+                  <Badge variant="outline">No launcher</Badge>
+                )}
+              </div>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                {details.launcherHint}
+              </p>
+            </div>
+            <Separator />
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">APK Size</span>
               <span className="font-medium">{formatBytes(details.apkSizeBytes)}</span>

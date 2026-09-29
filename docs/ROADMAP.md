@@ -28,7 +28,7 @@
 - [x] Split APK installation
 - [x] Drag-and-drop installation
 - [x] Installed-app launch/stop/enable/disable/uninstall
-- [ ] TV launcher compatibility hints
+- [x] TV launcher compatibility hints
 
 ## 0.4 — Debug and screen tools
 

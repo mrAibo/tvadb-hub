@@ -48,6 +48,21 @@ func parsePackageVersionOutput(output string) (string, string) {
 	return versionName, versionCode
 }
 
+func parseLauncherCompatibility(output string) (tvLauncher bool, standardLauncher bool, hint string) {
+	tvLauncher = strings.Contains(output, "android.intent.category.LEANBACK_LAUNCHER")
+	standardLauncher = strings.Contains(output, "android.intent.category.LAUNCHER")
+
+	switch {
+	case tvLauncher:
+		hint = "TV launcher entry point detected (LEANBACK_LAUNCHER)."
+	case standardLauncher:
+		hint = "Standard launcher entry point detected, but no TV launcher category was found. The app may not appear in the TV launcher and may expect touch input."
+	default:
+		hint = "No launcher entry point was detected. The package may be background-only or require a custom activity."
+	}
+	return
+}
+
 func parseDataSizeFromDumpsys(output string) int64 {
 	for _, rawLine := range strings.Split(output, "\n") {
 		line := strings.TrimSpace(rawLine)

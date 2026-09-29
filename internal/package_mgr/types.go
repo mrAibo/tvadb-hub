@@ -14,5 +14,8 @@ type Details struct {
 	VersionCode    string `json:"versionCode"`
 	ApkSizeBytes   int64  `json:"apkSizeBytes"`
 	DataSizeBytes  int64  `json:"dataSizeBytes"`
-	TotalSizeBytes int64  `json:"totalSizeBytes"`
+	TotalSizeBytes   int64  `json:"totalSizeBytes"`
+	TVLauncher       bool   `json:"tvLauncher"`
+	StandardLauncher bool   `json:"standardLauncher"`
+	LauncherHint     string `json:"launcherHint"`
 }

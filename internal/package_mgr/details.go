@@ -31,6 +31,7 @@ func (s *Service) GetPackageDetails(ctx context.Context, packageName string) (De
 	if infoResult != nil {
 		details.VersionName, details.VersionCode = parsePackageVersionOutput(infoResult.Stdout)
 		details.DataSizeBytes = parseDataSizeFromDumpsys(infoResult.Stdout)
+		details.TVLauncher, details.StandardLauncher, details.LauncherHint = parseLauncherCompatibility(infoResult.Stdout)
 	}
 
 	pathResult, _ := core.RunCommand(ctx, core.ExecRequest{
