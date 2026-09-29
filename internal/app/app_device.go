@@ -59,6 +59,20 @@ func (a *App) GetDeviceMode(serial string) (device.Mode, error) {
 	return a.devSvc.DetectDeviceMode(a.ctx, resolved)
 }
 
+func (a *App) SendTVRemoteKey(serial string, key string) (string, error) {
+	return auditAction(a, "send_tv_remote_key", func() (string, error) {
+		resolved := strings.TrimSpace(serial)
+		if resolved == "" {
+			var err error
+			resolved, err = a.resolveActiveSerial(a.ctx)
+			if err != nil {
+				return "", err
+			}
+		}
+		return a.devSvc.SendTVRemoteKey(a.ctx, resolved, key)
+	})
+}
+
 func (a *App) RebootDevice(serial string, mode string) (string, error) {
 	return auditAction(a, "reboot_device", func() (string, error) {
 		resolved := serial
