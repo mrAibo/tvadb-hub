@@ -42,23 +42,22 @@ export default function AboutPage() {
       <div className="flex items-center gap-3">
         <IconInfoCircle className="h-6 w-6 text-primary" />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">About TVADB Hub</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">About DroidSphere</h1>
           <p className="text-sm text-muted-foreground">
-            Android TV / Google TV management over modern Wireless ADB.
+            Android device management across USB, Wireless ADB, Fastboot and scrcpy.
           </p>
         </div>
       </div>
 
       <section className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <div className="flex flex-col items-center justify-center rounded-2xl border border-border/60 bg-card/60 p-8 text-center shadow-sm">
-          <img src="/logo.png" alt="TVADB Hub" className="h-32 w-32 rounded-[28%] object-contain shadow-lg" />
-          <h2 className="mt-5 text-2xl font-semibold">TVADB Hub</h2>
+          <img src="/logo.png" alt="DroidSphere" className="h-32 w-32 rounded-[28%] object-contain shadow-lg" />
+          <h2 className="mt-5 text-2xl font-semibold">DroidSphere</h2>
           <div className="mt-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
             v{info?.version ?? '0.1.0'}
           </div>
           <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-            Desktop tooling for pairing, reconnecting, managing apps, remote control, screenshots, Scrcpy,
-            Logcat, shell, files and diagnostics on Android TV and Google TV.
+            Desktop tooling for Android phones, tablets, TVs and streaming devices: pairing, apps, files, Safe Tuning, Scrcpy, Logcat, shell, Fastboot and diagnostics.
           </p>
         </div>
 
@@ -116,7 +115,7 @@ export default function AboutPage() {
       </section>
 
       <p className="pb-4 text-center text-xs text-muted-foreground">
-        TVADB Hub is an independent open-source project and is not affiliated with Google.
+        DroidSphere is an independent open-source project and is not affiliated with Google or Android device manufacturers.
       </p>
     </div>
   )
