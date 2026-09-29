@@ -1,133 +1,174 @@
-# TVADB Hub
+# DroidSphere
 
-**TVADB Hub** is a desktop manager for Android TV and Google TV built around
-modern Wireless ADB. Its goal is to remove the repeated manual work around
-dynamic ADB pairing/connect ports and turn common TV debugging tasks into
-guided GUI workflows.
+**A cross-platform desktop control center for Android devices.**
 
-TVADB Hub is based on [ADBKit](https://github.com/Drenzzz/ADBKit) v2.0.0.
-The upstream MIT license and attribution are preserved.
+DroidSphere brings ADB, Fastboot and scrcpy workflows into one UI for **Android
+phones, tablets, TVs and streaming devices**. It handles connection setup,
+apps, files, Safe Tuning, screen tools, shell/Logcat, Fastboot workflows and
+the local Android toolchain without requiring you to memorize commands.
 
-## What works today
+> **Naming transition:** the GitHub repository still uses the historical
+> `tvadb-hub` slug. The application and new build artifacts use the
+> **DroidSphere** name.
 
-### Wireless ADB
+## Screenshots
 
-- mDNS discovery for `_adb-tls-pairing._tcp`, `_adb-tls-connect._tcp` and
-  legacy `_adb._tcp`.
-- Automatic resolution of dynamic pairing and connect ports.
-- First-time pairing with only the six-digit code shown by Android/Google TV.
-- Secure TLS connect preferred over legacy ADB TCP/IP.
-- Remembered TVs/devices with background reconnect and dynamic-port recovery.
-- Current+ device dropdown for switching connected devices and reconnecting remembered devices.
-- Multi-device-safe target selection.
-- Wireless diagnostics for Platform Tools, mDNS, TCP reachability, endpoint
-  type and current ADB state.
-- Reconnect history/status UI.
+| Dashboard | Safe Tuning |
+| --- | --- |
+| ![DroidSphere dashboard UI preview](docs/screenshots/dashboard.svg) | ![DroidSphere Safe Tuning UI preview](docs/screenshots/tuning.svg) |
+| **Dual-pane files** | **Tool locations & backup** |
+| ![DroidSphere dual-pane file manager UI preview](docs/screenshots/files.svg) | ![DroidSphere Tool Locations UI preview](docs/screenshots/settings.svg) |
 
-### TV controls and device information
+> These are repository-rendered **UI previews** based on the current Current+
+> layout and implemented workflows. They are not presented as runtime screen
+> captures. Platform-specific release screenshots can replace them later.
 
-- TV-aware dashboard and device classification.
-- D-pad, Home, Back, Menu, media, volume, mute, power, wake and sleep actions.
-- Android version, build, model, manufacturer, network and other device details.
-- Read-only physical-TV validation report for release verification.
+## What DroidSphere can manage
 
-### Apps
+DroidSphere works with standard Android debugging interfaces rather than a
+vendor-specific companion app. Exact capabilities depend on the selected
+device, Android version and authorization state.
 
-- Install APK.
-- Replace/update existing APK.
-- Downgrade when Android permits it.
-- Install base + split APK sets through `adb install-multiple`.
-- Multi-file drag-and-drop installation.
+### Connections and devices
+
+- USB ADB device detection and multi-device-safe target selection.
+- Android 11+ Wireless debugging pairing-code flow.
+- mDNS discovery for secure pairing/connect services and legacy ADB.
+- Remembered wireless devices with reconnect from the Current+ device selector.
+- Device identity, Android/build information, battery, memory, storage and
+  performance snapshots.
+- Android TV remote controls when the selected target is detected as a TV.
+
+### Apps and Safe Tuning
+
+- Install APKs, update/replace existing apps and request downgrade installs.
+- Install base + split APK sets with `adb install-multiple`.
 - Launch, force-stop, enable, disable and uninstall packages.
-- Android TV launcher compatibility hints using `LEANBACK_LAUNCHER`.
+- Pull installed APKs.
+- Reversible Safe Tuning profiles for TVs, phones and tablets.
+- Safe / caution / dangerous / blocked package classifications.
+- Snapshot before tuning changes and exact restore of DroidSphere changes.
+- Device/brand-aware profiles for Fire TV, Sharp/TCL TV, Samsung, Xiaomi,
+  Redmi/POCO, Pixel, OnePlus and a conservative generic Android fallback.
 
-### Safe Tuning
+### Files
 
-- Reversible debloat/tuning profiles for Android TV, phones and tablets.
-- Device-specific Fire TV, Sharp Google TV and TCL profiles.
-- Brand profiles for Samsung, Xiaomi/Redmi/POCO, Pixel and OnePlus, plus a
-  conservative generic Android fallback.
-- Safe/caution/dangerous/blocked risk classification.
-- `pm disable-user --user 0` as the default action.
-- Per-device snapshots and exact restore of changes made by TVADB Hub.
-- Advanced reversible user-0 uninstall for eligible preinstalled packages.
-- Profile-specific keep-lists protect known launcher, DRM, input, remote and
-  playback packages on validated TV profiles.
+- Dual-pane **computer ↔ Android** file manager.
+- Browse the host filesystem on Windows, Linux and macOS.
+- Browse Android storage with hidden-file support.
+- Transfer multiple files or whole directories with ADB push/pull.
+- Progress, cancellation and retry handling.
+- Remote new-folder, rename, move and delete actions.
+- Protected/scoped-storage error guidance.
 
-### Debugging and screen tools
+### Screen, shell and logs
 
-- Scrcpy control with TV Balanced, High Quality and Low Bandwidth presets.
-- PNG screenshot capture through `adb exec-out screencap -p`.
-- Dual-pane File Manager with local PC/macOS/Linux browsing on the left and Android browsing on the right.
-- Direct PC ↔ Android file and folder transfers with progress, retries and cancellation.
-- Logcat streaming, export and TV-focused diagnostic presets.
-- Interactive ADB shell plus safe read-only TV diagnostic shortcuts.
+- scrcpy presets and session controls.
+- Screenshot capture.
+- Recording-oriented scrcpy controls and clipboard integration where supported.
+- Interactive ADB shell.
+- Live Logcat streaming, filters and export.
+- TV-oriented shell shortcuts remain available for TV targets.
 
-### Managed tools
+### Fastboot and recovery workflows
 
-TVADB Hub can download and manage its own copies of Android SDK Platform Tools
-and scrcpy. Validated managed downloads are adopted automatically, while custom
-binary paths remain available for advanced setups.
+- Detect Fastboot devices.
+- Reboot targets into supported modes.
+- Partition and ROM-oriented flashing workflows.
+- Sideload workflow.
+- Explicit target selection and confirmation around destructive operations.
 
-Settings → Tool locations shows the resolved version, source and exact path for
-ADB, Fastboot, scrcpy and managed tools, with copy/open-location actions.
+### Managed tools and settings
 
-Settings can export/import a portable JSON backup containing preferences,
-binary paths, device nicknames, Scrcpy presets, remembered wireless devices and
-window state. Machine-specific paths can be re-detected after import on another
-computer.
+DroidSphere can locate or manage its own Android Platform Tools and scrcpy.
+**Settings → Tool locations** shows the exact binary version, source and path
+currently used for ADB, Fastboot, scrcpy and managed tool directories.
 
-## First connection
+Settings can export/import a JSON backup containing preferences, binary paths,
+device nicknames, scrcpy presets, remembered wireless devices and window state.
+Older `tvadb-hub-settings` backups remain import-compatible after the rename.
 
-On the TV:
+## Quick start
 
-1. Enable **Developer options**.
-2. Enable **Wireless debugging**.
-3. Open **Pair device with pairing code** for the first connection.
+### USB
 
-In TVADB Hub:
+1. Enable **Developer options** on the Android device.
+2. Enable **USB debugging**.
+3. Connect the device with a data-capable USB cable.
+4. Accept Android's RSA authorization prompt.
+5. Select the device in DroidSphere.
 
-1. Open **Discover / Pair / Connect**.
-2. Select the discovered TV.
-3. Enter the six-digit pairing code.
-4. TVADB Hub resolves the temporary pairing port and the separate dynamic
-   connect port automatically.
-5. After a successful connection the TV is remembered for later reconnects.
+### Wireless debugging — Android 11+
 
-You should not need to manually copy the dynamic connect port during normal
-use.
+1. Put the computer and Android device on the same network.
+2. Open **Developer options → Wireless debugging**.
+3. Choose **Pair device with pairing code**.
+4. In DroidSphere, open the discovery/pairing flow and enter the six-digit code.
+5. DroidSphere resolves the temporary pairing endpoint and reconnectable ADB
+   endpoint automatically when mDNS information is available.
 
-## Physical TV validation
+DroidSphere does not bypass Android authorization. The target device must
+approve the normal USB or Wireless debugging trust flow.
 
-Before a release, connect the target TV through Wireless ADB and run:
+## Safety model
 
-**Settings → Physical Google TV validation → Validate connected TV**
+DroidSphere intentionally keeps high-impact operations explicit:
 
-The validation is read-only. It checks:
+- Safe Tuning defaults to reversible `pm disable-user --user 0`.
+- A snapshot is created before tuning changes.
+- Caution packages require explicit confirmation.
+- Dangerous/blocked packages are not actionable in Safe Tuning.
+- TV-specific profiles protect known launcher, DRM, input, remote and playback
+  components.
+- Fastboot/flash actions keep the active target visible and require deliberate
+  user actions.
 
-- ready ADB state;
-- Android/Google TV classification;
-- network ADB transport;
-- secure mDNS/TLS discovery;
-- Wireless ADB diagnostics;
-- model and Android metadata.
+See [Safe Tuning source notes](docs/research/DEBLOAT_PROFILE_SOURCES.md) for
+profile provenance and licensing.
 
-Use **Copy JSON report** to capture the result for a release record or bug
-report. The detailed manual checklist is in
-[docs/PHYSICAL_TV_VALIDATION.md](docs/PHYSICAL_TV_VALIDATION.md).
+## Platform status
+
+| Platform | Compile CI | Current distribution status |
+| --- | :---: | --- |
+| Windows | ✅ | Portable EXE + NSIS installer workflow |
+| Linux | ✅ | Native desktop build verified; package publishing next |
+| macOS | ✅ | Native desktop build verified; signing/notarization next |
+
+See [docs/PORTABILITY.md](docs/PORTABILITY.md) for host requirements and release
+engineering details.
+
+## Recommended next features
+
+The next additions with the strongest practical value are:
+
+1. **File preview + folder sync** — preview images/text, compare folder changes,
+   define include/exclude patterns and choose conflict handling before sync.
+2. **App backup & restore** — export base/split APK sets and restore them as a
+   unit; add user-data backup only where Android actually permits it.
+3. **Logcat 2.0** — app/PID filtering, crash and ANR highlighting, saved filter
+   presets and pinned events.
+4. **Connection Doctor** — one diagnostic flow for USB authorization, Wireless
+   ADB/mDNS, network reachability, tool versions and common host-side problems.
+5. **Permission/AppOps inspector** — begin read-only, then expose carefully
+   scoped changes with before/after state.
+6. **Quick Share integration** — longer-term, ordinary Android file exchange
+   without requiring ADB for every transfer.
+
+The first four fit the current architecture especially well. See
+[docs/ROADMAP.md](docs/ROADMAP.md) for the maintained roadmap.
 
 ## Development
 
-The project currently uses:
+Current stack:
 
 - Go 1.26
 - Wails v3
-- Bun
 - React / TypeScript
+- Bun
 - Vitest
 - NSIS for the Windows installer
 
-Install the Wails CLI:
+Install Wails:
 
 ```bash
 go install github.com/wailsapp/wails/v3/cmd/wails3@latest
@@ -145,13 +186,13 @@ Run development mode:
 make dev
 ```
 
-Run the normal checks:
+Run normal checks:
 
 ```bash
 make check
 ```
 
-Build the current platform:
+Build the current host platform:
 
 ```bash
 make build
@@ -171,48 +212,38 @@ Package the current platform:
 make package
 ```
 
-## Cross-platform status
+## Releases
 
-PR CI compiles TVADB Hub on Windows, Linux and macOS. The application code,
-managed Platform Tools downloads and managed scrcpy downloads are already
-OS-aware; Linux/macOS do not require an application rewrite.
+Windows release CI produces canonical assets such as:
 
-Windows remains the current published release target. Linux package publishing
-and macOS signed/notarized distribution are separate release-engineering
-milestones.
-
-See [docs/PORTABILITY.md](docs/PORTABILITY.md) for build requirements and the
-remaining distribution work.
-
-## Windows distribution
-
-Pull-request CI verifies the frontend, Go tests and a real Windows package
-build. The Windows build produces both a portable executable and an NSIS
-installer.
-
-The release workflow can publish:
-
-- `TVADB-Hub-<version>-windows-amd64.exe`
-- `TVADB-Hub-<version>-windows-amd64-installer.exe`
+- `DroidSphere-<version>-windows-amd64.exe`
+- `DroidSphere-<version>-windows-amd64-installer.exe`
 - `SHA256SUMS.txt`
 
 Optional Authenticode signing is supported through repository secrets. See
 [docs/RELEASING.md](docs/RELEASING.md).
 
-## Architecture
+## Architecture notes
 
-Wireless debugging is intentionally modeled around the TV identity rather than
-a remembered TCP port. Android's pairing and connection ports are dynamic and
-can change when Wireless debugging restarts.
+Wireless debugging is modeled around **device identity**, not a remembered TCP
+port, because Android pairing/connect ports are dynamic.
+
+Host-specific parts stay in Go and use `runtime.GOOS`, `filepath` and Wails
+native dialogs so features remain portable across Windows, Linux and macOS.
 
 See [docs/architecture/wireless.md](docs/architecture/wireless.md).
 
-## Upstream
+## Project history and attribution
 
-Upstream project: [Drenzzz/ADBKit](https://github.com/Drenzzz/ADBKit)
+DroidSphere is based on **ADBKit v2.0.0** by Drenzzz. The upstream MIT license
+and attribution are preserved.
 
-Imported baseline: ADBKit v2.0.0, commit
-`0908cded97caef9b7733f5de6f89f552e3d33109`.
+- Upstream: https://github.com/Drenzzz/ADBKit
+- Imported baseline: commit `0908cded97caef9b7733f5de6f89f552e3d33109`
+- Current repository: https://github.com/mrAibo/tvadb-hub
 
-See [UPSTREAM.md](UPSTREAM.md), [LICENSE](LICENSE), and
-[docs/ROADMAP.md](docs/ROADMAP.md).
+See [UPSTREAM.md](UPSTREAM.md), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+and [LICENSE](LICENSE).
+
+DroidSphere is independent software and is not affiliated with Google or
+Android device manufacturers.
