@@ -42,7 +42,7 @@ func (s *Service) Check(ctx context.Context) (ReleaseInfo, error) {
 		return ReleaseInfo{}, core.NewOperationError("check_for_updates", "Failed to prepare update check", err.Error(), true)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "TVADB-Hub/"+current)
+	req.Header.Set("User-Agent", "DroidSphere/"+current)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -53,7 +53,7 @@ func (s *Service) Check(ctx context.Context) (ReleaseInfo, error) {
 	if resp.StatusCode != http.StatusOK {
 		return ReleaseInfo{}, core.NewOperationError(
 			"check_for_updates",
-			"Could not read the latest TVADB Hub release",
+			"Could not read the latest DroidSphere release",
 			fmt.Sprintf("GitHub Releases returned HTTP %d", resp.StatusCode),
 			true,
 		)
