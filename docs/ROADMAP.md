@@ -13,6 +13,7 @@
 - [x] TVADB Hub product identity and initial icon
 - [x] Green Windows portable build artifact
 - [ ] Validate against a physical Google TV
+- [x] In-app read-only physical TV validation report
 
 ## 0.2 — TV workflow
 
@@ -36,12 +37,12 @@
 - [x] Screenshot workflow
 - [x] Logcat presets and export
 - [x] Shell shortcuts
-- [ ] File push/pull
+- [x] File push/pull
 
 ## 1.0 — Distribution
 
 - [ ] Windows portable release
-- [ ] Windows installer
-- [ ] Managed current Platform Tools
-- [ ] Update checks
-- [ ] Release notes and reproducible CI release flow
+- [x] Windows installer
+- [x] Managed current Platform Tools
+- [x] Update checks
+- [x] Release notes and reproducible CI release flow
