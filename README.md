@@ -68,6 +68,7 @@ device, Android version and authorization state.
 - Recording-oriented scrcpy controls and clipboard integration where supported.
 - Interactive ADB shell.
 - Live Logcat streaming, filters and export.
+- Connection Doctor for toolchain, ADB daemon, authorization, target and transport diagnostics.
 - TV-oriented shell shortcuts remain available for TV targets.
 
 ### Fastboot and recovery workflows
@@ -87,6 +88,63 @@ currently used for ADB, Fastboot, scrcpy and managed tool directories.
 Settings can export/import a JSON backup containing preferences, binary paths,
 device nicknames, scrcpy presets, remembered wireless devices and window state.
 Older `tvadb-hub-settings` backups remain import-compatible after the rename.
+
+## How to install
+
+Ready-to-run release-candidate packages are stored under `distribution/` after
+the multi-platform distribution workflow completes.
+
+### Windows
+
+Choose one of:
+
+- `distribution/windows/DroidSphere-<version>-windows-amd64-installer.exe` —
+  recommended installer.
+- `distribution/windows/DroidSphere-<version>-windows-amd64.exe` — portable
+  executable; no installation is required.
+
+For the installer, run the EXE and follow the per-user setup wizard. For the
+portable build, place the EXE in any writable folder and launch it directly.
+
+### macOS
+
+Use:
+
+- `distribution/macos/DroidSphere-<version>-macos-universal.zip`
+
+Unzip it, move `DroidSphere.app` to **Applications**, then launch it. The
+repository build is ad-hoc signed but not Apple-notarized yet, so macOS may
+require **Control-click → Open** on first launch.
+
+### Linux
+
+Choose one of:
+
+- `distribution/linux/DroidSphere-<version>-linux-amd64.AppImage`
+- `distribution/linux/droidsphere_<version>_amd64.deb`
+
+For AppImage:
+
+```bash
+chmod +x DroidSphere-<version>-linux-amd64.AppImage
+./DroidSphere-<version>-linux-amd64.AppImage
+```
+
+For Debian/Ubuntu:
+
+```bash
+sudo apt install ./droidsphere_<version>_amd64.deb
+```
+
+Linux desktop builds require a compatible GTK4/WebKitGTK 6.0 runtime. See
+[docs/PORTABILITY.md](docs/PORTABILITY.md) for distro-specific notes.
+
+### First launch
+
+DroidSphere can detect existing ADB/Fastboot/scrcpy installations or manage its
+own copies. Complete the first-run tool setup, enable **Developer options** and
+**USB debugging** or **Wireless debugging** on the Android device, then approve
+Android's normal debugging authorization prompt.
 
 ## Quick start
 
@@ -141,15 +199,13 @@ engineering details.
 
 The next additions with the strongest practical value are:
 
-1. **File preview + folder sync** — preview images/text, compare folder changes,
+1. **App backup & restore** — preview images/text, compare folder changes,
    define include/exclude patterns and choose conflict handling before sync.
-2. **App backup & restore** — export base/split APK sets and restore them as a
-   unit; add user-data backup only where Android actually permits it.
-3. **Logcat 2.0** — app/PID filtering, crash and ANR highlighting, saved filter
+2. **Logcat 2.0** — app/PID filtering, crash and ANR highlighting, saved filter
    presets and pinned events.
-4. **Connection Doctor** — one diagnostic flow for USB authorization, Wireless
-   ADB/mDNS, network reachability, tool versions and common host-side problems.
-5. **Permission/AppOps inspector** — begin read-only, then expose carefully
+3. **File preview + folder sync** — preview images/text, compare folder changes,
+   define include/exclude patterns and choose conflict handling before sync.
+4. **Permission/AppOps inspector** — begin read-only, then expose carefully
    scoped changes with before/after state.
 6. **Quick Share integration** — longer-term, ordinary Android file exchange
    without requiring ADB for every transfer.
