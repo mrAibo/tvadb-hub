@@ -1,5 +1,4 @@
 import { ErrorBoundary } from 'react-error-boundary'
-import { useRouteError } from 'react-router-dom'
 import { isRouteErrorResponse, useRouteError } from 'react-router-dom'
 
 function errorMessage(error: unknown) {
@@ -105,31 +104,3 @@ export function RouteErrorBoundary({ children }: { children: React.ReactNode }) 
   )
 }
 
-
-export function RouterErrorScreen() {
-  const error = useRouteError()
-  const message = error instanceof Error ? error.message : 'An unexpected application error occurred.'
-
-  return (
-    <div className="flex h-screen w-screen items-center justify-center bg-background p-6 text-foreground">
-      <div className="w-full max-w-xl rounded-2xl border border-border/60 bg-card p-6 shadow-lg">
-        <h1 className="text-lg font-semibold text-destructive">DroidSphere encountered an error</h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          The application UI could not complete this action. Your Android device was not modified by this error.
-        </p>
-        <pre className="mt-4 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
-          {message}
-        </pre>
-        <div className="mt-4 flex gap-2">
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-          >
-            Restart DroidSphere UI
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
