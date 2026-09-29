@@ -4,6 +4,8 @@ import (
 	"ADBKit/internal/core"
 	"context"
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 )
 
@@ -17,9 +19,10 @@ func NewWirelessService(dataDir string, getBinPath func() core.BinaryPaths) *Wir
 }
 
 func (s *WirelessService) Connect(ctx context.Context, address string) (string, error) {
-	address = strings.TrimSpace(address)
-	if address == "" || !strings.Contains(address, ":") {
-		return "", core.NewOperationError("connect_wireless", "wireless address is invalid", "address must use host:port format", false)
+	var err error
+	address, err = validateWirelessEndpoint(address)
+	if err != nil {
+		return "", core.NewOperationError("connect_wireless", "wireless address is invalid", err.Error(), false)
 	}
 
 	result, err := core.RunCommand(ctx, core.ExecRequest{
@@ -49,6 +52,10 @@ func (s *WirelessService) EnableTCPIP(ctx context.Context, serial string, port s
 	}
 	if trimmedPort == "" {
 		trimmedPort = "5555"
+	}
+	portValue, portErr := strconv.Atoi(trimmedPort)
+	if portErr != nil || portValue < 1 || portValue > 65535 {
+		return "", core.NewOperationError("enable_wireless_tcpip", "TCP/IP port is invalid", "port must be between 1 and 65535", false)
 	}
 
 	result, err := core.RunCommand(ctx, core.ExecRequest{
@@ -104,14 +111,13 @@ func (s *WirelessService) Disconnect(ctx context.Context, address string) (strin
 // session on a device. The device must already be in pairing mode (it shows
 // the host:port and a one-time pairing code in Developer Options).
 func (s *WirelessService) Pair(ctx context.Context, address string, code string) (string, error) {
-	trimmedAddress := strings.TrimSpace(address)
-	trimmedCode := strings.TrimSpace(code)
-
-	if trimmedAddress == "" || !strings.Contains(trimmedAddress, ":") {
-		return "", core.NewOperationError("pair_wireless", "wireless address is invalid", "address must use host:port format", false)
+	trimmedAddress, endpointErr := validateWirelessEndpoint(address)
+	if endpointErr != nil {
+		return "", core.NewOperationError("pair_wireless", "wireless address is invalid", endpointErr.Error(), false)
 	}
-	if trimmedCode == "" {
-		return "", core.NewOperationError("pair_wireless", "pairing code is required", "code must not be empty", false)
+	trimmedCode := strings.TrimSpace(code)
+	if !isSixDigitPairingCode(trimmedCode) {
+		return "", core.NewOperationError("pair_wireless", "pairing code is invalid", "pairing code must contain exactly six digits", false)
 	}
 
 	result, err := core.RunCommand(ctx, core.ExecRequest{
@@ -141,4 +147,39 @@ func extractFirstOutputLine(output string) string {
 		}
 	}
 	return ""
+}
+
+
+func validateWirelessEndpoint(value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" || strings.ContainsAny(trimmed, "\x00\r\n\t ") {
+		return "", fmt.Errorf("address must be a single host:port value")
+	}
+
+	host, port, err := net.SplitHostPort(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("address must use host:port format: %w", err)
+	}
+	host = strings.TrimSpace(strings.Trim(host, "[]"))
+	if host == "" || strings.ContainsAny(host, "/\\") {
+		return "", fmt.Errorf("host is invalid")
+	}
+	portValue, err := strconv.Atoi(port)
+	if err != nil || portValue < 1 || portValue > 65535 {
+		return "", fmt.Errorf("port must be between 1 and 65535")
+	}
+
+	return net.JoinHostPort(host, strconv.Itoa(portValue)), nil
+}
+
+func isSixDigitPairingCode(code string) bool {
+	if len(code) != 6 {
+		return false
+	}
+	for _, r := range code {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
