@@ -13,6 +13,43 @@ const LEVELS: { value: LogcatLevel; label: string }[] = [
   { value: 'F', label: 'Fatal' },
 ]
 
+const TV_LOGCAT_PRESETS: Array<{
+  id: string
+  label: string
+  levels: LogcatLevel[]
+  tag: string
+  text: string
+}> = [
+  {
+    id: 'tv-errors',
+    label: 'TV Errors',
+    levels: ['W', 'E', 'F'],
+    tag: '',
+    text: '',
+  },
+  {
+    id: 'media',
+    label: 'MediaCodec',
+    levels: ['D', 'I', 'W', 'E', 'F'],
+    tag: 'MediaCodec',
+    text: '',
+  },
+  {
+    id: 'launcher',
+    label: 'Launcher',
+    levels: ['D', 'I', 'W', 'E', 'F'],
+    tag: 'ActivityTaskManager',
+    text: '',
+  },
+  {
+    id: 'wifi',
+    label: 'Wi-Fi',
+    levels: ['D', 'I', 'W', 'E', 'F'],
+    tag: 'Wifi',
+    text: '',
+  },
+]
+
 const LEVEL_BADGE_COLORS: Record<LogcatLevel, string> = {
   V: 'border-muted-foreground/30 text-muted-foreground hover:bg-muted-foreground/10',
   D: 'border-[var(--logcat-debug)]/30 text-[var(--logcat-debug)] hover:bg-[var(--logcat-debug)]/10',
@@ -46,7 +83,43 @@ export function LogcatFilters() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-border/40 bg-muted/20">
+    <div className="flex flex-col gap-2 border-b border-border/40 bg-muted/20 px-4 py-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+          TV presets
+        </span>
+        {TV_LOGCAT_PRESETS.map((preset) => (
+          <Badge
+            key={preset.id}
+            variant="outline"
+            className="h-5 cursor-pointer px-1.5 text-[10px] text-muted-foreground hover:bg-primary/10 hover:text-primary"
+            onClick={() =>
+              setFilter({
+                levels: [...preset.levels],
+                tag: preset.tag,
+                text: preset.text,
+              })
+            }
+          >
+            {preset.label}
+          </Badge>
+        ))}
+        <Badge
+          variant="outline"
+          className="h-5 cursor-pointer px-1.5 text-[10px] text-muted-foreground hover:bg-muted"
+          onClick={() =>
+            setFilter({
+              levels: ['V', 'D', 'I', 'W', 'E', 'F'],
+              tag: '',
+              text: '',
+            })
+          }
+        >
+          All
+        </Badge>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
       <div className="flex items-center gap-1.5">
         {LEVELS.map(({ value, label }) => {
           const isActive = filter.levels.includes(value)
@@ -78,12 +151,13 @@ export function LogcatFilters() {
         className="h-6 w-36 text-xs rounded-lg"
       />
 
-      <Input
-        value={filter.text}
-        onChange={(e) => setFilter({ text: e.target.value })}
-        placeholder="Search messages..."
-        className="h-6 w-48 text-xs rounded-lg"
-      />
+        <Input
+          value={filter.text}
+          onChange={(e) => setFilter({ text: e.target.value })}
+          placeholder="Search messages..."
+          className="h-6 w-48 text-xs rounded-lg"
+        />
+      </div>
     </div>
   )
 }
