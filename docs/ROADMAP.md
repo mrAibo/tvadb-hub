@@ -35,7 +35,7 @@
 - [x] TV presets for scrcpy
 - [x] Screenshot workflow
 - [x] Logcat presets and export
-- [ ] Shell shortcuts
+- [x] Shell shortcuts
 - [ ] File push/pull
 
 ## 1.0 — Distribution

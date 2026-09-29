@@ -39,6 +39,7 @@ import {
 import { TerminalView } from '@/components/terminal/TerminalView'
 import { CommandHistory } from '@/components/terminal/CommandHistory'
 import { LogcatWorkspace } from '@/components/logcat/LogcatWorkspace'
+import { TVShellShortcuts } from '@/components/terminal/TVShellShortcuts'
 
 type TerminalWorkspacePanel = 'shell' | 'logcat'
 
@@ -238,6 +239,22 @@ export default function TerminalPage() {
     }
   }
 
+  async function handleShortcut(shortcutCommand: string) {
+    if (!session || !connected || mode !== 'adb-shell') return
+
+    pushHistory(shortcutCommand, session.serial, mode)
+    try {
+      await sendTerminalInput(session.id, `${shortcutCommand}\n`)
+    } catch (sendError) {
+      const message =
+        sendError instanceof Error
+          ? sendError.message
+          : 'Failed to run TV shell shortcut'
+      setError(message)
+      toast.error(message)
+    }
+  }
+
   function handleModeChange(nextMode: TerminalMode) {
     if (connected) {
       toast.info('Disconnect current session before changing terminal mode')
@@ -393,6 +410,13 @@ export default function TerminalPage() {
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              {mode === 'adb-shell' && (
+                <TVShellShortcuts
+                  disabled={!connected || !session}
+                  onRun={(shortcutCommand) => void handleShortcut(shortcutCommand)}
+                />
+              )}
 
               {/* Status indicators */}
               {connected && session && (
