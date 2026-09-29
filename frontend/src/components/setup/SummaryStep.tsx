@@ -73,13 +73,13 @@ export function SummaryStep({ onComplete }: { onComplete?: () => void }) {
             <h2 className="text-2xl font-semibold tracking-tight text-foreground">You are ready.</h2>
           </div>
           <p className="max-w-lg text-sm leading-6 text-muted-foreground">
-            The local toolchain is configured. Launch ADBKit to start managing connected devices.
+            The local toolchain is configured. Launch DroidSphere to start managing connected Android devices.
           </p>
         </div>
 
         <div className="flex justify-end border-t border-border/30 pt-5">
           <Button onClick={onComplete} size="sm" className="h-8 px-5">
-            Launch ADBKit
+            Launch DroidSphere
           </Button>
         </div>
       </div>
