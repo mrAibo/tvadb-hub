@@ -130,6 +130,11 @@ export interface DeviceInfo {
   ramTotal?: string
 }
 
+export interface ScreenshotResult {
+  path: string
+  bytes: number
+}
+
 export interface PerformanceSnapshot {
   serial: string
   cpuUsage: number

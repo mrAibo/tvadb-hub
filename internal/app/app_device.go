@@ -73,6 +73,20 @@ func (a *App) SendTVRemoteKey(serial string, key string) (string, error) {
 	})
 }
 
+func (a *App) CaptureScreenshot(serial string, localPath string) (device.ScreenshotResult, error) {
+	return auditAction(a, "capture_screenshot", func() (device.ScreenshotResult, error) {
+		resolved := strings.TrimSpace(serial)
+		if resolved == "" {
+			var err error
+			resolved, err = a.resolveActiveSerial(a.ctx)
+			if err != nil {
+				return device.ScreenshotResult{}, err
+			}
+		}
+		return a.devSvc.CaptureScreenshot(a.ctx, resolved, localPath)
+	})
+}
+
 func (a *App) RebootDevice(serial string, mode string) (string, error) {
 	return auditAction(a, "reboot_device", func() (string, error) {
 		resolved := serial
