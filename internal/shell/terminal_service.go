@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -35,8 +34,9 @@ type Session struct {
 
 type terminalProcess struct {
 	session Session
-	cmd     *exec.Cmd
 	binary  string
+	ctx     context.Context
+	cancel  context.CancelFunc
 	once    sync.Once
 	running atomic.Bool
 }
@@ -106,9 +106,12 @@ func (s *TerminalService) StartSessionWithMode(ctx context.Context, mode string,
 		Mode:   trimmedMode,
 	}
 
+	sessionCtx, cancel := context.WithCancel(s.ctx)
 	process := &terminalProcess{
 		session: session,
 		binary:  binaryPath,
+		ctx:     sessionCtx,
+		cancel:  cancel,
 	}
 
 	s.mu.Lock()
@@ -175,7 +178,7 @@ func (s *TerminalService) runCommand(process *terminalProcess, input string) {
 
 	s.emitSessionOutput(process.session, fmt.Sprintf("$ %s\r\n", input))
 
-	result, err := core.RunCommand(context.Background(), core.ExecRequest{
+	result, err := core.RunCommand(process.ctx, core.ExecRequest{
 		Command: process.binary,
 		Args:    commandArgs,
 		Timeout: 2 * time.Minute,
@@ -246,8 +249,8 @@ func (s *TerminalService) closeSession(process *terminalProcess, emitEvent bool)
 		delete(s.sessions, process.session.ID)
 		s.mu.Unlock()
 
-		if process.cmd != nil && process.cmd.Process != nil {
-			_ = process.cmd.Process.Kill()
+		if process.cancel != nil {
+			process.cancel()
 		}
 
 		if emitEvent {
