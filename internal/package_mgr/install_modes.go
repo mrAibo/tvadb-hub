@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 type InstallMode string
