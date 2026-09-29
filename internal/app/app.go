@@ -12,6 +12,7 @@ import (
 	packagemgr "ADBKit/internal/package_mgr"
 	"ADBKit/internal/scrcpy"
 	"ADBKit/internal/shell"
+	"ADBKit/internal/updater"
 	"context"
 	"log"
 	"os"
@@ -39,6 +40,7 @@ type App struct {
 	fpSvc    *flasher.PlanService
 	scrSvc   *scrcpy.Service
 	dlSvc    *download.Service
+	updSvc   *updater.Service
 	auditLog *audit.Log
 	cfg      *core.AppConfig
 }
@@ -88,6 +90,7 @@ func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) 
 	a.fpSvc.SetWailsContext(ctx)
 	a.scrSvc = scrcpy.New(a.ctx, a.binSvc, a.currentConfig, a.resolveActiveSerial, a.diaSvc, a.auditLog)
 	a.dlSvc = download.NewService(a.ctx, a.dataDir)
+	a.updSvc = updater.NewService()
 	return nil
 }
 
