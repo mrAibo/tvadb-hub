@@ -2,50 +2,71 @@
 set -euo pipefail
 
 # Rename raw build outputs in bin/ to canonical versioned release names.
-# VERSION is read from the Makefile (single source of truth).
+# APP_NAME and VERSION are read from the Makefile.
 #
 # Usage: rename-release-assets.sh [windows|linux|all]  (default: all)
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN_DIR="$ROOT_DIR/bin"
-
 TARGET="${1:-all}"
 
+APP_NAME="$(grep -E '^APP_NAME :=' "$ROOT_DIR/Makefile" | awk '{print $3}')"
 VERSION="$(grep -E '^VERSION :=' "$ROOT_DIR/Makefile" | awk '{print $3}')"
-if [ -z "$VERSION" ]; then
-  echo "Error: could not read VERSION from Makefile" >&2
+
+if [ -z "$APP_NAME" ] || [ -z "$VERSION" ]; then
+  echo "Error: could not read APP_NAME/VERSION from Makefile" >&2
   exit 1
 fi
 
-rename() {
+rename_asset() {
   local src="$1"
   local dst="$2"
+
+  if [ "$src" = "$dst" ]; then
+    return 0
+  fi
   if [ ! -f "$BIN_DIR/$src" ]; then
     echo "Skipped bin/$src (not found)"
     return 0
   fi
+
+  rm -f "$BIN_DIR/$dst"
   mv "$BIN_DIR/$src" "$BIN_DIR/$dst"
   echo "Renamed bin/$src -> bin/$dst"
 }
 
 rename_windows() {
-  rename "ADBKit.exe" "ADBKit-$VERSION-windows-amd64.exe"
+  local portable="${APP_NAME}.exe"
+  local portable_release="${APP_NAME}-${VERSION}-windows-amd64.exe"
+  local installer="${APP_NAME}-amd64-installer.exe"
+  local installer_release="${APP_NAME}-${VERSION}-windows-amd64-installer.exe"
+
+  rename_asset "$portable" "$portable_release"
+
+  if [ -f "$BIN_DIR/$installer" ]; then
+    rename_asset "$installer" "$installer_release"
+    return
+  fi
+
+  local discovered
+  discovered="$(find "$BIN_DIR" -maxdepth 1 -type f -name "${APP_NAME}-*-installer.exe" ! -name "$installer_release" -printf '%f\n' | head -n 1)"
+  if [ -n "$discovered" ]; then
+    rename_asset "$discovered" "$installer_release"
+  elif [ ! -f "$BIN_DIR/$installer_release" ]; then
+    echo "Skipped Windows installer (not found in bin/)"
+  fi
 }
 
 rename_linux() {
-  # Bundled AppImage: take whatever wails emits, excluding the lite build
-  # which is already versioned by scripts/build-appimage.sh.
   local bundled
-  bundled="$(find "$BIN_DIR" -maxdepth 1 -name '*.AppImage' ! -name '*-system.AppImage' -printf '%f\n' | head -n 1)"
-  if [ -z "$bundled" ]; then
-    echo "Skipped bundled AppImage (not found in bin/)"
-  else
-    rename "$bundled" "ADBKit-$VERSION-linux-x86_64.AppImage"
+  bundled="$(find "$BIN_DIR" -maxdepth 1 -name '*.AppImage' ! -name '*-system.AppImage' ! -name "${APP_NAME}-${VERSION}-linux-x86_64.AppImage" -printf '%f\n' | head -n 1)"
+  if [ -n "$bundled" ]; then
+    rename_asset "$bundled" "${APP_NAME}-${VERSION}-linux-x86_64.AppImage"
   fi
 
-  rename "ADBKit.deb" "ADBKit-${VERSION}_amd64.deb"
-  rename "ADBKit.rpm" "ADBKit-${VERSION}-1.x86_64.rpm"
-  rename "ADBKit.pkg.tar.zst" "ADBKit-${VERSION}-1-x86_64.pkg.tar.zst"
+  rename_asset "${APP_NAME}.deb" "${APP_NAME}-${VERSION}_amd64.deb"
+  rename_asset "${APP_NAME}.rpm" "${APP_NAME}-${VERSION}-1.x86_64.rpm"
+  rename_asset "${APP_NAME}.pkg.tar.zst" "${APP_NAME}-${VERSION}-1-x86_64.pkg.tar.zst"
 }
 
 case "$TARGET" in
