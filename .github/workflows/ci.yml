@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: tvadb-ci-${{ github.event.pull_request.number || github.ref }}
+  group: droidsphere-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -98,10 +98,10 @@ jobs:
       - name: Upload Windows portable build and installer
         uses: actions/upload-artifact@v4
         with:
-          name: tvadb-hub-windows-amd64
+          name: droidsphere-windows-amd64
           path: |
-            bin/TVADB-Hub-*-windows-amd64.exe
-            bin/TVADB-Hub-*-windows-amd64-installer.exe
+            bin/DroidSphere-*-windows-amd64.exe
+            bin/DroidSphere-*-windows-amd64-installer.exe
           if-no-files-found: error
 
 
@@ -128,8 +128,8 @@ jobs:
       - name: Upload Linux smoke-build
         uses: actions/upload-artifact@v4
         with:
-          name: tvadb-hub-linux-amd64-smoke
-          path: bin/TVADB-Hub
+          name: droidsphere-linux-amd64-smoke
+          path: bin/DroidSphere
           if-no-files-found: error
 
   macos-build:
@@ -153,6 +153,6 @@ jobs:
       - name: Upload macOS smoke-build
         uses: actions/upload-artifact@v4
         with:
-          name: tvadb-hub-macos-smoke
-          path: bin/TVADB-Hub
+          name: droidsphere-macos-smoke
+          path: bin/DroidSphere
           if-no-files-found: error
