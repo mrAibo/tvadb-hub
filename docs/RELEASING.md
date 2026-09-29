@@ -8,7 +8,7 @@ DroidSphere uses a reproducible GitHub Actions release workflow for the Windows 
 2. Choose a stable three-part version such as `0.1.0`.
 3. Set the same version in `Makefile` (`VERSION := ...`) and `build/config.yml` (`info.version`).
 4. If build assets or product metadata changed, refresh the Wails build assets and review the resulting diff before merging.
-5. Run the **Windows Release** workflow manually from `main` first with **Publish = false** to build a release candidate. After physical-device validation succeeds, run it again with **Publish = true** and **Physical device validated = true**, or create and push the matching tag (for example `v0.1.0`).
+5. Run the **Windows Release** workflow manually from `main` first with **Publish = false** to build a release candidate. After physical-device validation documented in `docs/PHYSICAL_DEVICE_VALIDATION.md` succeeds, run it again with **Publish = true** and **Physical device validated = true**, or create and push the matching tag (for example `v0.1.0`).
 6. Verify the workflow produced the versioned portable EXE, the versioned NSIS installer, and `SHA256SUMS.txt`.
 7. Install the NSIS build on a clean Windows account and verify first-run setup, Wireless ADB discovery/pairing, reconnect, APK install, screenshot, Scrcpy, file transfer, shell and Logcat.
 8. Verify uninstall removes the application and Start/Desktop shortcuts.
