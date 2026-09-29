@@ -12,6 +12,7 @@ import (
 	packagemgr "ADBKit/internal/package_mgr"
 	"ADBKit/internal/scrcpy"
 	"ADBKit/internal/shell"
+	"ADBKit/internal/tuning"
 	"ADBKit/internal/updater"
 	"context"
 	"log"
@@ -33,6 +34,7 @@ type App struct {
 	monSvc   *device.MonitorService
 	diaSvc   *dialog.Service
 	pkgSvc   *packagemgr.Service
+	tuneSvc  *tuning.Service
 	fileSvc  *file.Service
 	termSvc  *shell.TerminalService
 	logSvc   *shell.LogcatService
@@ -82,6 +84,7 @@ func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) 
 	a.monSvc = device.NewMonitorService(a.dataDir, getBinPath)
 	a.diaSvc = dialog.New(ctx)
 	a.pkgSvc = packagemgr.NewService(a.resolveActiveSerial, a.diaSvc.SelectSaveFile, getBinPath)
+	a.tuneSvc = tuning.NewService(a.dataDir, a.resolveActiveSerial, getBinPath, a.pkgSvc)
 	a.fileSvc = file.NewService(ctx, a.resolveActiveSerial, getBinPath)
 	a.termSvc = shell.NewTerminalService(ctx, a.binSvc, a.currentConfig, a.resolveTerminalSerial)
 	a.logSvc = shell.NewLogcatService(ctx, a.binSvc, a.currentConfig)

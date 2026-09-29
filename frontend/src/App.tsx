@@ -6,6 +6,7 @@ import { AppShell } from '@/components/layout/AppShell'
 const DashboardPage = lazy(() => import('@/routes/DashboardPage'))
 const DevicesPage = lazy(() => import('@/routes/DevicesPage'))
 const AppsPage = lazy(() => import('@/routes/AppsPage'))
+const TuningPage = lazy(() => import('@/routes/TuningPage'))
 const FilesPage = lazy(() => import('@/routes/FilesPage'))
 const FlasherPage = lazy(() => import('@/routes/FlasherPage'))
 const TerminalPage = lazy(() => import('@/routes/TerminalPage'))
@@ -49,6 +50,10 @@ export const router = createHashRouter([
       {
         path: 'apps',
         element: routeElement(<AppsPage />),
+      },
+      {
+        path: 'tuning',
+        element: routeElement(<TuningPage />),
       },
       {
         path: 'files',
