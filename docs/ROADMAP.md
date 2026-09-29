@@ -20,6 +20,7 @@ devices.
 - [x] Fastboot/flash workflows
 - [x] Managed ADB/Fastboot/scrcpy tools with visible resolved paths
 - [x] Portable JSON settings backup
+- [x] Connection Doctor for ADB/toolchain/authorization/transport diagnostics
 - [x] Windows installer + native Windows/Linux/macOS CI builds
 
 ## Next: files and backups
@@ -32,8 +33,6 @@ devices.
 
 ## Next: diagnostics and developer workflow
 
-- [ ] Connection Doctor covering USB authorization, Wireless ADB, mDNS, ports,
-      ADB/Fastboot/scrcpy versions and actionable fixes
 - [ ] Logcat 2.0: app/PID filter, crash/ANR highlighting, saved filters and pinned events
 - [ ] Permission/AppOps inspector with a read-only default mode
 - [ ] Device report export for support/debugging
