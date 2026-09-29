@@ -18,7 +18,7 @@ import {
   getPackageDetails as svcGetDetails,
   selectApkFile as svcSelectApk,
 } from '@/services/packageService'
-import type { PackageDetails, DeviceSummary } from '@/lib/types'
+import type { PackageDetails, DeviceSummary, PackageInstallMode } from '@/lib/types'
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Operation failed'
@@ -225,10 +225,13 @@ export function useAppManager() {
   }, [fetchPackages])
 
   const installApkFromPath = useCallback(
-    async (filePath: string): Promise<boolean> => {
+    async (
+      filePath: string,
+      mode: PackageInstallMode = 'replace',
+    ): Promise<boolean> => {
       try {
         store.setInstalling(true)
-        const message = await svcInstallPackage(filePath)
+        const message = await svcInstallPackage(filePath, mode)
         toast.success(message)
         await fetchPackages(true)
         return true

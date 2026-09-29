@@ -4,7 +4,6 @@ import (
 	"ADBKit/internal/core"
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -51,37 +50,9 @@ func (s *Service) requireActiveSerial(ctx context.Context) (string, error) {
 }
 
 func (s *Service) InstallPackage(ctx context.Context, filePath string) (string, error) {
-	trimmedPath := strings.TrimSpace(filePath)
-	if err := core.ValidateAPKFile(trimmedPath); err != nil {
-		return "", err
-	}
-
-	serial, err := s.requireActiveSerial(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	installCtx, cancel := context.WithTimeout(ctx, installPackageTimeout)
-	defer cancel()
-
-	result, err := core.RunCommand(installCtx, core.ExecRequest{
-		Command: s.getBinPath().Adb,
-		Args:    []string{"-s", serial, "install", "-r", trimmedPath},
-		Timeout: installPackageTimeout,
-	})
-	if err != nil {
-		return "", core.NewOperationError("install_package", "Failed to install APK", err.Error(), true)
-	}
-	if result.ExitCode != 0 {
-		return "", core.NewOperationError("install_package", "Failed to install APK", strings.TrimSpace(result.Stderr), true)
-	}
-
-	message := extractFirstLine(result.Stdout)
-	if message == "" {
-		message = fmt.Sprintf("Installed APK from %s", filepath.Base(trimmedPath))
-	}
-
-	return message, nil
+	// Preserve the original ADBKit behaviour for callers that do not expose
+	// an install mode: replace/update the existing package while keeping data.
+	return s.InstallPackageWithMode(ctx, filePath, string(InstallModeReplace))
 }
 
 func (s *Service) LaunchPackage(ctx context.Context, packageName string) (string, error) {

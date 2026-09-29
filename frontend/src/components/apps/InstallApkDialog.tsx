@@ -18,11 +18,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
+import type { PackageInstallMode } from '@/lib/types'
 
 interface InstallApkDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onInstall: (filePath: string) => Promise<boolean>
+  onInstall: (filePath: string, mode: PackageInstallMode) => Promise<boolean>
   onSelectFile: () => Promise<string>
   initialFilePath?: string | undefined
 }
@@ -41,6 +42,7 @@ export function InstallApkDialog({
   const [status, setStatus] = useState<InstallStatus>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [installMode, setInstallMode] = useState<PackageInstallMode>('replace')
 
   useEffect(() => {
     if (open) {
@@ -48,6 +50,7 @@ export function InstallApkDialog({
       setStatus('idle')
       setErrorMsg(null)
       setIsDragOver(false)
+      setInstallMode('replace')
     }
   }, [open, initialFilePath])
 
@@ -59,7 +62,7 @@ export function InstallApkDialog({
   async function handleInstall() {
     if (!filePath || status === 'installing') return
     setStatus('installing')
-    const success = await onInstall(filePath)
+    const success = await onInstall(filePath, installMode)
     if (success) {
       setStatus('success')
     } else {
@@ -211,6 +214,44 @@ export function InstallApkDialog({
                 </Button>
               )}
             </motion.div>
+          )}
+
+          {filePath && status === 'idle' && (
+            <div className="rounded-xl border border-border/40 bg-muted/10 p-3">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Install mode
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ['install', 'Install', 'Fail if already installed'],
+                  ['replace', 'Update', 'Replace and keep app data'],
+                  ['downgrade', 'Downgrade', 'Allow an older version'],
+                ] as const).map(([value, label, description]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setInstallMode(value)}
+                    className={cn(
+                      'rounded-lg border px-2.5 py-2 text-left transition-colors',
+                      installMode === value
+                        ? 'border-primary/50 bg-primary/10 text-foreground'
+                        : 'border-border/50 bg-background hover:bg-muted/40'
+                    )}
+                  >
+                    <span className="block text-[11px] font-semibold">{label}</span>
+                    <span className="mt-0.5 block text-[9px] leading-snug text-muted-foreground">
+                      {description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {installMode === 'downgrade' && (
+                <p className="mt-2 text-[10px] leading-relaxed text-warning">
+                  Downgrade uses ADB -r -d. Android can still reject incompatible signatures,
+                  version rules, or package changes.
+                </p>
+              )}
+            </div>
           )}
 
           {isInstalling && (

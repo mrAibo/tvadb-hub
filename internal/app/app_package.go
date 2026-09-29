@@ -14,6 +14,12 @@ func (a *App) InstallPackage(filePath string) (string, error) {
 	})
 }
 
+func (a *App) InstallPackageWithMode(filePath string, mode string) (string, error) {
+	return auditAction(a, "install_package", func() (string, error) {
+		return a.pkgSvc.InstallPackageWithMode(a.ctx, filePath, mode)
+	})
+}
+
 func (a *App) UninstallPackage(packageName string) (string, error) {
 	return auditAction(a, "uninstall_package", func() (string, error) {
 		return a.pkgSvc.UninstallPackage(a.ctx, packageName)

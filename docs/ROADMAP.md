@@ -24,7 +24,7 @@
 
 ## 0.3 — Apps
 
-- [ ] APK install modes: install, replace/update, downgrade
+- [x] APK install modes: install, replace/update, downgrade
 - [ ] Split APK installation
 - [ ] Drag-and-drop installation
 - [ ] Installed-app launch/stop/enable/disable/uninstall
