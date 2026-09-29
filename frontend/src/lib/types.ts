@@ -67,6 +67,23 @@ export interface SetupWizardState {
 
 export type DeviceMode = 'adb' | 'fastboot' | 'unknown'
 
+export type TVRemoteKey =
+  | 'home'
+  | 'back'
+  | 'up'
+  | 'down'
+  | 'left'
+  | 'right'
+  | 'select'
+  | 'menu'
+  | 'play_pause'
+  | 'volume_up'
+  | 'volume_down'
+  | 'mute'
+  | 'power'
+  | 'wake'
+  | 'sleep'
+
 export type DeviceState =
   | 'device'
   | 'offline'
