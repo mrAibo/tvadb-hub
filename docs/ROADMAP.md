@@ -20,7 +20,7 @@
 - [x] TV-oriented dashboard
 - [x] Remote control: D-pad, Home, Back, volume, power/wake
 - [x] TV-focused device information
-- [ ] Reconnect state/history UI
+- [x] Reconnect state/history UI
 
 ## 0.3 — Apps
 

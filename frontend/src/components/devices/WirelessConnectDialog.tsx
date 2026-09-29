@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   autoConnectWireless,
+  autoReconnectRememberedWireless,
   connectWireless,
   discoverWirelessDevices,
   forgetRememberedWirelessDevice,
@@ -33,7 +34,9 @@ import type {
   RememberedWirelessDevice,
   WirelessDiagnosticCheck,
   WirelessDiagnosticsReport,
+  WirelessReconnectReport,
 } from '@/lib/types'
+import { useDeviceStore } from '@/stores/useDeviceStore'
 import { toast } from 'sonner'
 
 interface WirelessConnectDialogProps {
@@ -60,6 +63,23 @@ function DiagnosticIcon({ check }: { check: WirelessDiagnosticCheck }) {
     default:
       return <InfoCircle className="h-4 w-4 text-blue-400" />
   }
+}
+
+function adbSerialHost(serial: string): string {
+  const value = serial.trim()
+  if (value.startsWith('[')) {
+    const closing = value.indexOf(']')
+    if (closing > 1) return value.slice(1, closing)
+  }
+  const separator = value.lastIndexOf(':')
+  return separator > 0 ? value.slice(0, separator) : value
+}
+
+function formatLastSeen(value?: string): string {
+  if (!value) return 'Never'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString()
 }
 
 function DiagnosticsPanel({
@@ -123,6 +143,7 @@ export function WirelessConnectDialog({
   onOpenChange,
   onConnected,
 }: WirelessConnectDialogProps) {
+  const adbDevices = useDeviceStore((state) => state.devices)
   const [devices, setDevices] = useState<DiscoveredWirelessDevice[]>([])
   const [remembered, setRemembered] = useState<RememberedWirelessDevice[]>([])
   const [scanning, setScanning] = useState(false)
@@ -133,6 +154,8 @@ export function WirelessConnectDialog({
   const [error, setError] = useState<string | null>(null)
   const [diagnosing, setDiagnosing] = useState(false)
   const [diagnostics, setDiagnostics] = useState<WirelessDiagnosticsReport | null>(null)
+  const [reconnecting, setReconnecting] = useState(false)
+  const [reconnectReport, setReconnectReport] = useState<WirelessReconnectReport | null>(null)
 
   const scan = useCallback(async () => {
     setScanning(true)
@@ -158,6 +181,7 @@ export function WirelessConnectDialog({
     setPairCode('')
     setError(null)
     setDiagnostics(null)
+    setReconnectReport(null)
     void scan()
   }, [open, scan])
 
@@ -237,6 +261,35 @@ export function WirelessConnectDialog({
     }
   }
 
+  async function handleReconnectRemembered() {
+    setReconnecting(true)
+    setError(null)
+    try {
+      const report = await autoReconnectRememberedWireless()
+      setReconnectReport(report)
+      await onConnected()
+      await scan()
+
+      const newlyConnected = report.connected.length
+      const alreadyConnected = report.alreadyConnected.length
+      const failed = Object.keys(report.failed).length
+      if (newlyConnected > 0) {
+        toast.success(`Reconnected ${newlyConnected} remembered TV${newlyConnected === 1 ? '' : 's'}`)
+      } else if (alreadyConnected > 0 && failed === 0) {
+        toast.success('Remembered TV is already connected')
+      } else if (failed > 0) {
+        toast.error('Some remembered TVs could not reconnect')
+      } else {
+        toast.info('No remembered TV endpoint is currently available')
+      }
+    } catch (reconnectError) {
+      setReconnectReport(null)
+      setError(reconnectError instanceof Error ? reconnectError.message : 'Reconnect failed')
+    } finally {
+      setReconnecting(false)
+    }
+  }
+
   async function handleForgetRemembered(key: string) {
     setError(null)
     try {
@@ -267,7 +320,20 @@ export function WirelessConnectDialog({
                 Pairing and connect ports may change whenever Wireless debugging restarts.
               </p>
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap justify-end gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleReconnectRemembered()}
+                disabled={reconnecting || scanning || busyHost !== '' || remembered.length === 0}
+              >
+                {reconnecting ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Wifi className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Reconnect
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -421,6 +487,42 @@ export function WirelessConnectDialog({
             )}
           </div>
 
+          {reconnectReport && (
+            <div className="rounded-lg border border-border/50 bg-muted/5 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Reconnect result
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => setReconnectReport(null)}
+                >
+                  Hide
+                </Button>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded-md border border-border/40 bg-card/60 p-2">
+                  <p className="text-[9px] uppercase text-muted-foreground">Attempted</p>
+                  <p className="text-sm font-semibold">{reconnectReport.attempted}</p>
+                </div>
+                <div className="rounded-md border border-border/40 bg-card/60 p-2">
+                  <p className="text-[9px] uppercase text-muted-foreground">Connected</p>
+                  <p className="text-sm font-semibold text-green-500">{reconnectReport.connected.length}</p>
+                </div>
+                <div className="rounded-md border border-border/40 bg-card/60 p-2">
+                  <p className="text-[9px] uppercase text-muted-foreground">Unavailable</p>
+                  <p className="text-sm font-semibold">{reconnectReport.unavailable.length}</p>
+                </div>
+                <div className="rounded-md border border-border/40 bg-card/60 p-2">
+                  <p className="text-[9px] uppercase text-muted-foreground">Failed</p>
+                  <p className="text-sm font-semibold text-destructive">{Object.keys(reconnectReport.failed).length}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {diagnostics && (
             <DiagnosticsPanel report={diagnostics} onClose={() => setDiagnostics(null)} />
           )}
@@ -431,7 +533,24 @@ export function WirelessConnectDialog({
                 Remembered TVs · automatic reconnect
               </p>
               <div className="mt-2 space-y-1.5">
-                {remembered.map((entry) => (
+                {remembered.map((entry) => {
+                  const connected = adbDevices.some(
+                    (device) =>
+                      device.mode === 'adb' &&
+                      device.state === 'device' &&
+                      adbSerialHost(device.serial).toLowerCase() === entry.host.toLowerCase(),
+                  )
+                  const available = devices.some(
+                    (device) =>
+                      device.host.toLowerCase() === entry.host.toLowerCase() ||
+                      (entry.instance_name
+                        ? device.instanceNames.some(
+                            (name) => name.toLowerCase() === entry.instance_name?.toLowerCase(),
+                          )
+                        : false),
+                  )
+                  const status = connected ? 'Connected' : available ? 'Available' : 'Offline'
+                  return (
                   <div
                     key={entry.key}
                     className="flex items-center justify-between gap-3 rounded-md border border-border/40 bg-card/60 px-2.5 py-2"
@@ -450,8 +569,22 @@ export function WirelessConnectDialog({
                       <p className="truncate font-mono text-[9px] text-muted-foreground">
                         {entry.last_address || entry.host}
                       </p>
+                      <p className="mt-0.5 text-[9px] text-muted-foreground">
+                        Last seen: {formatLastSeen(entry.last_seen_at)}
+                      </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
+                      <span
+                        className={
+                          connected
+                            ? 'rounded bg-green-500/10 px-1.5 py-0.5 text-[9px] font-medium text-green-500'
+                            : available
+                              ? 'rounded bg-blue-500/10 px-1.5 py-0.5 text-[9px] font-medium text-blue-400'
+                              : 'rounded bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground'
+                        }
+                      >
+                        {status}
+                      </span>
                       {entry.auto_connect && (
                         <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-[9px] font-medium text-green-500">
                           Auto
@@ -468,7 +601,8 @@ export function WirelessConnectDialog({
                       </Button>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}

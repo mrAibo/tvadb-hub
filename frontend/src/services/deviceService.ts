@@ -35,6 +35,7 @@ import type {
   WirelessConnectResult,
   WirelessPairAndConnectResult,
   WirelessDiagnosticsReport,
+  WirelessReconnectReport,
   TVRemoteKey,
 } from '@/lib/types'
 
@@ -94,8 +95,9 @@ export async function autoConnectWireless(selector: string): Promise<WirelessCon
   return raw as unknown as WirelessConnectResult
 }
 
-export async function autoReconnectRememberedWireless(): Promise<void> {
-  await AutoReconnectRememberedWireless()
+export async function autoReconnectRememberedWireless(): Promise<WirelessReconnectReport> {
+  const raw = await AutoReconnectRememberedWireless()
+  return raw as unknown as WirelessReconnectReport
 }
 
 export async function pairAndConnectWireless(
