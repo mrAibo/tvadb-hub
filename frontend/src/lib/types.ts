@@ -738,3 +738,33 @@ export interface TuningRestoreResult {
   restored: string[]
   failed: Record<string, string>
 }
+
+
+export type ConnectionDoctorStatus = 'pass' | 'warning' | 'fail' | 'info'
+
+export interface ConnectionDoctorCheck {
+  id: string
+  group: string
+  label: string
+  status: ConnectionDoctorStatus
+  detail: string
+  recommendation?: string
+  action?: string
+}
+
+export interface ConnectionDoctorReport {
+  generatedAt: string
+  os: string
+  arch: string
+  healthy: boolean
+  passCount: number
+  warningCount: number
+  failCount: number
+  infoCount: number
+  targetSerial?: string
+  targetModel?: string
+  targetMode?: string
+  targetState?: string
+  transport?: string
+  checks: ConnectionDoctorCheck[]
+}
