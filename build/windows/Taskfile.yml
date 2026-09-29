@@ -111,6 +111,7 @@ tasks:
     summary: Creates an NSIS installer
     dir: build/windows/nsis
     deps:
+      - task: common:generate:icons
       - task: build
     preconditions:
       - sh: '[ "{{.INSTALL_SCOPE}}" = "user" ] || [ "{{.INSTALL_SCOPE}}" = "machine" ]'
