@@ -7,7 +7,9 @@ import type {
   LogcatStatusEvent,
 } from '@/lib/types'
 
-const DEFAULT_LOGCAT_BUFFER_LIMIT = 30000
+const MIN_LOGCAT_BUFFER_LIMIT = 1000
+const DEFAULT_LOGCAT_BUFFER_LIMIT = 5000
+const MAX_LOGCAT_BUFFER_LIMIT = 50000
 const LOGCAT_FLUSH_INTERVAL = 100
 
 let currentBufferLimit = DEFAULT_LOGCAT_BUFFER_LIMIT
@@ -100,11 +102,12 @@ export const useLogcatStore = create<LogcatStore>()((set) => ({
   setError: (error) => set({ error }),
   setLastUpdatedAt: (lastUpdatedAt) => set({ lastUpdatedAt }),
   setBufferLimit: (limit) => {
-    currentBufferLimit = limit
+    const bounded = Math.min(MAX_LOGCAT_BUFFER_LIMIT, Math.max(MIN_LOGCAT_BUFFER_LIMIT, limit))
+    currentBufferLimit = bounded
     set((state) => ({
-      bufferLimit: limit,
-      logs: state.logs.length > limit ? state.logs.slice(-limit) : state.logs,
-      bufferFull: state.logs.length >= limit,
+      bufferLimit: bounded,
+      logs: state.logs.length > bounded ? state.logs.slice(-bounded) : state.logs,
+      bufferFull: state.logs.length >= bounded,
     }))
   },
   clearLogs: () => {
