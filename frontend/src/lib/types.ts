@@ -134,6 +134,46 @@ export interface WirelessHistoryEntry {
   name: string
 }
 
+export type MDNSServiceKind = 'pairing' | 'connect' | 'legacy'
+
+export interface MDNSService {
+  instanceName: string
+  serviceName: string
+  kind: MDNSServiceKind
+  address: string
+  host: string
+  port: string
+  secure: boolean
+}
+
+export interface DiscoveredWirelessDevice {
+  discoveryKey: string
+  host: string
+  instanceNames: string[]
+  pairingAddress?: string
+  connectAddress?: string
+  legacyAddress?: string
+  preferredAddress?: string
+  secureConnect: boolean
+}
+
+export interface WirelessConnectResult {
+  service: MDNSService
+  message: string
+}
+
+export interface WirelessPairResult {
+  service: MDNSService
+  message: string
+}
+
+export interface WirelessPairAndConnectResult {
+  pairingService: MDNSService
+  connectService: MDNSService
+  pairMessage: string
+  connectMessage: string
+}
+
 export type PackageFilter = 'user' | 'system' | 'all'
 
 export type PackageStatusFilter = 'all' | 'enabled' | 'disabled'

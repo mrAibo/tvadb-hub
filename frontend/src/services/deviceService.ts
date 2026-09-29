@@ -6,6 +6,9 @@ import {
   GetDeviceMode,
   RebootDevice,
   ConnectWireless,
+  DiscoverWirelessDevices,
+  AutoConnectWireless,
+  PairAndConnectWireless,
   EnableWirelessTCPIP,
   DisconnectWireless,
   GetWirelessHistory,
@@ -22,6 +25,9 @@ import type {
   PerformanceSnapshot,
   DeviceNicknames,
   WirelessHistoryEntry,
+  DiscoveredWirelessDevice,
+  WirelessConnectResult,
+  WirelessPairAndConnectResult,
 } from '@/lib/types'
 
 export async function getDevices(): Promise<DeviceSummary[]> {
@@ -56,6 +62,24 @@ export async function rebootDevice(
 
 export async function connectWireless(address: string): Promise<string> {
   return ConnectWireless(address)
+}
+
+export async function discoverWirelessDevices(): Promise<DiscoveredWirelessDevice[]> {
+  const raw = await DiscoverWirelessDevices()
+  return (raw as unknown as DiscoveredWirelessDevice[]) ?? []
+}
+
+export async function autoConnectWireless(selector: string): Promise<WirelessConnectResult> {
+  const raw = await AutoConnectWireless(selector)
+  return raw as unknown as WirelessConnectResult
+}
+
+export async function pairAndConnectWireless(
+  selector: string,
+  code: string,
+): Promise<WirelessPairAndConnectResult> {
+  const raw = await PairAndConnectWireless(selector, code)
+  return raw as unknown as WirelessPairAndConnectResult
 }
 
 export async function enableWirelessTCPIP(

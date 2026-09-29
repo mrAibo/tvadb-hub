@@ -77,3 +77,52 @@ export interface Summary {
     "device"?: string;
     "transportId"?: string;
 }
+
+export interface DiscoveredWirelessDevice {
+    "discoveryKey": string;
+    "host": string;
+    "instanceNames": string[];
+    "pairingAddress"?: string;
+    "connectAddress"?: string;
+    "legacyAddress"?: string;
+    "preferredAddress"?: string;
+    "secureConnect": boolean;
+}
+
+export interface MDNSService {
+    "instanceName": string;
+    "serviceName": string;
+    "kind": MDNSServiceKind;
+    "address": string;
+    "host": string;
+    "port": string;
+    "secure": boolean;
+}
+
+export enum MDNSServiceKind {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero = "",
+
+    MDNSServicePairing = "pairing",
+    MDNSServiceConnect = "connect",
+    MDNSServiceLegacy = "legacy",
+};
+
+export interface WirelessConnectResult {
+    "service": MDNSService;
+    "message": string;
+}
+
+export interface WirelessPairResult {
+    "service": MDNSService;
+    "message": string;
+}
+
+export interface WirelessPairAndConnectResult {
+    "pairingService": MDNSService;
+    "connectService": MDNSService;
+    "pairMessage": string;
+    "connectMessage": string;
+}

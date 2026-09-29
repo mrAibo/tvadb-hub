@@ -68,6 +68,26 @@ export function ConnectWireless(address: string): $CancellablePromise<string> {
     return $Call.ByID(1774714983, address);
 }
 
+export function DiscoverWireless(): $CancellablePromise<device$0.MDNSService[] | null> {
+    return $Call.ByID(84615852);
+}
+
+export function DiscoverWirelessDevices(): $CancellablePromise<device$0.DiscoveredWirelessDevice[] | null> {
+    return $Call.ByID(3651711663);
+}
+
+export function AutoConnectWireless(selector: string): $CancellablePromise<device$0.WirelessConnectResult> {
+    return $Call.ByID(2589474954, selector);
+}
+
+export function PairDiscoveredWireless(selector: string, code: string): $CancellablePromise<device$0.WirelessPairResult> {
+    return $Call.ByID(3221402705, selector, code);
+}
+
+export function PairAndConnectWireless(selector: string, code: string): $CancellablePromise<device$0.WirelessPairAndConnectResult> {
+    return $Call.ByID(962886, selector, code);
+}
+
 export function CreateDirectory(remotePath: string): $CancellablePromise<string> {
     return $Call.ByID(2415799174, remotePath);
 }
