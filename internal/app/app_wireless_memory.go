@@ -3,7 +3,6 @@ package app
 import (
 	"ADBKit/internal/core"
 	"ADBKit/internal/device"
-	"fmt"
 	"strings"
 )
 
@@ -185,7 +184,7 @@ func (a *App) rememberWirelessService(service device.MDNSService) error {
 		if existing.Name != "" {
 			entry.Name = existing.Name
 		}
-		entry.AutoConnect = existing.AutoConnect || !existing.AutoConnect
+		entry.AutoConnect = true
 		a.cfg.RememberedWireless[match] = entry
 	} else {
 		a.cfg.RememberedWireless = append(a.cfg.RememberedWireless, entry)
@@ -222,14 +221,4 @@ func resolveRememberedWirelessService(
 		return *hostFallback, true
 	}
 	return device.MDNSService{}, false
-}
-
-func rememberedWirelessLabel(entry core.RememberedWirelessDevice) string {
-	if entry.Name != "" {
-		return entry.Name
-	}
-	if entry.Host != "" {
-		return entry.Host
-	}
-	return fmt.Sprintf("wireless device %s", entry.Key)
 }

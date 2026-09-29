@@ -6,10 +6,12 @@ import {
   getDeviceInfo,
   getDeviceMode,
   getDeviceNicknames,
+  autoReconnectRememberedWireless,
 } from '@/services/deviceService'
 import { useDeviceStore } from '@/stores/useDeviceStore'
 
 const DEVICE_POLL_INTERVAL = 8000
+const WIRELESS_RECONNECT_INTERVAL = 20000
 
 let syncPromise: Promise<void> | null = null
 
@@ -90,23 +92,46 @@ export function refreshDeviceState(isBackgroundRefresh = true): Promise<void> {
 
 export function useDeviceSync() {
   useEffect(() => {
-    void refreshDeviceState(false)
+    let reconnectRunning = false
 
-    const intervalId = window.setInterval(() => {
+    async function reconnectRememberedWireless() {
+      if (reconnectRunning || document.hidden) return
+      reconnectRunning = true
+      try {
+        await autoReconnectRememberedWireless()
+        await refreshDeviceState(true)
+      } catch {
+        // Background recovery is best-effort. The explicit Wireless TV
+        // diagnostics flow exposes actionable errors to the user.
+      } finally {
+        reconnectRunning = false
+      }
+    }
+
+    void refreshDeviceState(false)
+    void reconnectRememberedWireless()
+
+    const deviceIntervalId = window.setInterval(() => {
       if (document.hidden) return
       void refreshDeviceState(true)
     }, DEVICE_POLL_INTERVAL)
 
+    const reconnectIntervalId = window.setInterval(() => {
+      void reconnectRememberedWireless()
+    }, WIRELESS_RECONNECT_INTERVAL)
+
     function handleVisibilityChange() {
       if (!document.hidden) {
         void refreshDeviceState(true)
+        void reconnectRememberedWireless()
       }
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
-      window.clearInterval(intervalId)
+      window.clearInterval(deviceIntervalId)
+      window.clearInterval(reconnectIntervalId)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])

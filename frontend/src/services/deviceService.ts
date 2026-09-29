@@ -8,6 +8,7 @@ import {
   ConnectWireless,
   DiscoverWirelessDevices,
   AutoConnectWireless,
+  AutoReconnectRememberedWireless,
   PairAndConnectWireless,
   GetWirelessDiagnostics,
   EnableWirelessTCPIP,
@@ -74,6 +75,10 @@ export async function discoverWirelessDevices(): Promise<DiscoveredWirelessDevic
 export async function autoConnectWireless(selector: string): Promise<WirelessConnectResult> {
   const raw = await AutoConnectWireless(selector)
   return raw as unknown as WirelessConnectResult
+}
+
+export async function autoReconnectRememberedWireless(): Promise<void> {
+  await AutoReconnectRememberedWireless()
 }
 
 export async function pairAndConnectWireless(

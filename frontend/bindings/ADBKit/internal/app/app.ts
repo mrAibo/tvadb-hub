@@ -80,6 +80,10 @@ export function AutoConnectWireless(selector: string): $CancellablePromise<devic
     return $Call.ByID(2589474954, selector);
 }
 
+export function AutoReconnectRememberedWireless(): $CancellablePromise<unknown> {
+    return $Call.ByID(1362127067);
+}
+
 export function PairDiscoveredWireless(selector: string, code: string): $CancellablePromise<device$0.WirelessPairResult> {
     return $Call.ByID(3221402705, selector, code);
 }
