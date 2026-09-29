@@ -88,6 +88,7 @@ export interface DeviceSummary {
 
 export interface DeviceInfo {
   serial: string
+  hardwareSerial?: string
   state: DeviceState
   mode: DeviceMode
   product?: string
