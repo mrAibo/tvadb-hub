@@ -1,7 +1,7 @@
 APP_NAME := TVADB-Hub
 VERSION := 0.1.0
 
-.PHONY: help deps frontend-install doctor dev build build-upx windows run lint typecheck test test-coverage check check-all package deb rpm arch appimage appimage-lite release-assets all
+.PHONY: help deps frontend-install doctor dev build build-upx windows linux macos run lint typecheck test test-coverage check check-all package deb rpm arch appimage appimage-lite release-assets all
 
 .DEFAULT_GOAL := help
 
@@ -14,6 +14,8 @@ help:
 	@echo "  make build      Build the current platform"
 	@echo "  make build-upx  Build then compress with UPX"
 	@echo "  make windows    Build the Windows target task"
+	@echo "  make linux      Build the Linux desktop target"
+	@echo "  make macos      Build the macOS desktop target"
 	@echo "  make run        Run the current platform build"
 	@echo "  make check      Run frontend and Go checks"
 	@echo "  make package    Package the current platform"
@@ -47,6 +49,12 @@ build-upx: build
 
 windows:
 	wails3 task windows:build
+
+linux:
+	wails3 build GOOS=linux
+
+macos:
+	wails3 build GOOS=darwin
 
 run:
 	wails3 task run
