@@ -281,6 +281,15 @@ export interface FileEntry {
   isHidden: boolean
 }
 
+
+
+export interface HostFileSystemInfo {
+  home: string
+  roots: string[]
+  separator: string
+  os: string
+}
+
 export interface StorageInfo {
   mountPoint: string
   totalBytes: number

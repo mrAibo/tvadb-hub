@@ -97,3 +97,21 @@ func (a *App) SelectDirectory() (string, error) {
 func (a *App) SelectMultipleFiles() ([]string, error) {
 	return a.diaSvc.SelectMultipleFiles()
 }
+
+
+func (a *App) GetHostFileSystemInfo() (file.HostFileSystemInfo, error) {
+	return auditAction(a, "get_host_filesystem_info", func() (file.HostFileSystemInfo, error) {
+		return a.fileSvc.GetHostFileSystemInfo()
+	})
+}
+
+func (a *App) ListLocalFiles(localPath string, showHidden bool) ([]file.Entry, error) {
+	return auditAction(a, "list_local_files", func() ([]file.Entry, error) {
+		return a.fileSvc.ListLocalFiles(localPath, showHidden)
+	})
+}
+
+
+func (a *App) GetLocalParentPath(localPath string) string {
+	return a.fileSvc.GetLocalParentPath(localPath)
+}
