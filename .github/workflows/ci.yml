@@ -36,7 +36,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25.x'
+          go-version: '1.26.x'
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
@@ -60,7 +60,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25.x'
+          go-version: '1.26.x'
       - name: Install Wails CLI
         shell: pwsh
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
