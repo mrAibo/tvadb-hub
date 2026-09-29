@@ -131,9 +131,9 @@ func (bs *Service) getVersion(name, path string) (string, error) {
 			lastErr = errors.New(strings.TrimSpace(result.Stderr))
 			continue
 		}
-		version := parseVersion(result.Stdout)
+		version := parseBinaryVersion(name, result.Stdout)
 		if version == "" {
-			version = parseVersion(result.Stderr)
+			version = parseBinaryVersion(name, result.Stderr)
 		}
 		if version != "" {
 			return version, nil
@@ -167,6 +167,39 @@ func parseVersion(output string) string {
 		}
 	}
 	return ""
+}
+
+func parseBinaryVersion(name string, output string) string {
+	if name != BinaryNameAdb {
+		return parseVersion(output)
+	}
+
+	var clientLine string
+	var platformToolsLine string
+	for _, rawLine := range strings.Split(output, "\n") {
+		line := strings.TrimSpace(rawLine)
+		if line == "" {
+			continue
+		}
+		if clientLine == "" && strings.HasPrefix(line, "Android Debug Bridge version ") {
+			clientLine = line
+			continue
+		}
+		if platformToolsLine == "" && strings.HasPrefix(line, "Version ") {
+			platformToolsLine = line
+		}
+	}
+
+	if clientLine != "" && platformToolsLine != "" {
+		return clientLine + " (" + platformToolsLine + ")"
+	}
+	if platformToolsLine != "" {
+		return platformToolsLine
+	}
+	if clientLine != "" {
+		return clientLine
+	}
+	return parseVersion(output)
 }
 
 func (bs *Service) DetectAllCandidates(name string, configPath string) []BinaryInfo {

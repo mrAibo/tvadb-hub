@@ -138,3 +138,19 @@ func TestAssignBinaryPath(t *testing.T) {
 		t.Errorf("expected scrcpy_path to be set, got %q", cfg.ScrcpyPath)
 	}
 }
+
+func TestParseBinaryVersion_AdbKeepsPlatformToolsRelease(t *testing.T) {
+	output := "Android Debug Bridge version 1.0.41\nVersion 37.0.1-13742732\nInstalled as C:\\Tools\\adb.exe\n"
+	got := parseBinaryVersion(BinaryNameAdb, output)
+	want := "Android Debug Bridge version 1.0.41 (Version 37.0.1-13742732)"
+	if got != want {
+		t.Fatalf("parseBinaryVersion(adb) = %q, want %q", got, want)
+	}
+}
+
+func TestParseBinaryVersion_OtherBinaryKeepsFirstLine(t *testing.T) {
+	got := parseBinaryVersion(BinaryNameScrcpy, "scrcpy 3.3.3\nextra detail\n")
+	if got != "scrcpy 3.3.3" {
+		t.Fatalf("unexpected scrcpy version: %q", got)
+	}
+}
