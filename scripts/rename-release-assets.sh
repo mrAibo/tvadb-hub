@@ -59,12 +59,12 @@ rename_windows() {
 
 rename_linux() {
   local bundled
-  bundled="$(find "$BIN_DIR" -maxdepth 1 -name '*.AppImage' ! -name '*-system.AppImage' ! -name "${APP_NAME}-${VERSION}-linux-x86_64.AppImage" -printf '%f\n' | head -n 1)"
+  bundled="$(find "$BIN_DIR" -maxdepth 1 -name '*.AppImage' ! -name '*-system.AppImage' ! -name "${APP_NAME}-${VERSION}-linux-amd64.AppImage" -printf '%f\n' | head -n 1)"
   if [ -n "$bundled" ]; then
-    rename_asset "$bundled" "${APP_NAME}-${VERSION}-linux-x86_64.AppImage"
+    rename_asset "$bundled" "${APP_NAME}-${VERSION}-linux-amd64.AppImage"
   fi
 
-  rename_asset "${APP_NAME}.deb" "${APP_NAME}-${VERSION}_amd64.deb"
+  rename_asset "${APP_NAME}.deb" "${APP_NAME}-${VERSION}-linux-amd64.deb"
   rename_asset "${APP_NAME}.rpm" "${APP_NAME}-${VERSION}-1.x86_64.rpm"
   rename_asset "${APP_NAME}.pkg.tar.zst" "${APP_NAME}-${VERSION}-1-x86_64.pkg.tar.zst"
 }
