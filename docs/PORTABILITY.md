@@ -16,7 +16,7 @@ The project does **not** need a rewrite for macOS or Linux.
 | open tool location in file manager | Explorer | xdg-open | Finder |
 | JSON settings backup | supported | supported | supported |
 | compile CI gate | yes | yes | yes |
-| packaged release pipeline | EXE + NSIS | not yet release-published | not yet release-published |
+| packaged release pipeline | EXE + NSIS | AppImage + DEB build | universal .app ZIP build |
 | release signing | optional Authenticode | not configured | not configured/notarized |
 
 ## What is already cross-platform in the code

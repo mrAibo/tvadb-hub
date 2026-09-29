@@ -6,6 +6,7 @@ import { BinaryManager } from './BinaryManager'
 import { PreferencesPanel } from './PreferencesPanel'
 import { AuditLogsPanel } from './AuditLogsPanel'
 import { DiagnosticsPanel } from './DiagnosticsPanel'
+import { ConnectionDoctorPanel } from './ConnectionDoctorPanel'
 import { UpdatePanel } from './UpdatePanel'
 import { PhysicalDeviceValidationPanel } from './PhysicalDeviceValidationPanel'
 import { SettingsBackupPanel } from './SettingsBackupPanel'
@@ -108,17 +109,22 @@ export function SettingsShell() {
           <UpdatePanel />
         </motion.div>
 
-        {/* Box 4: Physical Android device validation */}
+        {/* Box 5: Connection Doctor */}
+        <motion.div variants={itemVariants} className="lg:col-span-3 flex flex-col min-w-0">
+          <ConnectionDoctorPanel />
+        </motion.div>
+
+        {/* Box 6: Physical Android device validation */}
         <motion.div variants={itemVariants} className="lg:col-span-3 flex flex-col min-w-0">
           <PhysicalDeviceValidationPanel />
         </motion.div>
 
-        {/* Box 5: Audit Logs (Full Width) */}
+        {/* Box 7: Audit Logs (Full Width) */}
         <motion.div variants={itemVariants} className="lg:col-span-3 flex flex-col min-w-0">
           <AuditLogsPanel />
         </motion.div>
 
-        {/* Box 6: Diagnostics (Full Width at the very bottom) */}
+        {/* Box 8: Runtime Diagnostics (Full Width at the very bottom) */}
         <motion.div variants={itemVariants} className="lg:col-span-3 flex flex-col min-w-0">
           <DiagnosticsPanel />
         </motion.div>
