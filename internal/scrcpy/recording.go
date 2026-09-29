@@ -76,8 +76,7 @@ func (s *Service) StartRecording(serial, outputPath string, opts Options) error 
 		args = append(args, "--no-audio")
 	}
 
-	cmd := exec.CommandContext(s.ctx, scrcpyPath, args...)
-	core.ConfigureChildProcess(cmd)
+	cmd := core.NewCommandContext(s.ctx, scrcpyPath, args...)
 	if adbPath != "" {
 		cmd.Env = append(os.Environ(), "ADB="+adbPath)
 	}
@@ -174,7 +173,7 @@ func (s *Service) StopRecording() (string, error) {
 		select {
 		case <-done:
 		case <-time.After(5 * time.Second):
-			_ = cmd.Process.Kill()
+			_ = core.TerminateProcessTree(cmd)
 		}
 	}
 
@@ -224,8 +223,7 @@ func (s *Service) TakeScreenshot(sessionID, outputPath string) (string, error) {
 		return "", err
 	}
 
-	cmd := exec.CommandContext(s.ctx, adbPath, "-s", process.session.Serial, "exec-out", "screencap", "-p")
-	core.ConfigureChildProcess(cmd)
+	cmd := core.NewCommandContext(s.ctx, adbPath, "-s", process.session.Serial, "exec-out", "screencap", "-p")
 	outFile, createErr := os.Create(trimmedPath)
 	if createErr != nil {
 		return "", core.NewOperationError(
