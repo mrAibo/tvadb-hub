@@ -8,17 +8,7 @@ import (
 	"strings"
 )
 
-var validPackageNamePattern = regexp.MustCompile(`^[A-Za-z0-9._]+package packagemgr
-
-import (
-	"ADBKit/internal/core"
-	"fmt"
-	"regexp"
-	"sort"
-	"strings"
-)
-
-)
+var validPackageNamePattern = regexp.MustCompile("^[A-Za-z0-9._]+$")
 
 func validatePackageName(packageName string) (string, error) {
 	trimmed := strings.TrimSpace(packageName)
