@@ -4,16 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 make_version="$(awk '/^VERSION :=/ {print $3; exit}' "$ROOT_DIR/Makefile")"
-config_version="$(awk '
-  /^info:/ {in_info=1; next}
-  in_info && /^[^[:space:]]/ {in_info=0}
-  in_info && /^[[:space:]]+version:/ {
-    value=$2
-    gsub(/["''' ]/, "", value)
-    print value
-    exit
-  }
-' "$ROOT_DIR/build/config.yml")"
+config_version="$(grep -E '^[[:space:]]+version:' "$ROOT_DIR/build/config.yml" | head -n 1 | sed -E 's/^[[:space:]]+version:[[:space:]]*"([^"]+)".*/\1/')"
 core_version="$(sed -n 's/^const Version = "\([^"]*\)"[[:space:]]*$/\1/p' "$ROOT_DIR/internal/core/version.go" | head -n 1)"
 
 if [[ -z "$make_version" || -z "$config_version" || -z "$core_version" ]]; then
