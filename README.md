@@ -1,79 +1,167 @@
 # TVADB Hub
 
-**TVADB Hub** is a desktop manager for Android TV and Google TV focused on making
-Wireless ADB discovery, pairing, reconnection, APK management, diagnostics and
-TV-oriented controls as automatic as possible.
+**TVADB Hub** is a desktop manager for Android TV and Google TV built around
+modern Wireless ADB. Its goal is to remove the repeated manual work around
+dynamic ADB pairing/connect ports and turn common TV debugging tasks into
+guided GUI workflows.
 
-The project is based on [ADBKit](https://github.com/Drenzzz/ADBKit) v2.0.0 and
-keeps its MIT license and upstream attribution. The TV-specific work is being
-implemented as separate services and UI flows so useful upstream ADBKit changes
-can continue to be integrated.
+TVADB Hub is based on [ADBKit](https://github.com/Drenzzz/ADBKit) v2.0.0.
+The upstream MIT license and attribution are preserved.
 
-## Core goal
+## What works today
 
-A normal reconnect should not require users to know or copy dynamic ADB ports.
+### Wireless ADB
 
-Modern Wireless Debugging advertises services through mDNS:
+- mDNS discovery for `_adb-tls-pairing._tcp`, `_adb-tls-connect._tcp` and
+  legacy `_adb._tcp`.
+- Automatic resolution of dynamic pairing and connect ports.
+- First-time pairing with only the six-digit code shown by Android/Google TV.
+- Secure TLS connect preferred over legacy ADB TCP/IP.
+- Remembered TVs with background reconnect and dynamic-port recovery.
+- Multi-device-safe target selection.
+- Wireless diagnostics for Platform Tools, mDNS, TCP reachability, endpoint
+  type and current ADB state.
+- Reconnect history/status UI.
 
-- `_adb-tls-pairing._tcp` for the temporary pairing endpoint.
-- `_adb-tls-connect._tcp` for the authenticated connect endpoint.
-- `_adb._tcp` for legacy TCP/IP ADB.
+### TV controls and device information
 
-TVADB Hub discovers these automatically and treats the dynamic port as an
-endpoint, not as the identity of the TV.
+- TV-aware dashboard and device classification.
+- D-pad, Home, Back, Menu, media, volume, mute, power, wake and sleep actions.
+- Android version, build, model, manufacturer, network and other device details.
+- Read-only physical-TV validation report for release verification.
 
-## Current bootstrap status
+### Apps
 
-- ADBKit v2.0.0 source baseline imported.
-- Upstream MIT license preserved.
-- ADB mDNS discovery and automatic dynamic pairing/connect endpoint resolution.
-- One-code pairing flow: enter the six-digit TV code; TVADB Hub resolves both ports.
-- TLS connect preferred over legacy ADB on the same host.
-- Ambiguous multi-device discovery is rejected instead of connecting randomly.
-- Successfully connected TVs are remembered and reconnected automatically.
-- Background recovery follows changed dynamic ports and can survive an IP change
-  when the remembered mDNS identity is still advertised.
-- Built-in Wireless ADB diagnostics check Platform Tools, mDNS, TCP reachability,
-  endpoint type, target selection, and current ADB state.
-- Parser/resolver tests include the real Google TV discovery output used during
-  initial development.
-- Pull-request CI validates frontend checks and Go tests; a Windows portable
-  build is generated as a workflow artifact.
+- Install APK.
+- Replace/update existing APK.
+- Downgrade when Android permits it.
+- Install base + split APK sets through `adb install-multiple`.
+- Multi-file drag-and-drop installation.
+- Launch, force-stop, enable, disable and uninstall packages.
+- Android TV launcher compatibility hints using `LEANBACK_LAUNCHER`.
 
-## Planned TV workflow
+### Debugging and screen tools
 
-```text
-launch
-  -> discover Android/Google TV devices
-  -> identify remembered TV
-  -> resolve current _adb-tls-connect._tcp endpoint
-  -> connect
-  -> verify state
-  -> READY
+- Scrcpy control with TV Balanced, High Quality and Low Bandwidth presets.
+- PNG screenshot capture through `adb exec-out screencap -p`.
+- File Explorer with push, pull and multi-file transfers.
+- Logcat streaming, export and TV-focused diagnostic presets.
+- Interactive ADB shell plus safe read-only TV diagnostic shortcuts.
+
+### Managed tools
+
+TVADB Hub can download and manage its own copies of Android SDK Platform Tools
+and scrcpy. Validated managed downloads are adopted automatically, while custom
+binary paths remain available for advanced setups.
+
+## First connection
+
+On the TV:
+
+1. Enable **Developer options**.
+2. Enable **Wireless debugging**.
+3. Open **Pair device with pairing code** for the first connection.
+
+In TVADB Hub:
+
+1. Open **Discover / Pair / Connect**.
+2. Select the discovered TV.
+3. Enter the six-digit pairing code.
+4. TVADB Hub resolves the temporary pairing port and the separate dynamic
+   connect port automatically.
+5. After a successful connection the TV is remembered for later reconnects.
+
+You should not need to manually copy the dynamic connect port during normal
+use.
+
+## Physical TV validation
+
+Before a release, connect the target TV through Wireless ADB and run:
+
+**Settings → Physical Google TV validation → Validate connected TV**
+
+The validation is read-only. It checks:
+
+- ready ADB state;
+- Android/Google TV classification;
+- network ADB transport;
+- secure mDNS/TLS discovery;
+- Wireless ADB diagnostics;
+- model and Android metadata.
+
+Use **Copy JSON report** to capture the result for a release record or bug
+report. The detailed manual checklist is in
+[docs/PHYSICAL_TV_VALIDATION.md](docs/PHYSICAL_TV_VALIDATION.md).
+
+## Development
+
+The project currently uses:
+
+- Go 1.26
+- Wails v3
+- Bun
+- React / TypeScript
+- Vitest
+- NSIS for the Windows installer
+
+Install the Wails CLI:
+
+```bash
+go install github.com/wailsapp/wails/v3/cmd/wails3@latest
 ```
 
-First-time setup:
+Install dependencies:
 
-```text
-discover pairing service
-  -> user enters only the six-digit code
-  -> pair
-  -> discover connect service
-  -> connect
-  -> remember logical TV
+```bash
+make deps
 ```
 
-## Next milestones
+Run development mode:
 
-1. Enrich remembered TVs with Android properties after connection for a stronger
-   identity than host/mDNS alone.
-2. TV dashboard and remote-control surface.
-3. APK install/update/downgrade and split-APK workflow.
-4. TV-specific screenshots, scrcpy, files, shell and logcat presets.
-5. Production Windows installer and release automation.
+```bash
+make dev
+```
 
-See [docs/architecture/wireless.md](docs/architecture/wireless.md) for the
-wireless discovery design.
+Run the normal checks:
+
+```bash
+make check
+```
+
+Build:
+
+```bash
+make build
+```
+
+Package the current platform:
+
+```bash
+make package
+```
+
+## Windows distribution
+
+Pull-request CI verifies the frontend, Go tests and a real Windows package
+build. The Windows build produces both a portable executable and an NSIS
+installer.
+
+The release workflow can publish:
+
+- `TVADB-Hub-<version>-windows-amd64.exe`
+- `TVADB-Hub-<version>-windows-amd64-installer.exe`
+- `SHA256SUMS.txt`
+
+Optional Authenticode signing is supported through repository secrets. See
+[docs/RELEASING.md](docs/RELEASING.md).
+
+## Architecture
+
+Wireless debugging is intentionally modeled around the TV identity rather than
+a remembered TCP port. Android's pairing and connection ports are dynamic and
+can change when Wireless debugging restarts.
+
+See [docs/architecture/wireless.md](docs/architecture/wireless.md).
 
 ## Upstream
 
@@ -82,6 +170,5 @@ Upstream project: [Drenzzz/ADBKit](https://github.com/Drenzzz/ADBKit)
 Imported baseline: ADBKit v2.0.0, commit
 `0908cded97caef9b7733f5de6f89f552e3d33109`.
 
-See [UPSTREAM.md](UPSTREAM.md) and [LICENSE](LICENSE).
-
-Development milestones are tracked in [docs/ROADMAP.md](docs/ROADMAP.md).
+See [UPSTREAM.md](UPSTREAM.md), [LICENSE](LICENSE), and
+[docs/ROADMAP.md](docs/ROADMAP.md).
