@@ -1,6 +1,6 @@
 # Cross-platform portability
 
-TVADB Hub is architecturally portable to Windows, macOS and Linux because the
+DroidSphere is architecturally portable to Windows, macOS and Linux because the
 desktop shell is Wails v3, the backend is Go, and the UI is React/TypeScript.
 The project does **not** need a rewrite for macOS or Linux.
 
@@ -28,7 +28,7 @@ downloads by `runtime.GOOS` for Windows, Linux and macOS. scrcpy downloads are
 also selected by OS and by `amd64` / `arm64`.
 
 This means a macOS/Linux user does not need Android Studio merely to obtain
-ADB. TVADB Hub can keep the same managed-tool UX used on Windows.
+ADB. DroidSphere can keep the same managed-tool UX used on Windows.
 
 ### Paths and host integration
 
@@ -110,7 +110,7 @@ Arch packages. Before publishing those artifacts, validate:
 5. managed ADB/scrcpy download + execution on amd64 and arm64.
 
 The old lightweight AppImage helper still referenced the historical ADBKit
-name/version. This portability package corrects it to TVADB Hub and reads the
+name/version. This portability package corrects it to DroidSphere and reads the
 project version from the Makefile.
 
 ## Remaining work for distributable macOS builds
