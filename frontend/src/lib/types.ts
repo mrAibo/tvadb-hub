@@ -229,6 +229,14 @@ export interface WirelessDiagnosticsReport {
   healthy: boolean
 }
 
+export interface WirelessReconnectReport {
+  attempted: number
+  connected: string[]
+  alreadyConnected: string[]
+  unavailable: string[]
+  failed: Record<string, string>
+}
+
 export type PackageInstallMode = 'install' | 'replace' | 'downgrade'
 
 export type PackageFilter = 'user' | 'system' | 'all'
