@@ -1,6 +1,7 @@
 package packagemgr
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -199,4 +200,52 @@ func TestSortPackages(t *testing.T) {
 	if sorted[2].PackageName != "com.z.app" {
 		t.Errorf("expected last 'com.z.app', got %q", sorted[2].PackageName)
 	}
+}
+
+
+func TestParseLauncherCompatibility(t *testing.T) {
+	t.Run("native TV launcher", func(t *testing.T) {
+		output := `
+          Action: "android.intent.action.MAIN"
+          Category: "android.intent.category.LAUNCHER"
+          Category: "android.intent.category.LEANBACK_LAUNCHER"
+`
+		tv, standard, hint := parseLauncherCompatibility(output)
+		if !tv {
+			t.Fatal("expected TV launcher to be detected")
+		}
+		if !standard {
+			t.Fatal("expected standard launcher to be detected")
+		}
+		if hint == "" {
+			t.Fatal("expected compatibility hint")
+		}
+	})
+
+	t.Run("standard launcher only", func(t *testing.T) {
+		output := `
+          Action: "android.intent.action.MAIN"
+          Category: "android.intent.category.LAUNCHER"
+`
+		tv, standard, hint := parseLauncherCompatibility(output)
+		if tv {
+			t.Fatal("did not expect TV launcher")
+		}
+		if !standard {
+			t.Fatal("expected standard launcher")
+		}
+		if !strings.Contains(hint, "no TV launcher") {
+			t.Fatalf("unexpected hint: %q", hint)
+		}
+	})
+
+	t.Run("no launcher", func(t *testing.T) {
+		tv, standard, hint := parseLauncherCompatibility("Services:\n  Service #0")
+		if tv || standard {
+			t.Fatalf("unexpected launcher detection: tv=%v standard=%v", tv, standard)
+		}
+		if !strings.Contains(hint, "No launcher entry point") {
+			t.Fatalf("unexpected hint: %q", hint)
+		}
+	})
 }
