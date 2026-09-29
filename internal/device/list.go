@@ -204,6 +204,20 @@ func extractHardwareSerial(props map[string]string) string {
 	return ""
 }
 
+func extractBuildCharacteristics(props map[string]string) string {
+	return strings.TrimSpace(props["ro.build.characteristics"])
+}
+
+func isTVDevice(props map[string]string) bool {
+	characteristics := strings.ToLower(extractBuildCharacteristics(props))
+	for _, characteristic := range strings.Split(characteristics, ",") {
+		if strings.TrimSpace(characteristic) == "tv" {
+			return true
+		}
+	}
+	return false
+}
+
 func extractDeviceIPAddress(props map[string]string) string {
 	for _, key := range []string{
 		"dhcp.wlan0.ipaddress",

@@ -4,6 +4,7 @@ import { motion } from 'motion/react'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import {
   IconDeviceMobile as Smartphone,
+  IconDeviceTv as Television,
   IconRefresh as RefreshCw,
   IconCamera as Camera,
   IconBox as Package,
@@ -75,6 +76,15 @@ const SHORTCUTS: ShortcutItem[] = [
   },
 ]
 
+const TV_REMOTE_SHORTCUT: ShortcutItem = {
+  key: 'tv-remote',
+  label: 'TV Remote',
+  description: 'D-pad, media, volume & power',
+  icon: Television,
+  iconColor: 'text-primary',
+  path: '/devices',
+}
+
 function formatConnectedFor(since: number, now: number): string {
   const diffSec = Math.max(0, Math.floor((now - since) / 1000))
   if (diffSec < 60) return 'just now'
@@ -116,13 +126,15 @@ export function HeroDeviceCard({
 
   // Parse battery level as integer if possible
   const batteryNum = deviceInfo.batteryLevel ? parseInt(deviceInfo.batteryLevel.replace(/%/g, ''), 10) : null
+  const shortcuts = deviceInfo.isTV ? [TV_REMOTE_SHORTCUT, ...SHORTCUTS] : SHORTCUTS
+  const DeviceIcon = deviceInfo.isTV ? Television : Smartphone
 
   return (
     <Card className="border border-border/60 bg-card shadow-[var(--shadow-card)] overflow-hidden">
       <CardContent className="p-6 flex flex-col gap-6">
         <div className="flex items-start gap-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/5 text-primary border border-primary/10">
-            <Smartphone className="h-7 w-7" />
+            <DeviceIcon className="h-7 w-7" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
@@ -140,9 +152,16 @@ export function HeroDeviceCard({
                 )} />
               </span>
             </div>
-            <p className="text-xs text-muted-foreground truncate mt-0.5">
-              {secondaryLabel}
-            </p>
+            <div className="mt-0.5 flex items-center gap-2">
+              <p className="min-w-0 truncate text-xs text-muted-foreground">
+                {secondaryLabel}
+              </p>
+              {deviceInfo.isTV && (
+                <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
+                  TV
+                </span>
+              )}
+            </div>
             <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground font-mono">
               <span className="capitalize">{deviceInfo.state}</span>
               {isOnline && (
@@ -175,7 +194,7 @@ export function HeroDeviceCard({
 
         {isOnline && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {SHORTCUTS.map((shortcut) => {
+            {shortcuts.map((shortcut) => {
               const Icon = shortcut.icon
               return (
                 <motion.button

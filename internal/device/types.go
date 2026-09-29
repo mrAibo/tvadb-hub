@@ -41,6 +41,8 @@ type Info struct {
 	Brand           string `json:"brand,omitempty"`
 	Codename        string `json:"codename,omitempty"`
 	Manufacturer    string `json:"manufacturer,omitempty"`
+	Characteristics string `json:"characteristics,omitempty"`
+	IsTV            bool   `json:"isTV,omitempty"`
 	AndroidVersion  string `json:"androidVersion,omitempty"`
 	SDKVersion      string `json:"sdkVersion,omitempty"`
 	BuildID         string `json:"buildId,omitempty"`

@@ -114,6 +114,8 @@ export interface DeviceInfo {
   brand?: string
   codename?: string
   manufacturer?: string
+  characteristics?: string
+  isTV?: boolean
   androidVersion?: string
   sdkVersion?: string
   buildId?: string
