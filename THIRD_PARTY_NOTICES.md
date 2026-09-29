@@ -1,6 +1,6 @@
 # Third-party notices
 
-TVADB Hub is licensed under MIT. The Safe Tuning package metadata includes
+DroidSphere is licensed under MIT. The Safe Tuning package metadata includes
 adapted material from the following MIT-licensed projects.
 
 ## tv-tweak
