@@ -557,6 +557,20 @@ export interface UpdateInfo {
   publishedAt: string
 }
 
+export interface AppInfo {
+  name: string
+  version: string
+  description: string
+  os: string
+  arch: string
+  goVersion: string
+  wailsVersion: string
+  repository: string
+  license: string
+  upstreamName: string
+  upstreamUrl: string
+}
+
 export type AuditLogLevel = 'info' | 'warning' | 'error' | 'debug' | 'success'
 
 export type AuditLogOutcome = 'all' | 'succeeded' | 'failed'

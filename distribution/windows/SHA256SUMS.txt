@@ -1,0 +1,2 @@
+6a63b106c73899d807057032a4e983962510de43f8405c58c29ebbea04387488 *TVADB-Hub-0.1.0-windows-amd64.exe
+48cf8a65091effb7ca6623c31bacb6fcc497651d302bf31a81869dbae0ef8d53 *TVADB-Hub-0.1.0-windows-amd64-installer.exe
