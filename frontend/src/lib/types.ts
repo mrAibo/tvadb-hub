@@ -134,6 +134,15 @@ export interface WirelessHistoryEntry {
   name: string
 }
 
+export interface RememberedWirelessDevice {
+  key: string
+  instance_name?: string
+  host: string
+  last_address?: string
+  name?: string
+  auto_connect: boolean
+}
+
 export type MDNSServiceKind = 'pairing' | 'connect' | 'legacy'
 
 export interface MDNSService {

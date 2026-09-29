@@ -269,6 +269,14 @@ export function GetWirelessHistory(): $CancellablePromise<core$0.WirelessHistory
     return $Call.ByID(2096684807);
 }
 
+export function GetRememberedWirelessDevices(): $CancellablePromise<unknown> {
+    return $Call.ByID(1445682174);
+}
+
+export function ForgetRememberedWirelessDevice(key: string): $CancellablePromise<void> {
+    return $Call.ByID(230291066, key);
+}
+
 export function ImportAuditLogs(path: string): $CancellablePromise<number> {
     return $Call.ByID(3429852810, path);
 }

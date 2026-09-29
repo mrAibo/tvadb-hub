@@ -5,6 +5,7 @@ import {
   IconCircleCheck as CheckCircle,
   IconCircleX as XCircle,
   IconInfoCircle as InfoCircle,
+  IconTrash as Trash,
   IconLoader2 as Loader2,
   IconRefresh as RefreshCw,
   IconWifi as Wifi,
@@ -22,11 +23,14 @@ import {
   autoConnectWireless,
   connectWireless,
   discoverWirelessDevices,
+  forgetRememberedWirelessDevice,
+  getRememberedWirelessDevices,
   getWirelessDiagnostics,
   pairAndConnectWireless,
 } from '@/services/deviceService'
 import type {
   DiscoveredWirelessDevice,
+  RememberedWirelessDevice,
   WirelessDiagnosticCheck,
   WirelessDiagnosticsReport,
 } from '@/lib/types'
@@ -120,6 +124,7 @@ export function WirelessConnectDialog({
   onConnected,
 }: WirelessConnectDialogProps) {
   const [devices, setDevices] = useState<DiscoveredWirelessDevice[]>([])
+  const [remembered, setRemembered] = useState<RememberedWirelessDevice[]>([])
   const [scanning, setScanning] = useState(false)
   const [busyHost, setBusyHost] = useState('')
   const [pairHost, setPairHost] = useState('')
@@ -133,8 +138,12 @@ export function WirelessConnectDialog({
     setScanning(true)
     setError(null)
     try {
-      const discovered = await discoverWirelessDevices()
+      const [discovered, rememberedDevices] = await Promise.all([
+        discoverWirelessDevices(),
+        getRememberedWirelessDevices(),
+      ])
       setDevices(discovered)
+      setRemembered(rememberedDevices)
     } catch (scanError) {
       setDevices([])
       setError(scanError instanceof Error ? scanError.message : 'Wireless discovery failed')
@@ -225,6 +234,17 @@ export function WirelessConnectDialog({
       )
     } finally {
       setDiagnosing(false)
+    }
+  }
+
+  async function handleForgetRemembered(key: string) {
+    setError(null)
+    try {
+      await forgetRememberedWirelessDevice(key)
+      setRemembered((current) => current.filter((entry) => entry.key !== key))
+      toast.success('Automatic reconnect disabled for this TV')
+    } catch (forgetError) {
+      setError(forgetError instanceof Error ? forgetError.message : 'Could not forget TV')
     }
   }
 
@@ -403,6 +423,47 @@ export function WirelessConnectDialog({
 
           {diagnostics && (
             <DiagnosticsPanel report={diagnostics} onClose={() => setDiagnostics(null)} />
+          )}
+
+          {remembered.length > 0 && (
+            <div className="rounded-lg border border-border/50 bg-muted/5 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Remembered TVs · automatic reconnect
+              </p>
+              <div className="mt-2 space-y-1.5">
+                {remembered.map((entry) => (
+                  <div
+                    key={entry.key}
+                    className="flex items-center justify-between gap-3 rounded-md border border-border/40 bg-card/60 px-2.5 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-[11px] font-medium">
+                        {entry.name || entry.host}
+                      </p>
+                      <p className="truncate font-mono text-[9px] text-muted-foreground">
+                        {entry.last_address || entry.host}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {entry.auto_connect && (
+                        <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-[9px] font-medium text-green-500">
+                          Auto
+                        </span>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                        onClick={() => void handleForgetRemembered(entry.key)}
+                        title="Forget this TV"
+                      >
+                        <Trash className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           <div className="border-t border-border/50 pt-3">

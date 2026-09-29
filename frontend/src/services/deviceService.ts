@@ -14,6 +14,8 @@ import {
   EnableWirelessTCPIP,
   DisconnectWireless,
   GetWirelessHistory,
+  GetRememberedWirelessDevices,
+  ForgetRememberedWirelessDevice,
   SaveWirelessHistory,
   GetPerformanceSnapshot,
   GetDeviceNicknames,
@@ -27,6 +29,7 @@ import type {
   PerformanceSnapshot,
   DeviceNicknames,
   WirelessHistoryEntry,
+  RememberedWirelessDevice,
   DiscoveredWirelessDevice,
   WirelessConnectResult,
   WirelessPairAndConnectResult,
@@ -105,6 +108,15 @@ export async function enableWirelessTCPIP(
 
 export async function disconnectWireless(address: string): Promise<string> {
   return DisconnectWireless(address)
+}
+
+export async function getRememberedWirelessDevices(): Promise<RememberedWirelessDevice[]> {
+  const raw = await GetRememberedWirelessDevices()
+  return (raw as RememberedWirelessDevice[]) ?? []
+}
+
+export async function forgetRememberedWirelessDevice(key: string): Promise<void> {
+  await ForgetRememberedWirelessDevice(key)
 }
 
 export async function getWirelessHistory(): Promise<WirelessHistoryEntry[]> {
