@@ -21,8 +21,8 @@ const (
 	// Linux/Darwin already skip verification — Windows now matches. scrcpy
 	// remains pinned (GitHub release is immutable).
 	platformToolsWindowsSHA256 = "" // kept for history; not enforced
-	scrcpyVersion              = "4.0"
-	scrcpyWindowsSHA256        = "75dbeb5b00e6f64292f26f70900ae55ca397786bdfb0b9bbeb481a0549047457"
+	scrcpyVersion              = "4.1"
+	scrcpyWindowsSHA256        = "5b12172b3264b2889f4583ee64752ce832e29bc8b1089dca81093459697165db"
 	eventName                  = "binary_download_progress"
 )
 
