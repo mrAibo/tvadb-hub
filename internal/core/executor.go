@@ -1,11 +1,9 @@
 package core
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"os/exec"
 	"sync"
 	"time"
@@ -143,67 +141,138 @@ func RunCommandStreaming(ctx context.Context, req StreamingExecRequest) (*ExecRe
 	} else if !errors.Is(err, errPTYUnsupported) {
 		return result, err
 	}
+	return runWithPipes(ctx, req)
+}
 
+// Assigning writers lets os/exec own and drain its copy goroutines before Wait
+// returns. Unlike StdoutPipe/StderrPipe, Wait cannot close unread output early.
+func runWithPipes(ctx context.Context, req StreamingExecRequest) (*ExecResult, error) {
 	cmd := NewCommandContext(ctx, req.Command, req.Args...)
-
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, NewOperationError("exec", "failed to create stdout pipe", err.Error(), true)
+	var callbackMu sync.Mutex
+	onLine := func(line string) {
+		if req.OnStderrLine != nil {
+			callbackMu.Lock()
+			defer callbackMu.Unlock()
+			req.OnStderrLine(line)
+		}
 	}
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, NewOperationError("exec", "failed to create stderr pipe", err.Error(), true)
-	}
-
+	onReadError := func() { _ = TerminateProcessTree(cmd) }
+	stdout := NewProcessLineWriter(onLine, onReadError)
+	stderr := NewProcessLineWriter(onLine, onReadError)
+	cmd.Stdout, cmd.Stderr = stdout, stderr
+	start := time.Now()
 	if err := cmd.Start(); err != nil {
 		return nil, NewOperationError("exec", "failed to start process", err.Error(), true)
 	}
-
-	var stdoutBuf bytes.Buffer
-	var bufMu sync.Mutex
-	var wg sync.WaitGroup
-
-	scan := func(r io.Reader, capture bool) {
-		defer wg.Done()
-		scanner := bufio.NewScanner(r)
-		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-		scanner.Split(scanProgressLines)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if capture && line != "" {
-				bufMu.Lock()
-				stdoutBuf.WriteString(line)
-				stdoutBuf.WriteByte('\n')
-				bufMu.Unlock()
-			}
-			if req.OnStderrLine != nil {
-				req.OnStderrLine(line)
-			}
-		}
-	}
-
-	wg.Add(2)
-	go scan(stdoutPipe, true)
-	go scan(stderrPipe, false)
-
-	waitErr := cmd.Wait()
-	wg.Wait()
+	waitErr := cmd.Wait() // also joins both output copy goroutines
+	stdout.Flush()
+	stderr.Flush()
+	result := &ExecResult{Stdout: stdout.output.String(), Stderr: stderr.output.String(), Duration: time.Since(start)}
 	if ctx.Err() != nil {
-		return nil, ctx.Err()
+		return result, ctx.Err()
 	}
 
 	exitCode := 0
 	if waitErr != nil {
 		if exitErr, ok := waitErr.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
-		} else {
-			return nil, NewOperationError("exec", "process wait failed", waitErr.Error(), true)
 		}
 	}
-
-	result := &ExecResult{
-		Stdout:   stdoutBuf.String(),
-		ExitCode: exitCode,
+	result.ExitCode = exitCode
+	if readErr := errors.Join(stdout.err, stderr.err); readErr != nil {
+		return result, NewOperationError("exec", "failed to read process output", readErr.Error(), true)
+	}
+	if waitErr != nil && exitCode == 0 {
+		return result, NewOperationError("exec", "process output drain failed", waitErr.Error(), true)
 	}
 	return result, waitErr
 }
+
+const maxCapturedOutput = 1024 * 1024
+
+// Retain only a diagnostic tail; compact amortized rather than copying a MiB
+// on every short progress line. Internal storage is bounded to two MiB.
+type boundedOutput struct{ buffer bytes.Buffer }
+
+func (b *boundedOutput) append(text string) {
+	if len(text) >= maxCapturedOutput {
+		b.buffer.Reset()
+		b.buffer.WriteString(text[len(text)-maxCapturedOutput:])
+		return
+	}
+	if b.buffer.Len()+len(text) > 2*maxCapturedOutput {
+		tail := append([]byte(nil), b.buffer.Bytes()[b.buffer.Len()-maxCapturedOutput:]...)
+		b.buffer.Reset()
+		b.buffer.Write(tail)
+	}
+	b.buffer.WriteString(text)
+}
+
+func (b *boundedOutput) String() string {
+	data := b.buffer.Bytes()
+	if len(data) > maxCapturedOutput {
+		data = data[len(data)-maxCapturedOutput:]
+	}
+	return string(data)
+}
+
+// ProcessLineWriter is a bounded CR/LF line writer for an os/exec output copier.
+// Each writer belongs to one output stream. Flush/ReadError are called only
+// after cmd.Wait has joined the copy goroutine; callbacks must return promptly.
+type ProcessLineWriter struct {
+	pending []byte
+	output  boundedOutput
+	onLine  func(string)
+	onError func()
+	err     error
+}
+
+func NewProcessLineWriter(onLine func(string), onError func()) *ProcessLineWriter {
+	return &ProcessLineWriter{onLine: onLine, onError: onError}
+}
+
+func (w *ProcessLineWriter) Write(data []byte) (int, error) {
+	if w.err != nil {
+		return 0, w.err
+	}
+	total := len(data)
+	for len(data) > 0 {
+		n := bytes.IndexAny(data, "\r\n")
+		end := n
+		if n < 0 {
+			end = len(data)
+		}
+		if len(w.pending)+end >= maxCapturedOutput {
+			w.err = errors.New("process output line exceeds 1 MiB")
+			w.pending = nil
+			if w.onError != nil {
+				w.onError()
+			}
+			return total - len(data), w.err
+		}
+		w.pending = append(w.pending, data[:end]...)
+		if n < 0 {
+			break
+		}
+		w.emit()
+		data = data[n+1:]
+	}
+	return total, nil
+}
+
+func (w *ProcessLineWriter) emit() {
+	line := string(w.pending)
+	w.output.append(line + "\n")
+	w.pending = w.pending[:0]
+	if w.onLine != nil {
+		w.onLine(line)
+	}
+}
+
+func (w *ProcessLineWriter) Flush() {
+	if w.err == nil && len(w.pending) > 0 {
+		w.emit()
+	}
+}
+
+func (w *ProcessLineWriter) ReadError() error { return w.err }
