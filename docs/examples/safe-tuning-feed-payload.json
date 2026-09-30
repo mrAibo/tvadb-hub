@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "revision": 1,
+  "version": "2026.09.30-example",
+  "generatedAt": "2026-09-30T09:00:00Z",
+  "sourceName": "Example DroidSphere metadata",
+  "sourceUrl": "https://example.com/droidsphere-metadata",
+  "sourceLicense": "MIT",
+  "profiles": [
+    {
+      "id": "example-oem",
+      "name": "Example OEM",
+      "deviceFamily": "Example Android",
+      "description": "Example conservative profile for feed testing.",
+      "sourceName": "Example dataset",
+      "sourceUrl": "https://example.com/dataset",
+      "sourceLicense": "MIT",
+      "criteria": {
+        "manufacturers": ["example"]
+      },
+      "keep": ["com.example.core"],
+      "rules": [
+        {
+          "packageName": "com.example.optional",
+          "label": "Optional app",
+          "category": "Optional",
+          "risk": "safe",
+          "reason": "Optional example component.",
+          "defaultSelected": true
+        }
+      ]
+    }
+  ]
+}

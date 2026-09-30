@@ -58,6 +58,8 @@ type PreferencesPayload struct {
 	AuditEnabled         *bool             `json:"audit_enabled,omitempty"`
 	FileTransferCompression string          `json:"file_transfer_compression"`
 	VerifyAfterTransfer      *bool           `json:"verify_after_transfer,omitempty"`
+	SafeTuningFeedURL        *string         `json:"safe_tuning_feed_url,omitempty"`
+	SafeTuningFeedPublicKey  *string         `json:"safe_tuning_feed_public_key,omitempty"`
 }
 
 type AppConfigSnapshot struct {
@@ -77,6 +79,8 @@ type AppConfigSnapshot struct {
 	AuditEnabled         bool              `json:"audit_enabled"`
 	FileTransferCompression string          `json:"file_transfer_compression"`
 	VerifyAfterTransfer      bool            `json:"verify_after_transfer"`
+	SafeTuningFeedURL        string          `json:"safe_tuning_feed_url"`
+	SafeTuningFeedPublicKey  string          `json:"safe_tuning_feed_public_key"`
 }
 
 type RuntimeDiagnostics struct {

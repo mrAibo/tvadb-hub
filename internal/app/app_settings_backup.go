@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"ADBKit/internal/core"
+	"ADBKit/internal/tuning"
 )
 
 const settingsBackupFormat = "droidsphere-settings"
@@ -139,5 +140,16 @@ func normalizeImportedConfig(cfg *core.AppConfig) {
 	}
 	if !core.IsValidFileTransferCompression(cfg.FileTransferCompression) {
 		cfg.FileTransferCompression = core.DefaultFileTransferCompression
+	}
+	feedConfig, err := tuning.NormalizeFeedConfig(tuning.FeedConfig{
+		URL:       cfg.SafeTuningFeedURL,
+		PublicKey: cfg.SafeTuningFeedPublicKey,
+	})
+	if err != nil {
+		cfg.SafeTuningFeedURL = ""
+		cfg.SafeTuningFeedPublicKey = ""
+	} else {
+		cfg.SafeTuningFeedURL = feedConfig.URL
+		cfg.SafeTuningFeedPublicKey = feedConfig.PublicKey
 	}
 }

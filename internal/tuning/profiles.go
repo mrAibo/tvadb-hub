@@ -318,9 +318,13 @@ var builtinProfiles = []Profile{
 }
 
 func ProfilesForDevice(info device.Info) []ProfileSummary {
-	summaries := make([]ProfileSummary, 0, len(builtinProfiles))
+	return profilesForDevice(builtinProfiles, info)
+}
+
+func profilesForDevice(profiles []Profile, info device.Info) []ProfileSummary {
+	summaries := make([]ProfileSummary, 0, len(profiles))
 	maxScore := -1
-	for _, profile := range builtinProfiles {
+	for _, profile := range profiles {
 		score := profileMatchScore(profile, info)
 		if score <= 0 {
 			continue
@@ -343,7 +347,11 @@ func ProfilesForDevice(info device.Info) []ProfileSummary {
 }
 
 func FindProfile(id string) (Profile, bool) {
-	for _, profile := range builtinProfiles {
+	return findProfile(builtinProfiles, id)
+}
+
+func findProfile(profiles []Profile, id string) (Profile, bool) {
+	for _, profile := range profiles {
 		if profile.ID == id {
 			return profile, true
 		}
@@ -352,11 +360,15 @@ func FindProfile(id string) (Profile, bool) {
 }
 
 func RecommendedProfile(info device.Info) (Profile, bool) {
-	summaries := ProfilesForDevice(info)
+	return recommendedProfile(builtinProfiles, info)
+}
+
+func recommendedProfile(profiles []Profile, info device.Info) (Profile, bool) {
+	summaries := profilesForDevice(profiles, info)
 	if len(summaries) == 0 {
 		return Profile{}, false
 	}
-	return FindProfile(summaries[0].ID)
+	return findProfile(profiles, summaries[0].ID)
 }
 
 func profileSummary(profile Profile, score int, recommended bool) ProfileSummary {

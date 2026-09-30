@@ -3,6 +3,7 @@ package app
 import (
 	"ADBKit/internal/audit"
 	"ADBKit/internal/core"
+	"ADBKit/internal/tuning"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -157,6 +158,24 @@ func (a *App) UpdatePreferences(payload core.PreferencesPayload) (core.AppConfig
 	if payload.VerifyAfterTransfer != nil {
 		a.cfg.VerifyAfterTransfer = *payload.VerifyAfterTransfer
 	}
+	if payload.SafeTuningFeedURL != nil || payload.SafeTuningFeedPublicKey != nil {
+		feedConfig := tuning.FeedConfig{
+			URL:       a.cfg.SafeTuningFeedURL,
+			PublicKey: a.cfg.SafeTuningFeedPublicKey,
+		}
+		if payload.SafeTuningFeedURL != nil {
+			feedConfig.URL = *payload.SafeTuningFeedURL
+		}
+		if payload.SafeTuningFeedPublicKey != nil {
+			feedConfig.PublicKey = *payload.SafeTuningFeedPublicKey
+		}
+		normalized, err := tuning.NormalizeFeedConfig(feedConfig)
+		if err != nil {
+			return core.AppConfigSnapshot{}, err
+		}
+		a.cfg.SafeTuningFeedURL = normalized.URL
+		a.cfg.SafeTuningFeedPublicKey = normalized.PublicKey
+	}
 
 	if err := core.SaveConfig(a.dataDir, a.cfg); err != nil {
 		return core.AppConfigSnapshot{}, err
@@ -213,6 +232,8 @@ func (a *App) snapshotConfigLocked() core.AppConfigSnapshot {
 		AuditEnabled:         a.cfg.AuditEnabled,
 		FileTransferCompression: a.cfg.FileTransferCompression,
 		VerifyAfterTransfer:      a.cfg.VerifyAfterTransfer,
+		SafeTuningFeedURL:        a.cfg.SafeTuningFeedURL,
+		SafeTuningFeedPublicKey:  a.cfg.SafeTuningFeedPublicKey,
 	}
 }
 

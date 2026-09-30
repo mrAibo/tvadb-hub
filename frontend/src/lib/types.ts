@@ -654,6 +654,8 @@ export interface PreferencesPayload {
   audit_enabled?: boolean
   file_transfer_compression?: FileTransferCompression
   verify_after_transfer?: boolean
+  safe_tuning_feed_url?: string
+  safe_tuning_feed_public_key?: string
 }
 
 export interface AppConfigSnapshot {
@@ -673,6 +675,8 @@ export interface AppConfigSnapshot {
   audit_enabled: boolean
   file_transfer_compression: FileTransferCompression
   verify_after_transfer: boolean
+  safe_tuning_feed_url: string
+  safe_tuning_feed_public_key: string
 }
 
 export interface RuntimeDiagnostics {
@@ -706,6 +710,29 @@ export interface SettingsState {
 
 export type TuningRisk = 'safe' | 'caution' | 'dangerous' | 'blocked'
 export type SafeTuningActionMode = 'disable' | 'uninstall-user'
+
+export interface SafeTuningFeedConfig {
+  url: string
+  publicKey: string
+}
+
+export interface SafeTuningFeedStatus {
+  configured: boolean
+  active: boolean
+  source: string
+  url: string
+  version: string
+  revision: number
+  generatedAt: string
+  keyId: string
+  digest: string
+  sourceName: string
+  sourceUrl: string
+  sourceLicense: string
+  profileCount: number
+  canRollback: boolean
+  message: string
+}
 
 export interface SafeTuningProfileSummary {
   id: string
