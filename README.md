@@ -58,6 +58,7 @@ device, Android version and authorization state.
 - Browse Android storage with hidden-file support.
 - Transfer multiple files or whole directories with ADB push/pull.
 - Capability-aware ADB transfer compression (Auto, Off, Zstd, LZ4 or Brotli).
+- Optional post-transfer SHA-256 verification with explicit verified, unavailable and mismatch states.
 - Progress, cancellation and retry handling.
 - Remote new-folder, rename, move and delete actions.
 - Protected/scoped-storage error guidance.
@@ -88,7 +89,7 @@ currently used for ADB, Fastboot, scrcpy and managed tool directories.
 
 Settings can export/import a JSON backup containing preferences, binary paths,
 device nicknames, scrcpy presets, remembered wireless devices, file-transfer
-compression preference and window state.
+compression and verification preferences, and window state.
 Older `tvadb-hub-settings` backups remain import-compatible after the rename.
 
 ## How to install

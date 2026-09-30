@@ -31,6 +31,7 @@ function configsAreEqual(a: PreferencesPayload, b: AppConfigSnapshot): boolean {
   if ((a.device_refresh_seconds ?? 8) !== (b.device_refresh_seconds ?? 8)) return false
   if ((a.audit_enabled ?? false) !== (b.audit_enabled ?? false)) return false
   if ((a.file_transfer_compression ?? 'auto') !== (b.file_transfer_compression ?? 'auto')) return false
+  if ((a.verify_after_transfer ?? false) !== (b.verify_after_transfer ?? false)) return false
   return true
 }
 

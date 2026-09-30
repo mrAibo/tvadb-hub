@@ -25,6 +25,7 @@ type AppConfig struct {
 	DeviceRefreshSeconds int                    `json:"device_refresh_seconds"`
 	AuditEnabled         bool                   `json:"audit_enabled"`
 	FileTransferCompression string               `json:"file_transfer_compression"`
+	VerifyAfterTransfer      bool                 `json:"verify_after_transfer"`
 }
 
 type WirelessHistoryEntry struct {

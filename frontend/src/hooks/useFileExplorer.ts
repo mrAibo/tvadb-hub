@@ -19,7 +19,13 @@ import {
 } from '@/services/fileService'
 import { useDeviceStore } from '@/stores/useDeviceStore'
 import { useFileExplorerStore } from '@/stores/useFileExplorerStore'
-import type { DeviceSummary, FileEntry, FileSortField, FileSortDirection } from '@/lib/types'
+import type {
+  DeviceSummary,
+  FileEntry,
+  FileSortField,
+  FileSortDirection,
+  TransferVerificationSummary,
+} from '@/lib/types'
 
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -114,12 +120,24 @@ export function useFileExplorer() {
     const unsub = onFileTransferProgress((progress) => {
       const current = useFileExplorerStore.getState().transferProgress
       if (!current?.active) return
+
       useFileExplorerStore.getState().setTransferProgress({
         fileName: progress.fileName || current.fileName,
         direction: progress.direction,
         percent: progress.percent,
         active: true,
+        verification: progress.verification ?? current.verification,
+        verificationDetail: progress.verificationDetail ?? current.verificationDetail,
       })
+
+      if (progress.verification && progress.verification !== 'verifying') {
+        useFileExplorerStore.getState().setLastTransferVerification({
+          fileName: progress.fileName || current.fileName,
+          direction: progress.direction,
+          status: progress.verification as TransferVerificationSummary['status'],
+          detail: progress.verificationDetail,
+        })
+      }
     })
     return unsub
   }, [])
@@ -573,6 +591,7 @@ export function useFileExplorer() {
     error: store.error,
     lastUpdatedAt: store.lastUpdatedAt,
     transferProgress: store.transferProgress,
+    lastTransferVerification: store.lastTransferVerification,
     totalItems: store.files.length,
     folderCount,
     fileCount,

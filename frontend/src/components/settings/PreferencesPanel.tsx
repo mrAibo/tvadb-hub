@@ -214,28 +214,42 @@ export function PreferencesPanel({
             <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60">
               File Transfers
             </span>
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] dark:border-[var(--border)] bg-[var(--muted)]/30 dark:bg-[var(--muted)]/10 p-3">
-              <div className="flex min-w-0 flex-col">
-                <span className="text-xs font-semibold text-foreground dark:text-foreground">ADB compression</span>
-                <span className="text-[9px] text-muted-foreground/60">
-                  Older ADB versions automatically fall back without unsupported flags
-                </span>
+            <div className="flex flex-col gap-2.5 rounded-xl border border-[var(--border)] dark:border-[var(--border)] bg-[var(--muted)]/30 dark:bg-[var(--muted)]/10 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 flex-col">
+                  <span className="text-xs font-semibold text-foreground dark:text-foreground">ADB compression</span>
+                  <span className="text-[9px] text-muted-foreground/60">
+                    Older ADB versions automatically fall back without unsupported flags
+                  </span>
+                </div>
+                <Select
+                  value={preferencesDraft.file_transfer_compression || 'auto'}
+                  onValueChange={(v) => onDraftChange({ file_transfer_compression: (v ?? 'auto') as PreferencesPayload['file_transfer_compression'] })}
+                >
+                  <SelectTrigger className="w-[120px] h-8 rounded-full text-xs bg-card dark:bg-[var(--muted)]/60 border border-[var(--border)] dark:border-[var(--border)]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-[var(--border)] dark:border-[var(--border)]">
+                    {TRANSFER_COMPRESSION_MODES.map(({ value, label, description }) => (
+                      <SelectItem key={value} value={value} className="text-xs cursor-pointer" title={description}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <Select
-                value={preferencesDraft.file_transfer_compression || 'auto'}
-                onValueChange={(v) => onDraftChange({ file_transfer_compression: (v ?? 'auto') as PreferencesPayload['file_transfer_compression'] })}
-              >
-                <SelectTrigger className="w-[120px] h-8 rounded-full text-xs bg-card dark:bg-[var(--muted)]/60 border border-[var(--border)] dark:border-[var(--border)]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-[var(--border)] dark:border-[var(--border)]">
-                  {TRANSFER_COMPRESSION_MODES.map(({ value, label, description }) => (
-                    <SelectItem key={value} value={value} className="text-xs cursor-pointer" title={description}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center justify-between gap-3 border-t border-[var(--border)]/70 pt-2.5">
+                <div className="flex min-w-0 flex-col">
+                  <span className="text-xs font-semibold text-foreground dark:text-foreground">Verify after transfer</span>
+                  <span className="text-[9px] text-muted-foreground/60">
+                    Compare host and Android SHA-256 digests for regular files
+                  </span>
+                </div>
+                <Switch
+                  checked={preferencesDraft.verify_after_transfer ?? false}
+                  onCheckedChange={(v) => onDraftChange({ verify_after_transfer: v })}
+                />
+              </div>
             </div>
           </div>
 

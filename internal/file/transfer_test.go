@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -171,5 +172,195 @@ func TestBuildADBTransferArgsCompressionAndFallback(t *testing.T) {
 				t.Fatalf("pull args = %#v, want %#v", gotPull, tt.pull)
 			}
 		})
+	}
+}
+
+
+func TestVerifyTransferredFileMatch(t *testing.T) {
+	localPath := filepath.Join(t.TempDir(), "payload.bin")
+	if err := os.WriteFile(localPath, []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	const digest = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+	calls := 0
+	result, err := verifyTransferredFile(
+		context.Background(),
+		"adb",
+		"SERIAL",
+		localPath,
+		"/sdcard/payload.bin",
+		func(context.Context, core.ExecRequest) (*core.ExecResult, error) {
+			calls++
+			return &core.ExecResult{Stdout: digest + "  -\n", ExitCode: 0}, nil
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != VerificationStatusVerified {
+		t.Fatalf("status=%q want=%q detail=%q", result.Status, VerificationStatusVerified, result.Detail)
+	}
+	if result.LocalDigest != digest || result.RemoteDigest != digest {
+		t.Fatalf("unexpected digests: local=%q remote=%q", result.LocalDigest, result.RemoteDigest)
+	}
+	if calls != 1 {
+		t.Fatalf("remote hashing calls=%d want=1", calls)
+	}
+}
+
+func TestVerifyTransferredFileMismatch(t *testing.T) {
+	localPath := filepath.Join(t.TempDir(), "payload.bin")
+	if err := os.WriteFile(localPath, []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	const remoteDigest = "0000000000000000000000000000000000000000000000000000000000000000"
+	result, err := verifyTransferredFile(
+		context.Background(),
+		"adb",
+		"SERIAL",
+		localPath,
+		"/sdcard/payload.bin",
+		func(context.Context, core.ExecRequest) (*core.ExecResult, error) {
+			return &core.ExecResult{Stdout: remoteDigest + "  -\n", ExitCode: 0}, nil
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != VerificationStatusMismatch {
+		t.Fatalf("status=%q want=%q detail=%q", result.Status, VerificationStatusMismatch, result.Detail)
+	}
+	if result.LocalDigest == result.RemoteDigest {
+		t.Fatal("mismatch result reported equal digests")
+	}
+}
+
+func TestVerifyTransferredFileRemoteHashUnavailable(t *testing.T) {
+	localPath := filepath.Join(t.TempDir(), "payload.bin")
+	if err := os.WriteFile(localPath, []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	calls := 0
+	result, err := verifyTransferredFile(
+		context.Background(),
+		"adb",
+		"SERIAL",
+		localPath,
+		"/sdcard/payload.bin",
+		func(context.Context, core.ExecRequest) (*core.ExecResult, error) {
+			calls++
+			return &core.ExecResult{Stderr: "not found", ExitCode: 127}, errors.New("exit status 127")
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != VerificationStatusUnavailable {
+		t.Fatalf("status=%q want=%q detail=%q", result.Status, VerificationStatusUnavailable, result.Detail)
+	}
+	if calls != 2 {
+		t.Fatalf("remote hashing calls=%d want=2", calls)
+	}
+}
+
+
+func TestVerifyTransferredFileRemoteHashUnavailableByExit127(t *testing.T) {
+	localPath := filepath.Join(t.TempDir(), "payload.bin")
+	if err := os.WriteFile(localPath, []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	calls := 0
+	result, err := verifyTransferredFile(
+		context.Background(),
+		"adb",
+		"SERIAL",
+		localPath,
+		"/sdcard/payload.bin",
+		func(context.Context, core.ExecRequest) (*core.ExecResult, error) {
+			calls++
+			return &core.ExecResult{ExitCode: 127}, errors.New("exit status 127")
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != VerificationStatusUnavailable {
+		t.Fatalf("status=%q want=%q detail=%q", result.Status, VerificationStatusUnavailable, result.Detail)
+	}
+	if calls != 2 {
+		t.Fatalf("remote hashing calls=%d want=2", calls)
+	}
+}
+
+func TestVerifyTransferredFileMalformedRemoteOutputFails(t *testing.T) {
+	localPath := filepath.Join(t.TempDir(), "payload.bin")
+	if err := os.WriteFile(localPath, []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	calls := 0
+	_, err := verifyTransferredFile(
+		context.Background(),
+		"adb",
+		"SERIAL",
+		localPath,
+		"/sdcard/payload.bin",
+		func(context.Context, core.ExecRequest) (*core.ExecResult, error) {
+			calls++
+			return &core.ExecResult{Stdout: "definitely-not-a-sha256  -\n", ExitCode: 0}, nil
+		},
+	)
+	if err == nil {
+		t.Fatal("expected malformed remote digest to fail verification")
+	}
+	if calls != 2 {
+		t.Fatalf("remote hashing calls=%d want=2", calls)
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "malformed") {
+		t.Fatalf("expected malformed-output error, got %q", err.Error())
+	}
+}
+
+func TestVerifyTransferredFileRemoteHashFailureIsNotUnavailable(t *testing.T) {
+	localPath := filepath.Join(t.TempDir(), "payload.bin")
+	if err := os.WriteFile(localPath, []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := verifyTransferredFile(
+		context.Background(),
+		"adb",
+		"SERIAL",
+		localPath,
+		"/sdcard/payload.bin",
+		func(context.Context, core.ExecRequest) (*core.ExecResult, error) {
+			return &core.ExecResult{Stderr: "permission denied", ExitCode: 1}, errors.New("exit status 1")
+		},
+	)
+	if err == nil {
+		t.Fatal("expected remote hash failure to fail verification")
+	}
+	if errors.Is(err, errRemoteSHA256Unavailable) {
+		t.Fatalf("permission failure must not be reported as unavailable: %v", err)
+	}
+}
+
+func TestComputeHostSHA256RejectsSymlink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.bin")
+	link := filepath.Join(dir, "link.bin")
+	if err := os.WriteFile(target, []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlink unavailable on this platform: %v", err)
+	}
+
+	if _, err := computeHostSHA256(context.Background(), link); err == nil {
+		t.Fatal("expected symlink hashing to be rejected")
 	}
 }

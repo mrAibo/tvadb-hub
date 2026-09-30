@@ -2,11 +2,14 @@ import { Button } from '@/components/ui/button'
 import {
   IconX as X
 } from "@tabler/icons-react"
+import type { TransferVerificationStatus } from '@/lib/types'
 
 interface TransferProgressOverlayProps {
   fileName: string
   direction: 'push' | 'pull'
   percent: number
+  verification?: TransferVerificationStatus
+  verificationDetail?: string
   onCancel: () => void
 }
 
@@ -14,9 +17,15 @@ export function TransferProgressOverlay({
   fileName,
   direction,
   percent,
+  verification,
+  verificationDetail,
   onCancel,
 }: TransferProgressOverlayProps) {
-  const label = direction === 'pull' ? 'Exporting' : 'Importing'
+  const label = verification === 'verifying'
+    ? 'Verifying SHA-256'
+    : direction === 'pull'
+      ? 'Exporting'
+      : 'Importing'
 
   return (
     <div className="fixed bottom-20 left-1/2 z-50 w-[360px] -translate-x-1/2 rounded-lg border border-border/60 bg-background/95 px-4 py-3 shadow-lg backdrop-blur-sm">
@@ -32,7 +41,11 @@ export function TransferProgressOverlay({
               style={{ width: `${percent}%` }}
             />
           </div>
-          <div className="mt-1 text-[10px] text-muted-foreground/60">{percent}%</div>
+          <div className="mt-1 text-[10px] text-muted-foreground/60">
+            {verification === 'verifying'
+              ? verificationDetail || 'Comparing host and Android digests…'
+              : `${percent}%`}
+          </div>
         </div>
         <Button
           variant="ghost"

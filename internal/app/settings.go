@@ -154,6 +154,9 @@ func (a *App) UpdatePreferences(payload core.PreferencesPayload) (core.AppConfig
 		}
 		a.cfg.FileTransferCompression = trimmed
 	}
+	if payload.VerifyAfterTransfer != nil {
+		a.cfg.VerifyAfterTransfer = *payload.VerifyAfterTransfer
+	}
 
 	if err := core.SaveConfig(a.dataDir, a.cfg); err != nil {
 		return core.AppConfigSnapshot{}, err
@@ -209,6 +212,7 @@ func (a *App) snapshotConfigLocked() core.AppConfigSnapshot {
 		DeviceRefreshSeconds: a.cfg.DeviceRefreshSeconds,
 		AuditEnabled:         a.cfg.AuditEnabled,
 		FileTransferCompression: a.cfg.FileTransferCompression,
+		VerifyAfterTransfer:      a.cfg.VerifyAfterTransfer,
 	}
 }
 
