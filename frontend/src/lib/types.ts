@@ -393,10 +393,21 @@ export interface LogcatStatusEvent {
   status: 'started' | 'stopped' | 'error'
 }
 
+export type LogcatIssue = 'crash' | 'anr'
+
+export type LogcatIssueFilter = 'all' | LogcatIssue
+
 export interface LogcatFilter {
   levels: LogcatLevel[]
   tag: string
   text: string
+  issue: LogcatIssueFilter
+}
+
+export interface SavedLogcatFilter {
+  id: string
+  name: string
+  filter: LogcatFilter
 }
 
 export interface LogcatState {

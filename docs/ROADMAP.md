@@ -39,7 +39,8 @@ devices.
 
 ## Next: diagnostics and developer workflow
 
-- [ ] Logcat 2.0: app/PID filter, crash/ANR highlighting, saved filters and pinned events
+- [x] Logcat 2.0 phase 1: crash/ANR filtering, highlighting and saved filters
+- [ ] Logcat 2.0 phase 2: app/PID filtering and pinned events
 - [ ] Permission/AppOps inspector with a read-only default mode
 - [ ] Device report export for support/debugging
 - [ ] Device-side screen recording workflow independent of scrcpy

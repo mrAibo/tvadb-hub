@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import { cn } from '@/lib/utils'
+import { classifyLogcatIssue } from '@/lib/logcatAnalysis'
 import type { LogcatEntry as LogcatEntryType } from '@/lib/types'
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -27,9 +28,16 @@ interface LogcatEntryProps {
 export const LogcatEntry = memo(function LogcatEntry({ entry }: LogcatEntryProps) {
   const levelColor = LEVEL_COLORS[entry.level] ?? LEVEL_COLORS.V
   const levelBg = LEVEL_BG[entry.level] ?? LEVEL_BG.V
+  const issue = classifyLogcatIssue(entry)
 
   return (
-    <div className="flex items-start gap-2 px-3 py-1 font-mono text-[11px] leading-relaxed hover:bg-muted/30 transition-colors">
+    <div
+      className={cn(
+        'flex items-start gap-2 border-l-2 border-transparent px-3 py-1 font-mono text-[11px] leading-relaxed hover:bg-muted/30 transition-colors',
+        issue === 'crash' && 'border-l-destructive/70 bg-destructive/5',
+        issue === 'anr' && 'border-l-[var(--warning)]/70 bg-[var(--warning)]/5',
+      )}
+    >
       <span className={cn('shrink-0 rounded px-1 py-0.5 text-[10px] font-semibold tabular-nums', levelBg, levelColor)}>
         {entry.level}
       </span>
@@ -42,6 +50,18 @@ export const LogcatEntry = memo(function LogcatEntry({ entry }: LogcatEntryProps
       <span className="shrink-0 text-cyan-400/80 truncate max-w-[180px]">
         {entry.tag}
       </span>
+      {issue && (
+        <span
+          className={cn(
+            'shrink-0 rounded px-1 py-0.5 text-[9px] font-bold tracking-wide',
+            issue === 'crash'
+              ? 'bg-destructive/15 text-destructive'
+              : 'bg-[var(--warning)]/15 text-[var(--warning)]',
+          )}
+        >
+          {issue === 'crash' ? 'CRASH' : 'ANR'}
+        </span>
+      )}
       <span className={cn('flex-1 truncate', levelColor)}>
         {entry.message}
       </span>
