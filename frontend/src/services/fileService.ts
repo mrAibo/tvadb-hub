@@ -20,7 +20,7 @@ import {
   UnblockPath,
 } from '../../bindings/ADBKit/internal/app/app'
 import { Events } from '@wailsio/runtime'
-import type { FileEntry, HostFileSystemInfo, StorageInfo, SdCard, UnblockResult } from '@/lib/types'
+import type { FileEntry, HostFileSystemInfo, StorageInfo, SdCard, TransferVerificationStatus, UnblockResult } from '@/lib/types'
 
 export const FILE_TRANSFER_PROGRESS_EVENT = 'file_transfer_progress'
 
@@ -28,6 +28,8 @@ export interface FileTransferProgress {
   fileName: string
   direction: 'push' | 'pull'
   percent: number
+  verification?: TransferVerificationStatus
+  verificationDetail?: string
 }
 
 export function onFileTransferProgress(

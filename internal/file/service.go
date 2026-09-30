@@ -33,8 +33,9 @@ type Service struct {
 
 	mu                     sync.Mutex
 	cancelFunc             context.CancelFunc
-	getTransferCompression func() string
-	compressionCache       map[string]adbCompressionCapabilities
+	getTransferCompression  func() string
+	getTransferVerification func() bool
+	compressionCache        map[string]adbCompressionCapabilities
 }
 
 func NewService(
@@ -53,6 +54,12 @@ func NewService(
 func (s *Service) SetTransferCompressionResolver(resolve func() string) {
 	s.mu.Lock()
 	s.getTransferCompression = resolve
+	s.mu.Unlock()
+}
+
+func (s *Service) SetTransferVerificationResolver(resolve func() bool) {
+	s.mu.Lock()
+	s.getTransferVerification = resolve
 	s.mu.Unlock()
 }
 

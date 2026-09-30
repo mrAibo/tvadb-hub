@@ -319,6 +319,15 @@ export type FileSortDirection = 'asc' | 'desc'
 
 export type FileTransferCompression = 'auto' | 'off' | 'zstd' | 'lz4' | 'brotli'
 
+export type TransferVerificationStatus = 'verifying' | 'verified' | 'unavailable' | 'mismatch'
+
+export interface TransferVerificationSummary {
+  fileName: string
+  direction: 'push' | 'pull'
+  status: Exclude<TransferVerificationStatus, 'verifying'>
+  detail?: string
+}
+
 export type TerminalMode = 'adb-shell' | 'adb-host' | 'fastboot-host'
 
 export interface TerminalSession {
@@ -622,6 +631,7 @@ export interface PreferencesPayload {
   device_refresh_seconds?: number
   audit_enabled?: boolean
   file_transfer_compression?: FileTransferCompression
+  verify_after_transfer?: boolean
 }
 
 export interface AppConfigSnapshot {
@@ -640,6 +650,7 @@ export interface AppConfigSnapshot {
   device_refresh_seconds: number
   audit_enabled: boolean
   file_transfer_compression: FileTransferCompression
+  verify_after_transfer: boolean
 }
 
 export interface RuntimeDiagnostics {

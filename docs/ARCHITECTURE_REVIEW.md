@@ -13,13 +13,13 @@ protocol stack. Keep the official ADB client as the compatibility baseline and
 introduce direct ADB-server protocol access only where profiling shows a clear
 benefit, such as continuous device tracking.
 
-Backend Logcat event batching and ADB CLI transfer compression are now
-implemented. The next high-value engineering work should instead focus on:
+Backend Logcat event batching, ADB CLI transfer compression and optional
+post-transfer SHA-256 verification are now implemented. The next high-value
+engineering work should instead focus on:
 
-1. Optional transfer integrity verification for large files.
-2. Richer Logcat crash/ANR filtering and saved filters.
-4. Better TV text input using clipboard/scrcpy-first fallbacks.
-5. A separately versioned, signed Safe Tuning metadata feed with explicit
+1. Richer Logcat crash/ANR filtering and saved filters.
+2. Better TV text input using clipboard/scrcpy-first fallbacks.
+3. A separately versioned, signed Safe Tuning metadata feed with explicit
    licensing and rollback.
 
 ## 1. Native ADB Client Protocol
@@ -173,19 +173,26 @@ Recommended behavior:
 
 ### Transfer checksum verification
 
-**Verdict: worthwhile.**
+**Status: implemented.**
 
 **Complexity:** Low to Medium.
 
-For large firmware archives and backups, add an optional "Verify after
-transfer" mode:
+DroidSphere now provides an optional **Verify after transfer** setting. For
+regular files it computes SHA-256 on the host, then tries `sha256sum` and
+`toybox sha256sum` on Android and compares the complete digests.
 
-- compute SHA-256 locally;
-- try `sha256sum` or `toybox sha256sum` remotely;
-- report "verification unavailable" rather than silently falling back to a
-  weaker guarantee;
-- enable by default only above a configurable size if performance becomes a
-  concern.
+- matching digests are reported as verified;
+- a digest mismatch fails the transfer result instead of being presented as
+  success;
+- missing or unusable Android hashing is reported explicitly as verification
+  unavailable;
+- malformed remote hash output is rejected;
+- directories and non-regular host paths are reported as verification
+  unavailable rather than being followed or treated as verified;
+- hashing shares the transfer cancellation context.
+
+The primary dual-pane transfer buttons also use the shared transfer pipeline
+again, restoring the existing progress/cancellation overlay for those actions.
 
 ## 5. Diagnostics, scripting and monitoring
 
@@ -269,7 +276,7 @@ than the previous per-line IPC pressure issue.
 | --- | --- | --- | --- |
 | Done | Backend Logcat event batching | Medium | Completed |
 | Done | ADB push/pull compression options | Low | Completed |
-| P1 | Transfer SHA-256 verification | Low-Medium | Do |
+| Done | Transfer SHA-256 verification | Low-Medium | Completed |
 | P2 | TV text-entry panel | Low-Medium | Do |
 | P2 | Signed/versioned Safe Tuning metadata feed | Medium-High | Do carefully |
 | P2 | scrcpy audio-source/audio-only UX | Low | Do |

@@ -71,7 +71,26 @@ func (s *Service) PushFile(ctx context.Context, localPath string, remotePath str
 		})
 		if cmdErr == nil {
 			s.emitTransferProgress(fileName, "push", 100)
-			return fallbackMessage(result.Stdout, fmt.Sprintf("Pushed to %s", normalizedRemotePath)), nil
+			message := fallbackMessage(result.Stdout, fmt.Sprintf("Pushed to %s", normalizedRemotePath))
+			verification, verifyErr := s.verifyTransferIfEnabled(
+				transferCtx,
+				adbPath,
+				serial,
+				trimmedLocalPath,
+				normalizedRemotePath,
+				fileName,
+				"push",
+			)
+			if verifyErr != nil {
+				if transferCtx.Err() != nil {
+					return "", core.NewOperationError("push_file", "Push cancelled by user", "transfer context cancelled during verification", false)
+				}
+				return "", core.NewOperationError("push_file", "SHA-256 verification failed", verifyErr.Error(), true)
+			}
+			if verification.Status == VerificationStatusMismatch {
+				return "", core.NewOperationError("push_file", "SHA-256 verification mismatch", verification.Detail, false)
+			}
+			return appendVerificationMessage(message, verification), nil
 		}
 
 		if transferCtx.Err() != nil {
@@ -119,6 +138,9 @@ func (s *Service) PushMultipleFiles(ctx context.Context, localPaths []string, re
 		fileName := filepath.Base(trimmed)
 		remotePath := path.Join(normalizedRemoteDir, fileName)
 		if _, err := s.PushFile(ctx, trimmed, remotePath); err != nil {
+			if isVerificationMismatchError(err) {
+				return "", err
+			}
 			if isCancelledError(err) || ctx.Err() != nil {
 				return "", core.NewOperationError("push_multiple_files", "Push batch cancelled", "transfer context cancelled", false)
 			}
@@ -146,12 +168,22 @@ func isCancelledError(err error) bool {
 }
 
 func (s *Service) emitTransferProgress(fileName, direction string, percent int) {
+	s.emitTransferProgressState(fileName, direction, percent, "", "")
+}
+
+func (s *Service) emitTransferVerification(fileName, direction, status, detail string) {
+	s.emitTransferProgressState(fileName, direction, 100, status, detail)
+}
+
+func (s *Service) emitTransferProgressState(fileName, direction string, percent int, verification, detail string) {
 	if s.wailsCtx == nil {
 		return
 	}
 	application.Get().Event.Emit(TransferProgressEvent, TransferProgress{
-		FileName:  fileName,
-		Direction: direction,
-		Percent:   percent,
+		FileName:           fileName,
+		Direction:          direction,
+		Percent:            percent,
+		Verification:       verification,
+		VerificationDetail: detail,
 	})
 }

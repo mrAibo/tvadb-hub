@@ -87,6 +87,7 @@ func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) 
 	a.tuneSvc = tuning.NewService(a.dataDir, a.resolveActiveSerial, getBinPath, a.pkgSvc)
 	a.fileSvc = file.NewService(ctx, a.resolveActiveSerial, getBinPath)
 	a.fileSvc.SetTransferCompressionResolver(a.currentFileTransferCompression)
+	a.fileSvc.SetTransferVerificationResolver(a.currentVerifyAfterTransfer)
 	a.termSvc = shell.NewTerminalService(ctx, a.binSvc, a.currentConfig, a.resolveTerminalSerial)
 	a.logSvc = shell.NewLogcatService(ctx, a.binSvc, a.currentConfig)
 	a.fbSvc = flasher.NewFastbootService(a.binSvc, a.currentConfig, a.resolveActiveSerial)
@@ -187,6 +188,12 @@ func (a *App) currentFileTransferCompression() string {
 		return core.DefaultFileTransferCompression
 	}
 	return a.cfg.FileTransferCompression
+}
+
+func (a *App) currentVerifyAfterTransfer() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.cfg != nil && a.cfg.VerifyAfterTransfer
 }
 
 func appDataDir() (string, error) {

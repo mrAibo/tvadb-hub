@@ -60,7 +60,26 @@ func (s *Service) PullFile(ctx context.Context, remotePath string, localPath str
 		})
 		if cmdErr == nil {
 			s.emitTransferProgress(fileName, "pull", 100)
-			return fallbackMessage(result.Stdout, fmt.Sprintf("Saved file to %s", trimmedLocalPath)), nil
+			message := fallbackMessage(result.Stdout, fmt.Sprintf("Saved file to %s", trimmedLocalPath))
+			verification, verifyErr := s.verifyTransferIfEnabled(
+				transferCtx,
+				adbPath,
+				serial,
+				trimmedLocalPath,
+				normalizedRemotePath,
+				fileName,
+				"pull",
+			)
+			if verifyErr != nil {
+				if transferCtx.Err() != nil {
+					return "", core.NewOperationError("pull_file", "Pull cancelled by user", "transfer context cancelled during verification", false)
+				}
+				return "", core.NewOperationError("pull_file", "SHA-256 verification failed", verifyErr.Error(), true)
+			}
+			if verification.Status == VerificationStatusMismatch {
+				return "", core.NewOperationError("pull_file", "SHA-256 verification mismatch", verification.Detail, false)
+			}
+			return appendVerificationMessage(message, verification), nil
 		}
 
 		if transferCtx.Err() != nil {

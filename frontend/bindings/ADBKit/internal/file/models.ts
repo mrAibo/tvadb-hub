@@ -52,6 +52,8 @@ export interface TransferProgress {
     "fileName": string;
     "direction": string;
     "percent": number;
+    "verification"?: string;
+    "verificationDetail"?: string;
 }
 
 /**

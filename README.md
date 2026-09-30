@@ -58,6 +58,7 @@ device, Android version and authorization state.
 - Browse Android storage with hidden-file support.
 - Transfer multiple files or whole directories with ADB push/pull.
 - Capability-aware ADB transfer compression (Auto, Off, Zstd, LZ4 or Brotli).
+- Optional post-transfer SHA-256 verification with explicit verified, unavailable and mismatch states.
 - Progress, cancellation and retry handling.
 - Remote new-folder, rename, move and delete actions.
 - Protected/scoped-storage error guidance.

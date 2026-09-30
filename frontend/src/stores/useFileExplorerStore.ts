@@ -1,5 +1,11 @@
 import { create } from 'zustand'
-import type { FileEntry, FileSortField, FileSortDirection } from '@/lib/types'
+import type {
+  FileEntry,
+  FileSortField,
+  FileSortDirection,
+  TransferVerificationStatus,
+  TransferVerificationSummary,
+} from '@/lib/types'
 
 interface FileCacheEntry {
   files: FileEntry[]
@@ -11,6 +17,8 @@ interface TransferProgress {
   direction: 'push' | 'pull'
   percent: number
   active: boolean
+  verification?: TransferVerificationStatus
+  verificationDetail?: string
 }
 
 interface FileExplorerState {
@@ -39,6 +47,7 @@ interface FileExplorerState {
   error: string | null
   lastUpdatedAt: number | null
   transferProgress: TransferProgress | null
+  lastTransferVerification: TransferVerificationSummary | null
 }
 
 interface FileExplorerActions {
@@ -71,6 +80,7 @@ interface FileExplorerActions {
   setError: (error: string | null) => void
   setLastUpdatedAt: (timestamp: number | null) => void
   setTransferProgress: (progress: TransferProgress | null) => void
+  setLastTransferVerification: (result: TransferVerificationSummary | null) => void
   resetFilters: () => void
   reset: () => void
 }
@@ -103,6 +113,7 @@ const initialState: FileExplorerState = {
   error: null,
   lastUpdatedAt: null,
   transferProgress: null,
+  lastTransferVerification: null,
 }
 
 export const useFileExplorerStore = create<FileExplorerStore>()((set) => ({
@@ -188,6 +199,7 @@ export const useFileExplorerStore = create<FileExplorerStore>()((set) => ({
   setError: (error) => set({ error }),
   setLastUpdatedAt: (lastUpdatedAt) => set({ lastUpdatedAt }),
   setTransferProgress: (transferProgress) => set({ transferProgress }),
+  setLastTransferVerification: (lastTransferVerification) => set({ lastTransferVerification }),
   resetFilters: () =>
     set({
       searchTerm: initialState.searchTerm,

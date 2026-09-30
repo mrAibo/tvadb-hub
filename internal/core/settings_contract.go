@@ -46,6 +46,7 @@ type PreferencesPayload struct {
 	DeviceRefreshSeconds int               `json:"device_refresh_seconds"`
 	AuditEnabled         *bool             `json:"audit_enabled,omitempty"`
 	FileTransferCompression string          `json:"file_transfer_compression"`
+	VerifyAfterTransfer      *bool           `json:"verify_after_transfer,omitempty"`
 }
 
 type AppConfigSnapshot struct {
@@ -64,6 +65,7 @@ type AppConfigSnapshot struct {
 	DeviceRefreshSeconds int               `json:"device_refresh_seconds"`
 	AuditEnabled         bool              `json:"audit_enabled"`
 	FileTransferCompression string          `json:"file_transfer_compression"`
+	VerifyAfterTransfer      bool            `json:"verify_after_transfer"`
 }
 
 type RuntimeDiagnostics struct {

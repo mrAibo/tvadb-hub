@@ -19,8 +19,17 @@ type StorageInfo struct {
 	UsedPct    int    `json:"usedPct"`
 }
 
+const (
+	VerificationStatusVerifying   = "verifying"
+	VerificationStatusVerified    = "verified"
+	VerificationStatusUnavailable = "unavailable"
+	VerificationStatusMismatch    = "mismatch"
+)
+
 type TransferProgress struct {
-	FileName  string `json:"fileName"`
-	Direction string `json:"direction"`
-	Percent   int    `json:"percent"`
+	FileName           string `json:"fileName"`
+	Direction          string `json:"direction"`
+	Percent            int    `json:"percent"`
+	Verification       string `json:"verification,omitempty"`
+	VerificationDetail string `json:"verificationDetail,omitempty"`
 }

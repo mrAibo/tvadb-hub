@@ -13,7 +13,6 @@ import {
   IconServer as Server,
   IconTrash as Trash2,
 } from '@tabler/icons-react'
-import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -30,8 +29,6 @@ import {
   getLocalParentPath,
   getStorageInfo,
   listLocalFiles,
-  pullMultipleFiles,
-  pushMultipleFiles,
   unblockPath,
 } from '@/services/fileService'
 import type {
@@ -212,12 +209,10 @@ export default function FilesPage() {
     if (!activeSerial || localSelected.length === 0) return
     setTransferBusy('push')
     try {
-      await toast.promise(pushMultipleFiles(localSelected, fe.currentPath), {
-        loading: `Sending ${localSelected.length} item(s) to Android…`,
-        success: (message) => message,
-        error: (error) => error instanceof Error ? error.message : 'Transfer failed',
-      })
-      await fe.refreshFiles()
+      const success = await fe.pushMultipleToCurrentDir(localSelected)
+      if (success) {
+        setLocalSelected([])
+      }
     } finally {
       setTransferBusy(null)
     }
@@ -227,12 +222,10 @@ export default function FilesPage() {
     if (fe.selectedFiles.length === 0 || !localPath) return
     setTransferBusy('pull')
     try {
-      await toast.promise(pullMultipleFiles(fe.selectedFiles, localPath), {
-        loading: `Receiving ${fe.selectedFiles.length} item(s) from Android…`,
-        success: (message) => message,
-        error: (error) => error instanceof Error ? error.message : 'Transfer failed',
-      })
-      await loadLocal(localPath)
+      const success = await fe.pullSelectedFiles(localPath)
+      if (success) {
+        await loadLocal(localPath)
+      }
     } finally {
       setTransferBusy(null)
     }
@@ -541,11 +534,21 @@ export default function FilesPage() {
         </Card>
       </div>
 
-      <div className="flex shrink-0 items-center justify-between rounded-xl border border-border/50 bg-muted/15 px-3 py-2 text-[9px] text-muted-foreground">
-        <span>
-          Transfers use the existing ADB push/pull engine, including folders, retries, progress and cancellation.
-        </span>
-        <span className="font-mono">
+      <div className="flex shrink-0 items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/15 px-3 py-2 text-[9px] text-muted-foreground">
+        <div className="flex min-w-0 items-center gap-3">
+          <span>
+            Transfers use ADB push/pull with folders, retries, progress and cancellation.
+          </span>
+          {fe.lastTransferVerification && (
+            <span
+              className="truncate font-medium"
+              title={fe.lastTransferVerification.detail}
+            >
+              Last SHA-256: {fe.lastTransferVerification.status} · {fe.lastTransferVerification.fileName}
+            </span>
+          )}
+        </div>
+        <span className="shrink-0 font-mono">
           {hostInfo?.os ?? 'host'} {hostInfo?.separator ?? ''} · Android {deviceInfo?.androidVersion || ''}
         </span>
       </div>
@@ -590,6 +593,8 @@ export default function FilesPage() {
           fileName={fe.transferProgress.fileName}
           direction={fe.transferProgress.direction}
           percent={fe.transferProgress.percent}
+          verification={fe.transferProgress.verification}
+          verificationDetail={fe.transferProgress.verificationDetail}
           onCancel={fe.cancelTransfer}
         />
       )}
