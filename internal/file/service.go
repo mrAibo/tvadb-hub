@@ -31,8 +31,12 @@ type Service struct {
 	resolveActiveSerial func(context.Context) (string, error)
 	getBinPath          func() core.BinaryPaths
 
-	mu                     sync.Mutex
-	cancelFunc             context.CancelFunc
+	mu                      sync.Mutex
+	cancelFunc              context.CancelFunc
+	activeOperationID       string
+	nextOperationID         uint64
+	runStreaming            func(context.Context, core.StreamingExecRequest) (*core.ExecResult, error)
+	runCommand              func(context.Context, core.ExecRequest) (*core.ExecResult, error)
 	getTransferCompression  func() string
 	getTransferVerification func() bool
 	compressionCache        map[string]adbCompressionCapabilities
@@ -70,22 +74,19 @@ func (s *Service) requireActiveSerial(ctx context.Context) (string, error) {
 	return s.resolveActiveSerial(ctx)
 }
 
-func (s *Service) setCancel(fn context.CancelFunc) {
-	s.mu.Lock()
-	s.cancelFunc = fn
-	s.mu.Unlock()
-}
-
-func (s *Service) clearCancel() {
-	s.mu.Lock()
-	s.cancelFunc = nil
-	s.mu.Unlock()
-}
-
 // CancelTransfer cancels the active file transfer if one is in progress.
 func (s *Service) CancelTransfer() {
+	s.CancelTransferFor("")
+}
+
+// An old UI event must not cancel a newer transfer. Empty ID preserves the
+// historical single-active-transfer cancellation API.
+func (s *Service) CancelTransferFor(operationID string) {
 	s.mu.Lock()
 	fn := s.cancelFunc
+	if operationID != "" && operationID != s.activeOperationID {
+		fn = nil
+	}
 	s.mu.Unlock()
 	if fn != nil {
 		fn()

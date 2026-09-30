@@ -547,6 +547,11 @@ export default function FilesPage() {
               Last SHA-256: {fe.lastTransferVerification.status} · {fe.lastTransferVerification.fileName}
             </span>
           )}
+          {fe.lastTransferBatch && (
+            <span className="truncate font-medium" title={fe.lastTransferBatch.items.map(item => `${item.source}: ${item.status} — ${item.message}`).join('\n')}>
+              Last batch · {fe.lastTransferBatch.serial}: {fe.lastTransferBatch.completed} completed · {fe.lastTransferBatch.failed} failed · {fe.lastTransferBatch.cancelled} cancelled · {fe.lastTransferBatch.skipped} not attempted
+            </span>
+          )}
         </div>
         <span className="shrink-0 font-mono">
           {hostInfo?.os ?? 'host'} {hostInfo?.separator ?? ''} · Android {deviceInfo?.androidVersion || ''}

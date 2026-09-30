@@ -326,7 +326,17 @@ export type FileSortDirection = 'asc' | 'desc'
 
 export type FileTransferCompression = 'auto' | 'off' | 'zstd' | 'lz4' | 'brotli'
 
-export type TransferVerificationStatus = 'verifying' | 'verified' | 'unavailable' | 'mismatch'
+export type TransferVerificationStatus = 'verifying' | 'verified' | 'unavailable' | 'mismatch' | 'failure'
+
+export interface TransferBatchResult {
+  operationId: string
+  serial: string
+  items: { source: string; destination: string; status: 'success' | 'failed' | 'cancelled' | 'skipped'; message: string }[]
+  completed: number
+  failed: number
+  cancelled: number
+  skipped: number
+}
 
 export interface TransferVerificationSummary {
   fileName: string
