@@ -268,13 +268,71 @@ func mergeProfiles(base, overlay []Profile) []Profile {
 	}
 	for _, profile := range overlay {
 		if i, ok := index[profile.ID]; ok {
-			out[i] = profile
+			out[i] = mergeProfileOverlay(out[i], profile)
 			continue
 		}
 		index[profile.ID] = len(out)
 		out = append(out, profile)
 	}
 	return out
+}
+
+func mergeProfileOverlay(base, overlay Profile) Profile {
+	merged := overlay
+
+	// A signed overlay may update metadata and package coverage, but it must
+	// not broaden the device matching of a built-in profile. A broader target
+	// should use a new profile ID so the original safety assumptions remain
+	// intact.
+	merged.Criteria = base.Criteria
+
+	// Built-in keep lists are a non-overridable device-specific safety floor.
+	// The feed may add more protected packages, never remove existing ones.
+	keep := make([]string, 0, len(base.Keep)+len(overlay.Keep))
+	seenKeep := make(map[string]struct{}, len(base.Keep)+len(overlay.Keep))
+	for _, pkg := range append(append([]string{}, base.Keep...), overlay.Keep...) {
+		if _, exists := seenKeep[pkg]; exists {
+			continue
+		}
+		seenKeep[pkg] = struct{}{}
+		keep = append(keep, pkg)
+	}
+	merged.Keep = keep
+
+	// Existing built-in risk classifications are also a floor: signed
+	// metadata can make a package more conservative, but never downgrade a
+	// caution/dangerous/blocked rule to a less restrictive risk.
+	baseRisk := make(map[string]Risk, len(base.Rules))
+	for _, rule := range base.Rules {
+		baseRisk[rule.PackageName] = rule.Risk
+	}
+	merged.Rules = append([]PackageRule(nil), overlay.Rules...)
+	for i := range merged.Rules {
+		floor, exists := baseRisk[merged.Rules[i].PackageName]
+		if !exists || riskSeverity(merged.Rules[i].Risk) >= riskSeverity(floor) {
+			continue
+		}
+		merged.Rules[i].Risk = floor
+		if floor != RiskSafe {
+			merged.Rules[i].DefaultSelected = false
+		}
+	}
+	return merged
+}
+
+func riskSeverity(risk Risk) int {
+	switch risk {
+	case RiskSafe:
+		return 0
+	case RiskCaution:
+		return 1
+	case RiskDangerous:
+		return 2
+	case RiskBlocked:
+		return 3
+	default:
+		return 4
+	}
 }
 
 func (m *feedManager) loadCachedLocked() {

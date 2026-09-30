@@ -276,3 +276,66 @@ func TestPromoteCachePreservesVerifiedPreviousWhenCurrentIsInvalid(t *testing.T)
 	}
 }
 
+func TestMergeProfilesPreservesBuiltinSafetyFloor(t *testing.T) {
+	base := []Profile{{
+		ID:       "protected",
+		Criteria: MatchCriteria{Manufacturers: []string{"example"}, TVOnly: true},
+		Keep:     []string{"com.example.launcher"},
+		Rules: []PackageRule{
+			{
+				PackageName: "com.example.feature",
+				Risk:        RiskCaution,
+			},
+		},
+	}}
+	overlay := []Profile{{
+		ID:       "protected",
+		Criteria: MatchCriteria{Generic: true},
+		Keep:     []string{"com.example.extra"},
+		Rules: []PackageRule{
+			{
+				PackageName:     "com.example.feature",
+				Risk:            RiskSafe,
+				DefaultSelected: true,
+			},
+			{
+				PackageName:     "com.example.launcher",
+				Risk:            RiskSafe,
+				DefaultSelected: true,
+			},
+		},
+	}}
+
+	merged := mergeProfiles(base, overlay)
+	if len(merged) != 1 {
+		t.Fatalf("expected one merged profile, got %d", len(merged))
+	}
+	profile := merged[0]
+	if profile.Criteria.Generic || !profile.Criteria.TVOnly ||
+		len(profile.Criteria.Manufacturers) != 1 || profile.Criteria.Manufacturers[0] != "example" {
+		t.Fatalf("signed overlay broadened built-in criteria: %+v", profile.Criteria)
+	}
+
+	keep := map[string]bool{}
+	for _, pkg := range profile.Keep {
+		keep[pkg] = true
+	}
+	if !keep["com.example.launcher"] || !keep["com.example.extra"] {
+		t.Fatalf("built-in and overlay keep lists must be unioned: %+v", profile.Keep)
+	}
+
+	var feature PackageRule
+	for _, rule := range profile.Rules {
+		if rule.PackageName == "com.example.feature" {
+			feature = rule
+		}
+	}
+	if feature.Risk != RiskCaution || feature.DefaultSelected {
+		t.Fatalf("built-in caution floor was weakened: %+v", feature)
+	}
+
+	if overlay[0].Criteria.Generic != true || overlay[0].Rules[0].Risk != RiskSafe {
+		t.Fatal("mergeProfiles must not mutate the signed overlay input")
+	}
+}
+
