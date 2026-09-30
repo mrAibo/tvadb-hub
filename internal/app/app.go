@@ -78,7 +78,7 @@ func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) 
 	a.auditLog = al
 
 	a.binSvc = binary.NewService(a.dataDir)
-	getBinPath := core.GetBinaryPaths(a.cfg)
+	getBinPath := core.GetBinaryPathsFrom(a.currentConfig)
 	a.devSvc = device.NewService(a.dataDir, getBinPath)
 	a.wireSvc = device.NewWirelessService(a.dataDir, getBinPath)
 	a.monSvc = device.NewMonitorService(a.dataDir, getBinPath)
@@ -179,7 +179,7 @@ func (a *App) resolveTerminalSerial(ctx context.Context, mode string) (string, e
 func (a *App) currentConfig() *core.AppConfig {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.cfg
+	return core.CloneAppConfig(a.cfg)
 }
 
 func (a *App) currentFileTransferCompression() string {

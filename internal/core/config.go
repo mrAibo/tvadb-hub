@@ -2,32 +2,34 @@ package core
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 )
 
 // AppConfig holds the persistent configuration for ADBKit.
 type AppConfig struct {
-	AdbPath              string                 `json:"adb_path"`
-	FastbootPath         string                 `json:"fastboot_path"`
-	ScrcpyPath           string                 `json:"scrcpy_path"`
-	SetupCompleted       bool                   `json:"setup_completed"`
-	Theme                string                 `json:"theme"`
-	BinaryVersions       map[string]string      `json:"binary_versions"`
-	DeviceNicknames      map[string]string      `json:"device_nicknames"`
-	WirelessHistory      []WirelessHistoryEntry `json:"wireless_history"`
-	RememberedWireless   []RememberedWirelessDevice `json:"remembered_wireless"`
-	LogcatBufferLimit    int                    `json:"logcat_buffer_limit"`
-	ScrcpyOptions        ScrcpyOptions          `json:"scrcpy_options"`
-	ScrcpyPresets        []ScrcpyPreset         `json:"scrcpy_presets"`
-	DefaultTerminalMode  string                 `json:"default_terminal_mode"`
-	AutoRefreshDevices   bool                   `json:"auto_refresh_devices"`
-	DeviceRefreshSeconds int                    `json:"device_refresh_seconds"`
-	AuditEnabled         bool                   `json:"audit_enabled"`
-	FileTransferCompression string               `json:"file_transfer_compression"`
-	VerifyAfterTransfer      bool                 `json:"verify_after_transfer"`
-	SafeTuningFeedURL        string               `json:"safe_tuning_feed_url"`
-	SafeTuningFeedPublicKey  string               `json:"safe_tuning_feed_public_key"`
+	AdbPath                 string                     `json:"adb_path"`
+	FastbootPath            string                     `json:"fastboot_path"`
+	ScrcpyPath              string                     `json:"scrcpy_path"`
+	SetupCompleted          bool                       `json:"setup_completed"`
+	Theme                   string                     `json:"theme"`
+	BinaryVersions          map[string]string          `json:"binary_versions"`
+	DeviceNicknames         map[string]string          `json:"device_nicknames"`
+	WirelessHistory         []WirelessHistoryEntry     `json:"wireless_history"`
+	RememberedWireless      []RememberedWirelessDevice `json:"remembered_wireless"`
+	LogcatBufferLimit       int                        `json:"logcat_buffer_limit"`
+	ScrcpyOptions           ScrcpyOptions              `json:"scrcpy_options"`
+	ScrcpyPresets           []ScrcpyPreset             `json:"scrcpy_presets"`
+	DefaultTerminalMode     string                     `json:"default_terminal_mode"`
+	AutoRefreshDevices      bool                       `json:"auto_refresh_devices"`
+	DeviceRefreshSeconds    int                        `json:"device_refresh_seconds"`
+	AuditEnabled            bool                       `json:"audit_enabled"`
+	FileTransferCompression string                     `json:"file_transfer_compression"`
+	VerifyAfterTransfer     bool                       `json:"verify_after_transfer"`
+	SafeTuningFeedURL       string                     `json:"safe_tuning_feed_url"`
+	SafeTuningFeedPublicKey string                     `json:"safe_tuning_feed_public_key"`
 }
 
 type WirelessHistoryEntry struct {
@@ -70,16 +72,16 @@ const (
 // DefaultConfig returns a fresh config with empty paths.
 func DefaultConfig() *AppConfig {
 	return &AppConfig{
-		Theme:                ThemeDark,
-		BinaryVersions:       make(map[string]string),
-		DeviceNicknames:      make(map[string]string),
-		WirelessHistory:      []WirelessHistoryEntry{},
-		RememberedWireless:   []RememberedWirelessDevice{},
-		LogcatBufferLimit:    DefaultLogcatBufferLimit,
-		ScrcpyOptions:        DefaultScrcpyOptions(),
-		ScrcpyPresets:        []ScrcpyPreset{},
-		DefaultTerminalMode:  DefaultTerminalMode,
-		AutoRefreshDevices:   true,
+		Theme:                   ThemeDark,
+		BinaryVersions:          make(map[string]string),
+		DeviceNicknames:         make(map[string]string),
+		WirelessHistory:         []WirelessHistoryEntry{},
+		RememberedWireless:      []RememberedWirelessDevice{},
+		LogcatBufferLimit:       DefaultLogcatBufferLimit,
+		ScrcpyOptions:           DefaultScrcpyOptions(),
+		ScrcpyPresets:           []ScrcpyPreset{},
+		DefaultTerminalMode:     DefaultTerminalMode,
+		AutoRefreshDevices:      true,
 		DeviceRefreshSeconds:    DefaultDeviceRefreshSeconds,
 		FileTransferCompression: DefaultFileTransferCompression,
 	}
@@ -155,9 +157,32 @@ type BinaryPaths struct {
 	Scrcpy   string
 }
 
+// CloneAppConfig gives services immutable snapshots without shared maps/slices.
+// The caller must synchronize access to the source configuration.
+func CloneAppConfig(cfg *AppConfig) *AppConfig {
+	if cfg == nil {
+		return nil
+	}
+	copy := *cfg
+	copy.BinaryVersions = maps.Clone(cfg.BinaryVersions)
+	copy.DeviceNicknames = maps.Clone(cfg.DeviceNicknames)
+	copy.WirelessHistory = slices.Clone(cfg.WirelessHistory)
+	copy.RememberedWireless = slices.Clone(cfg.RememberedWireless)
+	copy.ScrcpyPresets = slices.Clone(cfg.ScrcpyPresets)
+	return &copy
+}
+
+// GetBinaryPathsFrom obtains a synchronized config snapshot for each lookup.
+func GetBinaryPathsFrom(resolve func() *AppConfig) func() BinaryPaths {
+	return func() BinaryPaths { return GetBinaryPaths(resolve())() }
+}
+
 // GetBinaryPaths returns a function that resolves binary paths from the current config.
 // Empty config paths fall back to bare names so exec.LookPath handles discovery.
 func GetBinaryPaths(cfg *AppConfig) func() BinaryPaths {
+	if cfg == nil {
+		cfg = DefaultConfig()
+	}
 	return func() BinaryPaths {
 		adb := cfg.AdbPath
 		if adb == "" {
