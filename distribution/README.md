@@ -3,6 +3,12 @@
 This directory contains ready-to-run DroidSphere release-candidate packages
 built from the repository source by GitHub Actions.
 
+These committed packages are historical artifacts, not proof that current main
+features are included. Earlier packages lack reliable per-artifact source
+manifests; do not guess or backfill their source SHA. New builds publish
+BUILD_PROVENANCE-<platform>.json with exact checkout SHA, dirty status, workflow
+run, tool versions and SHA-256 digests.
+
 ## Windows
 
 - `windows/DroidSphere-<version>-windows-amd64.exe` — portable executable.
