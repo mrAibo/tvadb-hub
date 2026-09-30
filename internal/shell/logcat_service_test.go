@@ -227,3 +227,41 @@ func TestCloseStreamFlushesPendingBatchOnCancellation(t *testing.T) {
 		t.Fatal("cancelled stream was not removed from active streams")
 	}
 }
+
+func TestParseLogcatProcessNamesPidNameOutput(t *testing.T) {
+	output := "  PID NAME\n  123 com.example.app\n  456 com.example.app:service\n"
+	processes := parseLogcatProcessNames(output)
+
+	if processes["123"] != "com.example.app" {
+		t.Fatalf("pid 123 process=%q", processes["123"])
+	}
+	if processes["456"] != "com.example.app:service" {
+		t.Fatalf("pid 456 process=%q", processes["456"])
+	}
+}
+
+func TestParseLogcatProcessNamesStandardPsOutput(t *testing.T) {
+	output := "USER PID PPID VSZ RSS WCHAN ADDR S NAME\n" +
+		"u0_a123 321 1 0 0 0 0 S com.example.tv\n" +
+		"root not-a-pid 1 0 0 0 0 S ignored\n"
+	processes := parseLogcatProcessNames(output)
+
+	if len(processes) != 1 || processes["321"] != "com.example.tv" {
+		t.Fatalf("unexpected processes: %#v", processes)
+	}
+}
+
+func TestLogcatStreamProcessNameUsesLatestSnapshot(t *testing.T) {
+	stream := &logcatStream{processNames: map[string]string{"10": "com.old"}}
+	if got := stream.processName("10"); got != "com.old" {
+		t.Fatalf("initial process name=%q", got)
+	}
+	stream.setProcessNames(map[string]string{"10": "com.new", "20": "com.other"})
+	if got := stream.processName("10"); got != "com.new" {
+		t.Fatalf("updated process name=%q", got)
+	}
+	if got := stream.processName("20"); got != "com.other" {
+		t.Fatalf("new process name=%q", got)
+	}
+}
+

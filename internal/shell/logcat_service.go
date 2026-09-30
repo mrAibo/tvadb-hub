@@ -30,17 +30,18 @@ const (
 var logcatPattern = regexp.MustCompile(`^(\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+(.+?):\s?(.*)$`)
 
 type LogcatEntry struct {
-	ID        string `json:"id"`
-	Serial    string `json:"serial"`
-	Date      string `json:"date"`
-	Time      string `json:"time"`
-	PID       string `json:"pid"`
-	TID       string `json:"tid"`
-	Level     string `json:"level"`
-	Tag       string `json:"tag"`
-	Message   string `json:"message"`
-	Raw       string `json:"raw"`
-	Timestamp string `json:"timestamp"`
+	ID          string `json:"id"`
+	Serial      string `json:"serial"`
+	Date        string `json:"date"`
+	Time        string `json:"time"`
+	PID         string `json:"pid"`
+	TID         string `json:"tid"`
+	ProcessName string `json:"processName,omitempty"`
+	Level       string `json:"level"`
+	Tag         string `json:"tag"`
+	Message     string `json:"message"`
+	Raw         string `json:"raw"`
+	Timestamp   string `json:"timestamp"`
 }
 
 type LogcatStatusEvent struct {
@@ -49,15 +50,18 @@ type LogcatStatusEvent struct {
 }
 
 type logcatStream struct {
-	serial    string
-	cmd       *exec.Cmd
-	stdout    io.ReadCloser
-	stderr    io.ReadCloser
-	entries   chan LogcatEntry
-	batchDone chan struct{}
-	readers   sync.WaitGroup
-	once      sync.Once
-	stopping  atomic.Bool
+	serial        string
+	cmd           *exec.Cmd
+	stdout        io.ReadCloser
+	stderr        io.ReadCloser
+	entries       chan LogcatEntry
+	batchDone     chan struct{}
+	readers       sync.WaitGroup
+	once          sync.Once
+	stopping      atomic.Bool
+	processMu     sync.RWMutex
+	processNames  map[string]string
+	processCancel context.CancelFunc
 }
 
 type LogcatService struct {
@@ -103,6 +107,8 @@ func (s *LogcatService) StartStream(ctx context.Context, serial string, levels s
 		}
 	}
 
+	initialProcessNames, _ := queryLogcatProcessNames(ctx, adbPath, trimmedSerial)
+
 	args := []string{"-s", trimmedSerial, "logcat", "-v", "threadtime"}
 	filterSpec := buildLogcatFilterSpec(levels, tagFilter)
 	if filterSpec != "" {
@@ -124,13 +130,16 @@ func (s *LogcatService) StartStream(ctx context.Context, serial string, levels s
 		return core.NewOperationError("start_logcat_stream", "Failed to start logcat stream", err.Error(), true)
 	}
 
+	processCtx, processCancel := context.WithCancel(ctx)
 	stream := &logcatStream{
-		serial:    trimmedSerial,
-		cmd:       cmd,
-		stdout:    stdoutPipe,
-		stderr:    stderrPipe,
-		entries:   make(chan LogcatEntry, logcatBatchChannelSize),
-		batchDone: make(chan struct{}),
+		serial:        trimmedSerial,
+		cmd:           cmd,
+		stdout:        stdoutPipe,
+		stderr:        stderrPipe,
+		entries:       make(chan LogcatEntry, logcatBatchChannelSize),
+		batchDone:     make(chan struct{}),
+		processNames:  initialProcessNames,
+		processCancel: processCancel,
 	}
 
 	s.mu.Lock()
@@ -138,6 +147,7 @@ func (s *LogcatService) StartStream(ctx context.Context, serial string, levels s
 	s.mu.Unlock()
 
 	go s.emitLogcatBatches(stream)
+	go s.refreshLogcatProcessNames(processCtx, stream, adbPath)
 
 	stream.readers.Add(2)
 	go func() {
@@ -199,6 +209,7 @@ func (s *LogcatService) readLogcatOutput(stream *logcatStream, pipe io.ReadClose
 
 	for scanner.Scan() {
 		entry := parseLogcatEntry(stream.serial, scanner.Text())
+		entry.ProcessName = stream.processName(entry.PID)
 		// adb menulis diagnostik non-fatal ke stderr (mis. "waiting for device").
 		// Hanya tandai sebagai warning bila baris bukan format logcat valid;
 		// baris yang sudah terparse mempertahankan level aslinya.
@@ -252,6 +263,10 @@ func (s *LogcatService) closeStream(stream *logcatStream, status string, streamE
 		s.mu.Lock()
 		delete(s.streams, stream.serial)
 		s.mu.Unlock()
+
+		if stream.processCancel != nil {
+			stream.processCancel()
+		}
 
 		if stream.stdout != nil {
 			_ = stream.stdout.Close()
