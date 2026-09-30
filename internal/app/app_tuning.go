@@ -7,8 +7,12 @@ import (
 )
 
 func (a *App) AnalyzeSafeTuning(profileID string) (tuning.Analysis, error) {
+	return a.AnalyzeSafeTuningForDevice("", profileID)
+}
+
+func (a *App) AnalyzeSafeTuningForDevice(serial, profileID string) (tuning.Analysis, error) {
 	return auditAction(a, "analyze_safe_tuning", func() (tuning.Analysis, error) {
-		info, err := a.activeTuningDeviceInfo()
+		info, err := a.tuningDeviceInfo(serial)
 		if err != nil {
 			return tuning.Analysis{}, err
 		}
@@ -18,7 +22,10 @@ func (a *App) AnalyzeSafeTuning(profileID string) (tuning.Analysis, error) {
 
 func (a *App) ApplySafeTuning(request tuning.ApplyRequest) (tuning.ApplyResult, error) {
 	return auditAction(a, "apply_safe_tuning", func() (tuning.ApplyResult, error) {
-		info, err := a.activeTuningDeviceInfo()
+		if request.ExpectedSerial == "" {
+			return tuning.ApplyResult{}, core.NewOperationError("tuning_apply", "explicit confirmed device target is required", "analyze and confirm again", false)
+		}
+		info, err := a.tuningDeviceInfo(request.ExpectedSerial)
 		if err != nil {
 			return tuning.ApplyResult{}, err
 		}
@@ -32,20 +39,47 @@ func (a *App) ListTuningSnapshots() ([]tuning.SnapshotSummary, error) {
 	})
 }
 
+func (a *App) ListTuningSnapshotsForDevice(serial string) ([]tuning.SnapshotSummary, error) {
+	if _, err := a.tuningTarget(serial); err != nil {
+		return nil, err
+	}
+	return a.tuneSvc.ListSnapshotsForSerial(serial)
+}
+
 func (a *App) RestoreTuningSnapshot(snapshotID string) (tuning.RestoreResult, error) {
 	return auditAction(a, "restore_tuning_snapshot", func() (tuning.RestoreResult, error) {
 		return a.tuneSvc.Restore(a.ctx, snapshotID)
 	})
 }
 
-func (a *App) activeTuningDeviceInfo() (*device.Info, error) {
+func (a *App) RestoreTuningSnapshotForDevice(serial, snapshotID string) (tuning.RestoreResult, error) {
+	return auditAction(a, "restore_tuning_snapshot", func() (tuning.RestoreResult, error) {
+		target, err := a.tuningTarget(serial)
+		if err != nil {
+			return tuning.RestoreResult{}, err
+		}
+		return a.tuneSvc.RestoreForSerial(a.ctx, target, snapshotID)
+	})
+}
+
+func (a *App) tuningTarget(expected string) (string, error) {
 	serial, err := a.resolveActiveSerial(a.ctx)
+	if err != nil {
+		return "", err
+	}
+	if expected != "" && serial != expected {
+		return "", core.NewOperationError("safe_tuning", "selected device changed; analyze and confirm again", expected, false)
+	}
+	return serial, nil
+}
+
+func (a *App) tuningDeviceInfo(expected string) (*device.Info, error) {
+	serial, err := a.tuningTarget(expected)
 	if err != nil {
 		return nil, err
 	}
 	return a.devSvc.GetDeviceInfo(a.ctx, serial)
 }
-
 
 func (a *App) GetSafeTuningFeedStatus() tuning.FeedStatus {
 	if a.tuneSvc == nil {

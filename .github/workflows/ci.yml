@@ -87,7 +87,10 @@ jobs:
         run: |
           $nsisPath = Join-Path ${env:ProgramFiles(x86)} "NSIS"
           if (-not (Test-Path (Join-Path $nsisPath "makensis.exe"))) {
-            winget install --id NSIS.NSIS --exact --silent --accept-package-agreements --accept-source-agreements
+            choco install nsis.install --version=3.12.0 --yes --no-progress --limit-output
+            if ($LASTEXITCODE -notin @(0, 3010)) {
+              throw "NSIS installation failed with exit code $LASTEXITCODE."
+            }
           }
           if (-not (Test-Path (Join-Path $nsisPath "makensis.exe"))) {
             throw "NSIS installation completed but makensis.exe was not found at $nsisPath."

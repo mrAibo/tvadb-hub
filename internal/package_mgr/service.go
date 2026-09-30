@@ -22,6 +22,28 @@ type Service struct {
 	resolveActiveSerial func(context.Context) (string, error)
 	selectSaveFile      func(string) (string, error)
 	getBinPath          func() core.BinaryPaths
+	userID              *int
+	runCommand          func(context.Context, core.ExecRequest) (*core.ExecResult, error)
+}
+
+// ForTarget captures device, Android user and tool paths for an operation.
+// The returned service never consults the mutable global device selection.
+func (s *Service) ForTarget(serial string, userID int) *Service {
+	paths := s.getBinPath()
+	return &Service{
+		resolveActiveSerial: func(context.Context) (string, error) { return serial, nil },
+		selectSaveFile:      s.selectSaveFile,
+		getBinPath:          func() core.BinaryPaths { return paths },
+		userID:              &userID,
+		runCommand:          s.runCommand,
+	}
+}
+
+func (s *Service) execute(ctx context.Context, req core.ExecRequest) (*core.ExecResult, error) {
+	if s.runCommand != nil {
+		return s.runCommand(ctx, req)
+	}
+	return core.RunCommand(ctx, req)
 }
 
 func NewService(

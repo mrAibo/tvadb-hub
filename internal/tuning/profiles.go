@@ -7,10 +7,10 @@ import (
 )
 
 const (
-	sourceTVTweakURL = "https://github.com/26zl/tv-tweak"
-	sourceRegistryURL = "https://github.com/PixelCode01/UIBloatwareRegistry"
+	sourceTVTweakURL    = "https://github.com/26zl/tv-tweak"
+	sourceRegistryURL   = "https://github.com/PixelCode01/UIBloatwareRegistry"
 	sourceADBDebloatURL = "https://github.com/farag2/ADB-Debloating"
-	sourceTCLURL = "https://github.com/seun-novodev/android-tv-debloat-toolkit"
+	sourceTCLURL        = "https://github.com/seun-novodev/android-tv-debloat-toolkit"
 )
 
 func safe(pkg, label, category, reason string) PackageRule {
@@ -31,14 +31,14 @@ func blocked(pkg, label, category, reason string) PackageRule {
 
 var builtinProfiles = []Profile{
 	{
-		ID: "fire-tv-karat",
-		Name: "Fire TV Stick 4K Max (karat)",
-		DeviceFamily: "Amazon Fire TV",
-		Description: "Device-specific Fire OS 8 profile. Safe defaults target advertising, telemetry, promotional surfaces and disposable tutorials; voice, smart-home and Appstore-related packages remain opt-in.",
-		SourceName: "26zl/tv-tweak",
-		SourceURL: sourceTVTweakURL + "/tree/main/devices/firetv-stick-hd",
+		ID:            "fire-tv-karat",
+		Name:          "Fire TV Stick 4K Max (karat)",
+		DeviceFamily:  "Amazon Fire TV",
+		Description:   "Device-specific Fire OS 8 profile. Safe defaults target advertising, telemetry, promotional surfaces and disposable tutorials; voice, smart-home and Appstore-related packages remain opt-in.",
+		SourceName:    "26zl/tv-tweak",
+		SourceURL:     sourceTVTweakURL + "/tree/main/devices/firetv-stick-hd",
 		SourceLicense: "MIT",
-		Criteria: MatchCriteria{Manufacturers: []string{"amazon"}, Models: []string{"aftkrt"}, Codenames: []string{"karat"}, TVOnly: true},
+		Criteria:      MatchCriteria{Manufacturers: []string{"amazon"}, Models: []string{"aftkrt"}, Codenames: []string{"karat"}, TVOnly: true},
 		Keep: []string{
 			"android", "com.amazon.ale", "com.amazon.dcp", "com.amazon.device.controllermanager",
 			"com.amazon.firebat", "com.amazon.fireinputdevices", "com.amazon.franktvinput",
@@ -116,14 +116,14 @@ var builtinProfiles = []Profile{
 		},
 	},
 	{
-		ID: "sharp-google-tv-maniatika",
-		Name: "Sharp 4K Google TV (maniatika)",
-		DeviceFamily: "Google TV",
-		Description: "Device-specific Android 14 Google TV profile with TV input, DRM, remote and streaming keep-list protection.",
-		SourceName: "26zl/tv-tweak",
-		SourceURL: sourceTVTweakURL + "/tree/main/devices/sharp-4k-googletv",
+		ID:            "sharp-google-tv-maniatika",
+		Name:          "Sharp 4K Google TV (maniatika)",
+		DeviceFamily:  "Google TV",
+		Description:   "Device-specific Android 14 Google TV profile with TV input, DRM, remote and streaming keep-list protection.",
+		SourceName:    "26zl/tv-tweak",
+		SourceURL:     sourceTVTweakURL + "/tree/main/devices/sharp-4k-googletv",
 		SourceLicense: "MIT",
-		Criteria: MatchCriteria{Manufacturers: []string{"sharp"}, Models: []string{"sharp 4k uhdtv"}, Codenames: []string{"maniatika"}, TVOnly: true},
+		Criteria:      MatchCriteria{Manufacturers: []string{"sharp"}, Models: []string{"sharp 4k uhdtv"}, Codenames: []string{"maniatika"}, TVOnly: true},
 		Keep: []string{
 			"android", "com.android.providers.tv", "com.android.systemui", "com.android.tv.settings",
 			"com.android.vending", "com.google.android.apps.tv.launcherx", "com.google.android.gms",
@@ -159,14 +159,14 @@ var builtinProfiles = []Profile{
 		},
 	},
 	{
-		ID: "tcl-android-tv",
-		Name: "TCL Android / Google TV",
-		DeviceFamily: "TCL TV",
-		Description: "Conservative TCL TV profile. Package availability varies heavily by firmware, so only installed matches are shown.",
-		SourceName: "seun-novodev/android-tv-debloat-toolkit",
-		SourceURL: sourceTCLURL,
+		ID:            "tcl-android-tv",
+		Name:          "TCL Android / Google TV",
+		DeviceFamily:  "TCL TV",
+		Description:   "Conservative TCL TV profile. Package availability varies heavily by firmware, so only installed matches are shown.",
+		SourceName:    "seun-novodev/android-tv-debloat-toolkit",
+		SourceURL:     sourceTCLURL,
 		SourceLicense: "MIT",
-		Criteria: MatchCriteria{Manufacturers: []string{"tcl"}, Brands: []string{"tcl"}, TVOnly: true},
+		Criteria:      MatchCriteria{Manufacturers: []string{"tcl"}, Brands: []string{"tcl"}, TVOnly: true},
 		Rules: []PackageRule{
 			safe("com.tcl.browser", "TCL Browser", "TCL apps", "Optional OEM browser."),
 			safe("com.tcl.tv.appstore", "TCL App Store", "TCL apps", "Optional OEM app store."),
@@ -183,14 +183,14 @@ var builtinProfiles = []Profile{
 		},
 	},
 	{
-		ID: "samsung-android",
-		Name: "Samsung Galaxy / One UI",
-		DeviceFamily: "Samsung Android",
-		Description: "Cross-device Samsung profile with explicit safe/caution/dangerous classification. Only installed packages are shown.",
-		SourceName: "PixelCode01/UIBloatwareRegistry + farag2/ADB-Debloating",
-		SourceURL: sourceRegistryURL,
+		ID:            "samsung-android",
+		Name:          "Samsung Galaxy / One UI",
+		DeviceFamily:  "Samsung Android",
+		Description:   "Cross-device Samsung profile with explicit safe/caution/dangerous classification. Only installed packages are shown.",
+		SourceName:    "PixelCode01/UIBloatwareRegistry + farag2/ADB-Debloating",
+		SourceURL:     sourceRegistryURL,
 		SourceLicense: "MIT",
-		Criteria: MatchCriteria{Manufacturers: []string{"samsung"}, Brands: []string{"samsung"}},
+		Criteria:      MatchCriteria{Manufacturers: []string{"samsung"}, Brands: []string{"samsung"}},
 		Rules: []PackageRule{
 			safe("com.samsung.android.bixby.wakeup", "Bixby Wakeup", "Bixby", "Bixby wake-word service."),
 			safe("com.samsung.android.app.spage", "Samsung Daily / Bixby Home", "Bixby", "Bixby/Samsung Daily home surface."),
@@ -216,14 +216,14 @@ var builtinProfiles = []Profile{
 		},
 	},
 	{
-		ID: "xiaomi-android",
-		Name: "Xiaomi / Redmi / POCO",
-		DeviceFamily: "Xiaomi Android",
-		Description: "Conservative Xiaomi profile based on MIT registries; launchers and core ecosystem components are never selected by default.",
-		SourceName: "PixelCode01/UIBloatwareRegistry + farag2/ADB-Debloating",
-		SourceURL: sourceRegistryURL,
+		ID:            "xiaomi-android",
+		Name:          "Xiaomi / Redmi / POCO",
+		DeviceFamily:  "Xiaomi Android",
+		Description:   "Conservative Xiaomi profile based on MIT registries; launchers and core ecosystem components are never selected by default.",
+		SourceName:    "PixelCode01/UIBloatwareRegistry + farag2/ADB-Debloating",
+		SourceURL:     sourceRegistryURL,
 		SourceLicense: "MIT",
-		Criteria: MatchCriteria{Manufacturers: []string{"xiaomi", "redmi", "poco"}, Brands: []string{"xiaomi", "redmi", "poco"}},
+		Criteria:      MatchCriteria{Manufacturers: []string{"xiaomi", "redmi", "poco"}, Brands: []string{"xiaomi", "redmi", "poco"}},
 		Rules: []PackageRule{
 			safe("com.mi.android.globalpersonalassistant", "Mi Assistant", "MIUI apps", "Optional assistant/feed surface."),
 			safe("com.mi.globalTrendNews", "Mi News", "MIUI apps", "Optional news surface."),
@@ -239,14 +239,14 @@ var builtinProfiles = []Profile{
 		},
 	},
 	{
-		ID: "google-pixel",
-		Name: "Google Pixel / AOSP-like",
-		DeviceFamily: "Google Android",
-		Description: "Optional Google packages with conservative risk classification.",
-		SourceName: "PixelCode01/UIBloatwareRegistry",
-		SourceURL: sourceRegistryURL + "/blob/main/Google/google-bloatware-list.md",
+		ID:            "google-pixel",
+		Name:          "Google Pixel / AOSP-like",
+		DeviceFamily:  "Google Android",
+		Description:   "Optional Google packages with conservative risk classification.",
+		SourceName:    "PixelCode01/UIBloatwareRegistry",
+		SourceURL:     sourceRegistryURL + "/blob/main/Google/google-bloatware-list.md",
 		SourceLicense: "MIT",
-		Criteria: MatchCriteria{Manufacturers: []string{"google"}, Brands: []string{"google"}},
+		Criteria:      MatchCriteria{Manufacturers: []string{"google"}, Brands: []string{"google"}},
 		Rules: []PackageRule{
 			safe("com.google.android.apps.videos", "Google TV", "Google apps", "Optional media store/player app."),
 			safe("com.google.android.apps.podcasts", "Google Podcasts", "Google apps", "Optional/legacy podcasts app."),
@@ -260,14 +260,14 @@ var builtinProfiles = []Profile{
 		},
 	},
 	{
-		ID: "oneplus-android",
-		Name: "OnePlus / OxygenOS",
-		DeviceFamily: "OnePlus Android",
-		Description: "OnePlus optional-app profile with launchers, telephony, security and framework packages protected by risk classification.",
-		SourceName: "PixelCode01/UIBloatwareRegistry",
-		SourceURL: sourceRegistryURL + "/blob/main/OnePlus/oneplus-bloatware-list.md",
+		ID:            "oneplus-android",
+		Name:          "OnePlus / OxygenOS",
+		DeviceFamily:  "OnePlus Android",
+		Description:   "OnePlus optional-app profile with launchers, telephony, security and framework packages protected by risk classification.",
+		SourceName:    "PixelCode01/UIBloatwareRegistry",
+		SourceURL:     sourceRegistryURL + "/blob/main/OnePlus/oneplus-bloatware-list.md",
 		SourceLicense: "MIT",
-		Criteria: MatchCriteria{Manufacturers: []string{"oneplus"}, Brands: []string{"oneplus"}},
+		Criteria:      MatchCriteria{Manufacturers: []string{"oneplus"}, Brands: []string{"oneplus"}},
 		Rules: []PackageRule{
 			safe("com.oneplus.account", "OnePlus Account", "OnePlus services", "Optional OnePlus account service."),
 			safe("com.oneplus.backuprestore", "Clone Phone", "OnePlus apps", "Optional migration tool."),
@@ -294,14 +294,14 @@ var builtinProfiles = []Profile{
 		},
 	},
 	{
-		ID: "generic-google-optional",
-		Name: "Generic Android optional Google apps",
-		DeviceFamily: "Android",
-		Description: "Fallback profile for commonly preinstalled optional Google applications. Core Play Services, framework, telephony, launcher and accessibility packages are intentionally absent.",
-		SourceName: "PixelCode01/UIBloatwareRegistry + farag2/ADB-Debloating",
-		SourceURL: sourceADBDebloatURL,
+		ID:            "generic-google-optional",
+		Name:          "Generic Android optional Google apps",
+		DeviceFamily:  "Android",
+		Description:   "Fallback profile for commonly preinstalled optional Google applications. Core Play Services, framework, telephony, launcher and accessibility packages are intentionally absent.",
+		SourceName:    "PixelCode01/UIBloatwareRegistry + farag2/ADB-Debloating",
+		SourceURL:     sourceADBDebloatURL,
 		SourceLicense: "MIT",
-		Criteria: MatchCriteria{Generic: true},
+		Criteria:      MatchCriteria{Generic: true},
 		Rules: []PackageRule{
 			safe("com.google.android.apps.docs", "Google Drive", "Google apps", "Optional Drive app."),
 			safe("com.google.android.apps.photos", "Google Photos", "Google apps", "Optional Photos app."),
@@ -380,6 +380,9 @@ func profileSummary(profile Profile, score int, recommended bool) ProfileSummary
 }
 
 func profileMatchScore(profile Profile, info device.Info) int {
+	if !profileEligible(profile, info) {
+		return 0
+	}
 	c := profile.Criteria
 	if c.TVOnly && !info.IsTV {
 		return 0
@@ -414,9 +417,30 @@ func containsAny(value string, needles []string) bool {
 	}
 	for _, needle := range needles {
 		needle = strings.ToLower(strings.TrimSpace(needle))
-		if needle != "" && strings.Contains(value, needle) {
+		if needle != "" && value == needle {
 			return true
 		}
 	}
 	return false
+}
+
+// Eligibility is a safety constraint; a score only ranks eligible profiles.
+// Manufacturer/brand are alternative family identifiers; model/codename are
+// alternative exact device identifiers. A device-specific profile needs both
+// its family (when specified) and its exact identity to match.
+func profileEligible(profile Profile, info device.Info) bool {
+	c := profile.Criteria
+	if c.TVOnly && !info.IsTV {
+		return false
+	}
+	codename := info.Codename
+	if codename == "" {
+		codename = info.Device
+	}
+	familySpecified := len(c.Manufacturers) > 0 || len(c.Brands) > 0
+	familyMatches := containsAny(info.Manufacturer, c.Manufacturers) || containsAny(info.Brand, c.Brands)
+	identitySpecified := len(c.Models) > 0 || len(c.Codenames) > 0
+	identityMatches := containsAny(info.Model, c.Models) || containsAny(codename, c.Codenames)
+	return (!familySpecified || familyMatches) && (!identitySpecified || identityMatches) &&
+		(c.Generic || familySpecified || identitySpecified)
 }

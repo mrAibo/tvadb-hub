@@ -3,6 +3,8 @@ package app
 import (
 	"ADBKit/internal/binary"
 	"ADBKit/internal/core"
+	"ADBKit/internal/tuning"
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -23,6 +25,17 @@ func newTestApp(t *testing.T) (*App, string) {
 		binSvc:  binary.NewService(dataDir),
 	}
 	return a, dataDir
+}
+
+func TestApplySafeTuningRejectsMissingOrChangedConfirmedTarget(t *testing.T) {
+	a, _ := newTestApp(t)
+	a.ctx = context.Background()
+	a.activeSerial = "B"
+	for _, serial := range []string{"", "A"} {
+		if _, err := a.ApplySafeTuning(tuning.ApplyRequest{ExpectedSerial: serial, Mode: tuning.ActionDisable}); err == nil {
+			t.Fatalf("accepted target %q", serial)
+		}
+	}
 }
 
 func TestSetCustomBinary_RejectsUnsupportedName(t *testing.T) {
@@ -226,7 +239,6 @@ func TestSaveWirelessHistoryRejectsInvalidAddress(t *testing.T) {
 		t.Fatal("expected invalid wireless address to be rejected")
 	}
 }
-
 
 func TestUpdatePreferencesRejectsInvalidFileTransferCompression(t *testing.T) {
 	app, _ := newTestApp(t)

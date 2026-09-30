@@ -28,6 +28,30 @@ func TestPhoneDoesNotReceiveTVOnlyProfile(t *testing.T) {
 	}
 }
 
+func TestSpecificTVProfilesRejectOtherModelsOfSameManufacturer(t *testing.T) {
+	for _, info := range []device.Info{
+		{Manufacturer: "Amazon", Model: "AFTMM", Codename: "mantis", IsTV: true},
+		{Manufacturer: "Sharp", Model: "Other TV", Codename: "other", IsTV: true},
+		{Manufacturer: "Amazon", Model: "prefix AFTKRT suffix", IsTV: true},
+	} {
+		for _, profile := range ProfilesForDevice(info) {
+			if profile.ID == "fire-tv-karat" || profile.ID == "sharp-google-tv-maniatika" {
+				t.Fatalf("specific profile matched wrong device: %+v -> %+v", info, profile)
+			}
+		}
+	}
+}
+
+func TestProfileExactIdentityCannotOverrideFamilyMismatch(t *testing.T) {
+	profile, _ := FindProfile("fire-tv-karat")
+	if profileMatchScore(profile, device.Info{Manufacturer: "Other", Model: "AFTKRT", IsTV: true}) != 0 {
+		t.Fatal("family mismatch accepted")
+	}
+	if profileMatchScore(profile, device.Info{Manufacturer: "Amazon", Codename: "KARAT", IsTV: true}) == 0 {
+		t.Fatal("exact codename not accepted")
+	}
+}
+
 func TestSamsungGetsBrandProfileAndGenericFallback(t *testing.T) {
 	info := device.Info{Manufacturer: "Samsung", Brand: "samsung", Model: "SM-S928B"}
 	profiles := ProfilesForDevice(info)

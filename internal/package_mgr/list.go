@@ -4,12 +4,26 @@ import (
 	"ADBKit/internal/core"
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
 func (s *Service) ListPackages(ctx context.Context, filterType string) ([]Info, error) {
+	serial, err := s.requireActiveSerial(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// Pin all concurrent queries to the same device and binary.
+	bound := *s
+	paths := s.getBinPath()
+	bound.resolveActiveSerial = func(context.Context) (string, error) { return serial, nil }
+	bound.getBinPath = func() core.BinaryPaths { return paths }
+	return bound.listPackages(ctx, filterType)
+}
+
+func (s *Service) listPackages(ctx context.Context, filterType string) ([]Info, error) {
 	scope, err := normalizeFilter(filterType)
 	if err != nil {
 		return nil, err
@@ -97,11 +111,14 @@ func (s *Service) queryPackages(ctx context.Context, filterFlag string, isSystem
 	}
 
 	args := []string{"-s", serial, "shell", "pm", "list", "packages", statusFlag}
+	if s.userID != nil {
+		args = append(args, "--user", strconv.Itoa(*s.userID))
+	}
 	if filterFlag != "" {
 		args = append(args, filterFlag)
 	}
 
-	result, err := core.RunCommand(ctx, core.ExecRequest{
+	result, err := s.execute(ctx, core.ExecRequest{
 		Command: s.getBinPath().Adb,
 		Args:    args,
 		Timeout: 15 * time.Second,
