@@ -339,3 +339,85 @@ func TestMergeProfilesPreservesBuiltinSafetyFloor(t *testing.T) {
 	}
 }
 
+func TestRollbackSwapsVerifiedCaches(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := FeedConfig{
+		URL:       "https://example.com/feed.json",
+		PublicKey: base64.StdEncoding.EncodeToString(publicKey),
+	}
+	manager := newFeedManager(t.TempDir())
+	manager.setResolver(func() FeedConfig { return config })
+
+	signRevision := func(revision uint64, version string) []byte {
+		t.Helper()
+		payload := validFeedPayloadForTest()
+		payload.Revision = revision
+		payload.Version = version
+		payloadBytes, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		envelope, err := SignFeedPayload(payloadBytes, privateKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return envelope
+	}
+
+	current := signRevision(2, "2")
+	previous := signRevision(1, "1")
+	if err := os.MkdirAll(manager.cacheDirFor(config), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manager.currentPathFor(config), current, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manager.previousPathFor(config), previous, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manager.mu.Lock()
+	verifiedCurrent, err := verifySignedFeed(current, config.PublicKey)
+	if err != nil {
+		manager.mu.Unlock()
+		t.Fatal(err)
+	}
+	manager.activateLocked(verifiedCurrent, "cache", "test")
+	manager.status.CanRollback = true
+	manager.mu.Unlock()
+
+	status, err := manager.rollback()
+	if err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
+	if status.Revision != 1 || !status.CanRollback {
+		t.Fatalf("unexpected rollback status: %+v", status)
+	}
+
+	currentAfter, err := os.ReadFile(manager.currentPathFor(config))
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifiedCurrentAfter, err := verifySignedFeed(currentAfter, config.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verifiedCurrentAfter.payload.Revision != 1 {
+		t.Fatalf("current revision=%d, want 1", verifiedCurrentAfter.payload.Revision)
+	}
+
+	previousAfter, err := os.ReadFile(manager.previousPathFor(config))
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifiedPreviousAfter, err := verifySignedFeed(previousAfter, config.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verifiedPreviousAfter.payload.Revision != 2 {
+		t.Fatalf("previous revision=%d, want 2", verifiedPreviousAfter.payload.Revision)
+	}
+}
+

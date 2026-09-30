@@ -732,13 +732,23 @@ func (m *feedManager) rollback() (FeedStatus, error) {
 		_, currentVerifyErr := verifySignedFeed(currentData, config.PublicKey)
 		currentValid = currentVerifyErr == nil
 	}
-	if err := core.WriteFileAtomicWithMode(m.currentPathFor(config), previousData, 0o600); err != nil {
-		return m.statusSnapshot(), err
-	}
+
+	// Preserve the current verified revision in the rollback slot before
+	// switching current. If the second write fails, the active on-disk
+	// revision remains unchanged and runtime state stays consistent.
 	if currentValid {
 		if err := core.WriteFileAtomicWithMode(m.previousPathFor(config), currentData, 0o600); err != nil {
 			return m.statusSnapshot(), err
 		}
+	}
+	if err := core.WriteFileAtomicWithMode(m.currentPathFor(config), previousData, 0o600); err != nil {
+		if currentValid {
+			// Best effort: restore the previous rollback point after a failed
+			// current switch. Even if this repair fails, current still points
+			// at the original verified revision.
+			_ = core.WriteFileAtomicWithMode(m.previousPathFor(config), previousData, 0o600)
+		}
+		return m.statusSnapshot(), err
 	}
 
 	m.mu.Lock()
@@ -759,11 +769,7 @@ func (m *feedManager) validPreviousLocked() bool {
 }
 
 func (m *feedManager) cacheDirFor(config FeedConfig) string {
-	fingerprint := configFingerprint(config)
-	if len(fingerprint) > 16 {
-		fingerprint = fingerprint[:16]
-	}
-	return filepath.Join(m.dataDir, "safe-tuning-feed", fingerprint)
+	return filepath.Join(m.dataDir, "safe-tuning-feed", configFingerprint(config))
 }
 
 func (m *feedManager) currentPathFor(config FeedConfig) string {
