@@ -618,8 +618,14 @@ func (m *feedManager) promoteCache(data []byte, config FeedConfig) error {
 		return core.NewOperationError("safe_tuning_feed_cache", "Failed to create Safe Tuning metadata cache", err.Error(), true)
 	}
 	if current, err := os.ReadFile(m.currentPathFor(config)); err == nil {
-		if err := core.WriteFileAtomicWithMode(m.previousPathFor(config), current, 0o600); err != nil {
-			return err
+		// Only rotate a verified current cache into the rollback slot. If the
+		// current file is corrupt, loadCachedLocked may already be running from
+		// a valid previous cache; copying the corrupt file here would destroy
+		// that last-known-good rollback point.
+		if _, verifyErr := verifySignedFeed(current, config.PublicKey); verifyErr == nil {
+			if err := core.WriteFileAtomicWithMode(m.previousPathFor(config), current, 0o600); err != nil {
+				return err
+			}
 		}
 	}
 	if err := core.WriteFileAtomicWithMode(m.currentPathFor(config), data, 0o600); err != nil {

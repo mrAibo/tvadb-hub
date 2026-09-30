@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"os"
 	"testing"
 	"time"
 )
@@ -200,3 +201,78 @@ func TestFeedCacheNamespaceBindsURLAndPublicKey(t *testing.T) {
 		t.Fatal("different trust configurations must not share a metadata cache")
 	}
 }
+
+func TestPromoteCachePreservesVerifiedPreviousWhenCurrentIsInvalid(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := FeedConfig{
+		URL:       "https://example.com/feed.json",
+		PublicKey: base64.StdEncoding.EncodeToString(publicKey),
+	}
+	manager := newFeedManager(t.TempDir())
+	if err := os.MkdirAll(manager.cacheDirFor(config), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	previousPayload := validFeedPayloadForTest()
+	previousPayload.Revision = 1
+	previousPayload.Version = "1"
+	previousBytes, err := json.Marshal(previousPayload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousEnvelope, err := SignFeedPayload(previousBytes, privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	newPayload := validFeedPayloadForTest()
+	newPayload.Revision = 2
+	newPayload.Version = "2"
+	newBytes, err := json.Marshal(newPayload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newEnvelope, err := SignFeedPayload(newBytes, privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(manager.previousPathFor(config), previousEnvelope, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manager.currentPathFor(config), []byte("{corrupt"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := manager.promoteCache(newEnvelope, config); err != nil {
+		t.Fatalf("promoteCache: %v", err)
+	}
+
+	preservedPrevious, err := os.ReadFile(manager.previousPathFor(config))
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifiedPrevious, err := verifySignedFeed(preservedPrevious, config.PublicKey)
+	if err != nil {
+		t.Fatalf("previous cache should remain valid: %v", err)
+	}
+	if verifiedPrevious.payload.Revision != 1 {
+		t.Fatalf("previous revision=%d, want 1", verifiedPrevious.payload.Revision)
+	}
+
+	current, err := os.ReadFile(manager.currentPathFor(config))
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifiedCurrent, err := verifySignedFeed(current, config.PublicKey)
+	if err != nil {
+		t.Fatalf("current cache should be replaced with verified metadata: %v", err)
+	}
+	if verifiedCurrent.payload.Revision != 2 {
+		t.Fatalf("current revision=%d, want 2", verifiedCurrent.payload.Revision)
+	}
+}
+
