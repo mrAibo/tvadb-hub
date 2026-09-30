@@ -23,6 +23,13 @@ Additional hardening in 0.1.1:
   restricted to 1..65535.
 - Wireless pairing codes must contain exactly six digits.
 - CR/LF/control-style endpoint input is rejected.
+- TV/scrcpy clipboard text is explicitly POSIX-shell quoted before it is
+  embedded in an `adb shell` command. This closes an older clipboard path where
+  ADB would otherwise join unescaped user-controlled argv into the remote shell
+  command.
+- TV text entry uses clipboard+PASTE for Unicode and permits `input text` only
+  for a bounded printable-ASCII fallback; shell metacharacters remain inside a
+  quoted argument.
 
 The interactive Terminal is intentionally different: it is an explicit
 developer shell. Commands typed there are expected to execute on the selected

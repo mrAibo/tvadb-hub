@@ -15,6 +15,7 @@ func TestResolveTVRemoteKey(t *testing.T) {
 		{"ok", "KEYCODE_DPAD_CENTER", "ok"},
 		{"enter", "KEYCODE_DPAD_CENTER", "enter"},
 		{"wake", "KEYCODE_WAKEUP", "wake"},
+		{"paste", "KEYCODE_PASTE", "paste"},
 	}
 
 	for _, tc := range cases {

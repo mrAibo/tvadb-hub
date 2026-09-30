@@ -2,8 +2,8 @@ package scrcpy
 
 import (
 	"ADBKit/internal/core"
-	"os/exec"
 	"strings"
+	"time"
 )
 
 func (s *Service) PushClipboard(serial, text string) error {
@@ -30,13 +30,38 @@ func (s *Service) PushClipboard(serial, text string) error {
 		return err
 	}
 
-	cmd := exec.CommandContext(s.ctx, adbPath, "-s", trimmedSerial, "shell", "cmd", "clipboard", "set", text)
-	core.ConfigureChildProcess(cmd)
-	if out, runErr := cmd.CombinedOutput(); runErr != nil {
+	if strings.ContainsRune(text, '\x00') {
+		return core.NewOperationError(
+			"push_scrcpy_clipboard",
+			"Clipboard text is invalid",
+			"text contains a null byte",
+			false,
+		)
+	}
+
+	result, runErr := core.RunCommand(s.ctx, core.ExecRequest{
+		Command: adbPath,
+		Args: []string{
+			"-s", trimmedSerial, "shell",
+			buildClipboardSetCommand(text),
+		},
+		Timeout: 5 * time.Second,
+	})
+	if runErr != nil || result == nil || result.ExitCode != 0 {
+		detail := ""
+		if result != nil {
+			detail = strings.TrimSpace(result.Stderr)
+			if detail == "" {
+				detail = strings.TrimSpace(result.Stdout)
+			}
+		}
+		if detail == "" && runErr != nil {
+			detail = runErr.Error()
+		}
 		return core.NewOperationError(
 			"push_scrcpy_clipboard",
 			"Failed to push clipboard to device",
-			strings.TrimSpace(string(out)),
+			detail,
 			true,
 		)
 	}
@@ -61,17 +86,33 @@ func (s *Service) GetClipboard(serial string) (string, error) {
 		return "", err
 	}
 
-	cmd := exec.CommandContext(s.ctx, adbPath, "-s", trimmedSerial, "shell", "cmd", "clipboard", "get")
-	core.ConfigureChildProcess(cmd)
-	out, runErr := cmd.CombinedOutput()
-	if runErr != nil {
+	result, runErr := core.RunCommand(s.ctx, core.ExecRequest{
+		Command: adbPath,
+		Args:    []string{"-s", trimmedSerial, "shell", "cmd clipboard get"},
+		Timeout: 5 * time.Second,
+	})
+	if runErr != nil || result == nil || result.ExitCode != 0 {
+		detail := ""
+		if result != nil {
+			detail = strings.TrimSpace(result.Stderr)
+			if detail == "" {
+				detail = strings.TrimSpace(result.Stdout)
+			}
+		}
+		if detail == "" && runErr != nil {
+			detail = runErr.Error()
+		}
 		return "", core.NewOperationError(
 			"get_scrcpy_clipboard",
 			"Failed to read clipboard from device",
-			strings.TrimSpace(string(out)),
+			detail,
 			true,
 		)
 	}
 	s.logAudit("get_scrcpy_clipboard", trimmedSerial, true, "")
-	return strings.TrimRight(string(out), "\r\n"), nil
+	return strings.TrimRight(result.Stdout, "\r\n"), nil
+}
+
+func buildClipboardSetCommand(text string) string {
+	return "cmd clipboard set " + core.QuoteShellArg(text)
 }
