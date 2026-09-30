@@ -14,6 +14,8 @@ const DEFAULT_OPTIONS: ScrcpyOptions = {
   max_fps: 0,
   audio_bit_rate: 128000,
   audio_codec: 'opus',
+  audio_source: 'output',
+  audio_only: false,
   video_codec: 'h264',
   show_touches: false,
   no_audio: false,

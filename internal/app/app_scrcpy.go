@@ -7,6 +7,24 @@ import (
 
 func (a *App) UpdateScrcpyOptions(options core.ScrcpyOptions) error {
 	return auditVoidAction(a, "update_scrcpy_options", func() error {
+		if options.AudioSource != "" && !core.IsValidScrcpyAudioSource(options.AudioSource) {
+			return core.NewOperationError(
+				"update_scrcpy_options",
+				"unsupported scrcpy audio source",
+				options.AudioSource,
+				false,
+			)
+		}
+		if options.AudioOnly && options.NoAudio {
+			return core.NewOperationError(
+				"update_scrcpy_options",
+				"audio-only mode cannot disable audio",
+				"disable Audio-only before disabling audio",
+				false,
+			)
+		}
+		options = core.NormalizeScrcpyOptions(options)
+
 		a.mu.Lock()
 		defer a.mu.Unlock()
 

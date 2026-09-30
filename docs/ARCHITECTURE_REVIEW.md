@@ -13,13 +13,13 @@ protocol stack. Keep the official ADB client as the compatibility baseline and
 introduce direct ADB-server protocol access only where profiling shows a clear
 benefit, such as continuous device tracking.
 
-Backend Logcat event batching, ADB CLI transfer compression and optional
-post-transfer SHA-256 verification are now implemented. The next high-value
-engineering work should instead focus on:
+Backend Logcat event batching, ADB CLI transfer compression, optional
+post-transfer SHA-256 verification, safe TV text entry and scrcpy audio-source
+controls are now implemented. The next high-value engineering work should
+instead focus on:
 
 1. Richer Logcat crash/ANR filtering and saved filters.
-2. Better TV text input using clipboard/scrcpy-first fallbacks.
-3. A separately versioned, signed Safe Tuning metadata feed with explicit
+2. A separately versioned, signed Safe Tuning metadata feed with explicit
    licensing and rollback.
 
 ## 1. Native ADB Client Protocol
@@ -241,15 +241,21 @@ Tool Locations exposes the resolved source, version and path.
 
 ### scrcpy audio forwarding
 
-**Verdict: already implemented.**
+**Status: audio-source and audio-only UX implemented.**
 
-Current scrcpy options expose audio enable/disable, codec and bitrate controls.
-Upstream scrcpy supports audio forwarding on Android 11+, with Android 12+
-working without the Android-11 foreground workaround.
+DroidSphere keeps the existing codec/bitrate controls and now also exposes
+`output`, `playback` and `mic` sources plus an audio-only mode implemented
+with upstream scrcpy's `--no-video --no-control` combination.
 
-Future scrcpy work should focus on source selection (output/playback/mic),
-audio-only sessions and clearer capability hints rather than merely adding an
-"audio enabled" switch.
+Compatibility is handled explicitly:
+
+- audio forwarding is presented as Android 11+;
+- Android 11 users are reminded that the device must be unlocked when capture
+  starts;
+- the `playback` source is gated to Android 13+ when the SDK is known;
+- the Go backend validates source names and incompatible `audio_only +
+  no_audio` requests rather than trusting the WebView;
+- legacy settings and TVADB-compatible backups normalize to `output`.
 
 ## 7. Security review status
 
@@ -285,7 +291,7 @@ than the previous per-line IPC pressure issue.
 | Done | Transfer SHA-256 verification | Low-Medium | Completed |
 | Done | TV text-entry panel | Low-Medium | Completed |
 | P2 | Signed/versioned Safe Tuning metadata feed | Medium-High | Do carefully |
-| P2 | scrcpy audio-source/audio-only UX | Low | Do |
+| Done | scrcpy audio-source/audio-only UX | Low | Completed |
 | P3 | Focused ADB smart-socket client | Medium | Prototype + benchmark |
 | P3 | Custom launcher wizard | Medium-High | TV-specific, guarded |
 | P3 | Macro engine | Medium | Later |

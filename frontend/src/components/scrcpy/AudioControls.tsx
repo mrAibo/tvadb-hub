@@ -1,7 +1,8 @@
-import type { ScrcpyOptions } from '@/lib/types'
+import type { ScrcpyAudioSource, ScrcpyOptions } from '@/lib/types'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { getScrcpyAudioCapability } from '@/components/scrcpy/audioCapabilities'
 import {
   Select,
   SelectContent,
@@ -12,6 +13,7 @@ import {
 
 interface AudioControlsProps {
   options: ScrcpyOptions
+  sdkVersion?: string
   onOptionChange: (key: string, value: number | string | boolean) => void
 }
 
@@ -28,27 +30,88 @@ const AUDIO_CODECS: AudioChoice[] = [
   { value: 'raw', name: 'RAW', description: 'Uncompressed PCM' },
 ]
 
-export function AudioControls({ options, onOptionChange }: AudioControlsProps) {
+const AUDIO_SOURCES: Array<AudioChoice & { value: ScrcpyAudioSource; minSdk: number }> = [
+  { value: 'output', name: 'Device output', description: 'Forward the whole output; device playback may be suppressed', minSdk: 30 },
+  { value: 'playback', name: 'Playback', description: 'Capture app playback where Android permits it', minSdk: 33 },
+  { value: 'mic', name: 'Microphone', description: 'Capture the device microphone', minSdk: 30 },
+]
+
+export function AudioControls({ options, sdkVersion, onOptionChange }: AudioControlsProps) {
+  const capability = getScrcpyAudioCapability(sdkVersion)
+  const sourceDisabled = options.no_audio || !capability.audioSupported
+  const audioOnlyDisabled = options.no_audio || !capability.audioSupported
+
   return (
     <div className="space-y-4">
-      {/* Disable Audio Switch */}
       <div className="flex items-center justify-between gap-4 py-1">
         <div className="space-y-0.5">
           <Label htmlFor="no-audio" className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
             Disable Audio
           </Label>
           <p className="text-[10px] text-muted-foreground leading-relaxed">
-            Mute audio capture during mirroring.
+            Disable audio forwarding for ordinary video mirroring.
           </p>
         </div>
         <Switch
           id="no-audio"
           checked={options.no_audio}
+          disabled={options.audio_only}
           onCheckedChange={(checked) => onOptionChange('no_audio', checked)}
         />
       </div>
 
-      {/* Audio Codec Select */}
+      <div className="flex items-center justify-between gap-4 border-t border-border/50 pt-3">
+        <div className="space-y-0.5">
+          <Label htmlFor="audio-only" className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+            Audio-only
+          </Label>
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            Start scrcpy with no video and no device control.
+          </p>
+        </div>
+        <Switch
+          id="audio-only"
+          checked={options.audio_only}
+          disabled={audioOnlyDisabled}
+          onCheckedChange={(checked) => onOptionChange('audio_only', checked)}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="audio-source" className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+          Audio Source
+        </Label>
+        <Select
+          value={options.audio_source || 'output'}
+          onValueChange={(value) => onOptionChange('audio_source', String(value ?? 'output'))}
+          disabled={sourceDisabled}
+        >
+          <SelectTrigger id="audio-source" className="h-8.5 rounded-full text-xs bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 focus:ring-1 focus:ring-zinc-400">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="min-w-[280px] rounded-2xl border-zinc-200 dark:border-zinc-800">
+            {AUDIO_SOURCES.map((source) => (
+              <SelectItem
+                key={source.value}
+                value={source.value}
+                disabled={capability.detected && (capability.sdk ?? 0) < source.minSdk}
+                className="py-2 cursor-pointer"
+              >
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-semibold">{source.name}</span>
+                  <span className="text-[10px] text-muted-foreground whitespace-normal">
+                    {source.description}{source.value === 'playback' ? ' · Android 13+' : ''}
+                  </span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className={capability.audioSupported ? 'text-[10px] text-muted-foreground' : 'text-[10px] text-destructive'}>
+          {capability.hint}
+        </p>
+      </div>
+
       <div className="space-y-1.5">
         <Label htmlFor="audio-codec" className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
           Audio Codec
@@ -56,7 +119,7 @@ export function AudioControls({ options, onOptionChange }: AudioControlsProps) {
         <Select
           value={options.audio_codec || 'opus'}
           onValueChange={(value) => onOptionChange('audio_codec', String(value ?? 'opus'))}
-          disabled={options.no_audio}
+          disabled={sourceDisabled}
         >
           <SelectTrigger id="audio-codec" className="h-8.5 rounded-full text-xs bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 focus:ring-1 focus:ring-zinc-400">
             <SelectValue />
@@ -76,7 +139,6 @@ export function AudioControls({ options, onOptionChange }: AudioControlsProps) {
         </Select>
       </div>
 
-      {/* Audio Bitrate */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <Label htmlFor="audio-bit-rate" className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
@@ -95,7 +157,7 @@ export function AudioControls({ options, onOptionChange }: AudioControlsProps) {
             min={0}
             step={8}
             value={options.audio_bit_rate === 0 ? 0 : Math.round(options.audio_bit_rate / 1000)}
-            disabled={options.no_audio}
+            disabled={sourceDisabled}
             onChange={(e) => {
               const kbps = parseFloat(e.target.value) || 0
               onOptionChange('audio_bit_rate', Math.round(kbps * 1000))

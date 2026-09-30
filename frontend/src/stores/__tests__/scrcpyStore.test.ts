@@ -28,6 +28,8 @@ describe('useScrcpyStore options', () => {
 
     expect(useScrcpyStore.getState().options.max_size).toBe(0)
     expect(useScrcpyStore.getState().options.no_audio).toBe(false)
+    expect(useScrcpyStore.getState().options.audio_source).toBe('output')
+    expect(useScrcpyStore.getState().options.audio_only).toBe(false)
     expect(useScrcpyStore.getState().options.stay_awake).toBe(true)
   })
 })

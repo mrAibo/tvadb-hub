@@ -65,7 +65,7 @@ device, Android version and authorization state.
 
 ### Screen, shell and logs
 
-- scrcpy presets and session controls.
+- scrcpy presets and session controls, including output/playback/mic audio sources and audio-only mode.
 - Screenshot capture.
 - Recording-oriented scrcpy controls and clipboard integration where supported.
 - Interactive ADB shell.

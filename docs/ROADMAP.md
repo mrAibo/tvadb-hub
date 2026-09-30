@@ -17,6 +17,7 @@ devices.
 - [x] Safe Tuning profiles with risk levels, snapshots and exact restore
 - [x] Dual-pane host ↔ Android file manager
 - [x] scrcpy presets, recording controls, screenshot capture and clipboard support
+- [x] scrcpy audio source selection and audio-only sessions with Android capability hints
 - [x] Interactive shell and live Logcat
 - [x] Backend Logcat IPC batching with bounded interval/size flushes
 - [x] Capability-aware ADB push/pull compression with Auto/Off/algorithm preferences

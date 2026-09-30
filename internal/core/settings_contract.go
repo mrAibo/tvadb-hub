@@ -1,9 +1,17 @@
 package core
 
+import "strings"
+
 type ScrcpyPreset struct {
 	Name    string        `json:"name"`
 	Options ScrcpyOptions `json:"options"`
 }
+
+const (
+	ScrcpyAudioSourceOutput   = "output"
+	ScrcpyAudioSourcePlayback = "playback"
+	ScrcpyAudioSourceMic      = "mic"
+)
 
 type ScrcpyOptions struct {
 	MaxSize            int    `json:"max_size"`
@@ -11,6 +19,8 @@ type ScrcpyOptions struct {
 	MaxFPS             int    `json:"max_fps"`
 	AudioBitRate       int    `json:"audio_bit_rate"`
 	AudioCodec         string `json:"audio_codec"`
+	AudioSource        string `json:"audio_source"`
+	AudioOnly          bool   `json:"audio_only"`
 	VideoCodec         string `json:"video_codec"`
 	ShowTouches        bool   `json:"show_touches"`
 	NoAudio            bool   `json:"no_audio"`
@@ -31,6 +41,7 @@ func DefaultScrcpyOptions() ScrcpyOptions {
 		BitRate:      8_000_000,
 		AudioBitRate: 128_000,
 		AudioCodec:   "opus",
+		AudioSource:  ScrcpyAudioSourceOutput,
 		VideoCodec:   "h264",
 		StayAwake:    true,
 	}
@@ -78,4 +89,35 @@ type RuntimeDiagnostics struct {
 	Theme            string            `json:"theme"`
 	BinaryVersions   map[string]string `json:"binary_versions"`
 	Capabilities     map[string]bool   `json:"capabilities"`
+}
+
+
+func IsValidScrcpyAudioSource(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case ScrcpyAudioSourceOutput, ScrcpyAudioSourcePlayback, ScrcpyAudioSourceMic:
+		return true
+	default:
+		return false
+	}
+}
+
+// NormalizeScrcpyOptions keeps old config files and TVADB settings backups
+// compatible while ensuring newly-added audio fields have safe defaults.
+func NormalizeScrcpyOptions(options ScrcpyOptions) ScrcpyOptions {
+	source := strings.ToLower(strings.TrimSpace(options.AudioSource))
+	if !IsValidScrcpyAudioSource(source) {
+		source = ScrcpyAudioSourceOutput
+	}
+	options.AudioSource = source
+	if options.NoAudio {
+		options.AudioOnly = false
+	}
+	return options
+}
+
+func NormalizeScrcpyPresets(presets []ScrcpyPreset) []ScrcpyPreset {
+	for i := range presets {
+		presets[i].Options = NormalizeScrcpyOptions(presets[i].Options)
+	}
+	return presets
 }

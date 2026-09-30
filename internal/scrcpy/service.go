@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +40,8 @@ type Options struct {
 	MaxFPS             int    `json:"max_fps"`
 	AudioBitRate       int    `json:"audio_bit_rate"`
 	AudioCodec         string `json:"audio_codec"`
+	AudioSource        string `json:"audio_source"`
+	AudioOnly          bool   `json:"audio_only"`
 	VideoCodec         string `json:"video_codec"`
 	ShowTouches        bool   `json:"show_touches"`
 	NoAudio            bool   `json:"no_audio"`
@@ -56,62 +59,138 @@ type Options struct {
 
 func (o Options) ToArgs() []string {
 	args := []string{}
-	if o.MaxSize > 0 {
-		args = append(args, "--max-size", fmt.Sprintf("%d", o.MaxSize))
+
+	if !o.AudioOnly {
+		if o.MaxSize > 0 {
+			args = append(args, "--max-size", fmt.Sprintf("%d", o.MaxSize))
+		}
+		if o.BitRate > 0 {
+			args = append(args, "--video-bit-rate", fmt.Sprintf("%d", o.BitRate))
+		}
+		if o.MaxFPS > 0 {
+			args = append(args, "--max-fps", fmt.Sprintf("%d", o.MaxFPS))
+		}
+		if o.VideoCodec != "" && o.VideoCodec != "h264" {
+			args = append(args, "--video-codec", o.VideoCodec)
+		}
+		if o.ShowTouches {
+			args = append(args, "--show-touches")
+		}
 	}
-	if o.BitRate > 0 {
-		args = append(args, "--video-bit-rate", fmt.Sprintf("%d", o.BitRate))
-	}
-	if o.MaxFPS > 0 {
-		args = append(args, "--max-fps", fmt.Sprintf("%d", o.MaxFPS))
-	}
+
 	if o.AudioBitRate > 0 {
 		args = append(args, "--audio-bit-rate", fmt.Sprintf("%d", o.AudioBitRate))
 	}
 	if o.AudioCodec != "" && o.AudioCodec != "opus" {
 		args = append(args, "--audio-codec", o.AudioCodec)
 	}
-	if o.VideoCodec != "" && o.VideoCodec != "h264" {
-		args = append(args, "--video-codec", o.VideoCodec)
-	}
-	if o.ShowTouches {
-		args = append(args, "--show-touches")
+	audioSource := o.normalizedAudioSource()
+	if !o.NoAudio && audioSource != core.ScrcpyAudioSourceOutput {
+		args = append(args, "--audio-source", audioSource)
 	}
 	if o.NoAudio {
 		args = append(args, "--no-audio")
 	}
-	if o.NoControl {
-		args = append(args, "--no-control")
+
+	if o.AudioOnly {
+		args = append(args, "--no-video", "--no-control")
+	} else {
+		if o.NoControl {
+			args = append(args, "--no-control")
+		}
+		if o.StayAwake {
+			args = append(args, "--stay-awake")
+		}
+		if o.TurnScreenOff {
+			args = append(args, "--turn-screen-off")
+		}
+		if o.PowerOffOnClose {
+			args = append(args, "--power-off-on-close")
+		}
+		if o.Fullscreen {
+			args = append(args, "--fullscreen")
+		}
+		if o.AlwaysOnTop {
+			args = append(args, "--always-on-top")
+		}
+		if o.DisableScreensaver {
+			args = append(args, "--disable-screensaver")
+		}
+		if o.Rotation > 0 {
+			args = append(args, "--display-orientation", fmt.Sprintf("%d", o.Rotation))
+		}
+		if o.DisplayID > 0 {
+			args = append(args, "--display-id", fmt.Sprintf("%d", o.DisplayID))
+		}
 	}
-	if o.StayAwake {
-		args = append(args, "--stay-awake")
-	}
-	if o.TurnScreenOff {
-		args = append(args, "--turn-screen-off")
-	}
-	if o.PowerOffOnClose {
-		args = append(args, "--power-off-on-close")
-	}
-	if o.Fullscreen {
-		args = append(args, "--fullscreen")
-	}
-	if o.AlwaysOnTop {
-		args = append(args, "--always-on-top")
-	}
-	if o.DisableScreensaver {
-		args = append(args, "--disable-screensaver")
-	}
-	if o.Rotation > 0 {
-		args = append(args, "--display-orientation", fmt.Sprintf("%d", o.Rotation))
-	}
-	if o.DisplayID > 0 {
-		args = append(args, "--display-id", fmt.Sprintf("%d", o.DisplayID))
-	}
+
 	if o.TimeLimit > 0 {
 		args = append(args, "--time-limit", fmt.Sprintf("%d", o.TimeLimit))
 	}
 	return args
 }
+
+func (o Options) normalizedAudioSource() string {
+	source := strings.ToLower(strings.TrimSpace(o.AudioSource))
+	if source == "" {
+		return core.ScrcpyAudioSourceOutput
+	}
+	return source
+}
+
+func (o Options) Validate() error {
+	source := o.normalizedAudioSource()
+	if !core.IsValidScrcpyAudioSource(source) {
+		return core.NewOperationError(
+			"validate_scrcpy_options",
+			"Unsupported scrcpy audio source",
+			fmt.Sprintf("audio source %q is not supported", o.AudioSource),
+			false,
+		)
+	}
+	if o.AudioOnly && o.NoAudio {
+		return core.NewOperationError(
+			"validate_scrcpy_options",
+			"Audio-only mode cannot disable audio",
+			"turn off Disable Audio before enabling Audio-only mode",
+			false,
+		)
+	}
+	return nil
+}
+
+func validateAudioCompatibility(o Options, sdk int) error {
+	if sdk <= 0 || o.NoAudio {
+		return nil
+	}
+	source := o.normalizedAudioSource()
+	if o.AudioOnly && sdk < 30 {
+		return core.NewOperationError(
+			"validate_scrcpy_audio",
+			"Audio-only mode requires Android 11 or newer",
+			fmt.Sprintf("device SDK is %d", sdk),
+			false,
+		)
+	}
+	if source != core.ScrcpyAudioSourceOutput && sdk < 30 {
+		return core.NewOperationError(
+			"validate_scrcpy_audio",
+			"Selected audio source requires Android 11 or newer",
+			fmt.Sprintf("device SDK is %d", sdk),
+			false,
+		)
+	}
+	if source == core.ScrcpyAudioSourcePlayback && sdk < 33 {
+		return core.NewOperationError(
+			"validate_scrcpy_audio",
+			"Playback audio source requires Android 13 or newer",
+			fmt.Sprintf("device SDK is %d", sdk),
+			false,
+		)
+	}
+	return nil
+}
+
 
 type Session struct {
 	ID        string        `json:"id"`
@@ -171,6 +250,10 @@ func New(
 }
 
 func (s *Service) StartSession(ctx context.Context, serial string, opts Options) (*Session, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	resolvedSerial, err := s.resolveSerial(ctx, serial)
 	if err != nil {
 		return nil, err
@@ -182,6 +265,13 @@ func (s *Service) StartSession(ctx context.Context, serial string, opts Options)
 	}
 
 	adbPath, _ := s.resolveADBPath()
+	if adbPath != "" && !opts.NoAudio && (opts.AudioOnly || opts.normalizedAudioSource() != core.ScrcpyAudioSourceOutput) {
+		if sdk, sdkErr := detectAndroidSDK(ctx, adbPath, resolvedSerial); sdkErr == nil {
+			if err := validateAudioCompatibility(opts, sdk); err != nil {
+				return nil, err
+			}
+		}
+	}
 
 	s.mu.Lock()
 	if s.process != nil {
@@ -355,6 +445,26 @@ func (s *Service) getSession(sessionID string) (*scrcpyProcess, error) {
 		)
 	}
 	return s.process, nil
+}
+
+func detectAndroidSDK(ctx context.Context, adbPath string, serial string) (int, error) {
+	result, err := core.RunCommand(ctx, core.ExecRequest{
+		Command: adbPath,
+		Args:    []string{"-s", serial, "shell", "getprop", "ro.build.version.sdk"},
+		Timeout: 5 * time.Second,
+	})
+	if err != nil {
+		return 0, err
+	}
+	if result == nil || result.ExitCode != 0 {
+		return 0, fmt.Errorf("failed to detect Android SDK")
+	}
+	raw := strings.TrimSpace(result.Stdout)
+	sdk, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("invalid Android SDK value %q", raw)
+	}
+	return sdk, nil
 }
 
 func (s *Service) resolveSerial(ctx context.Context, serial string) (string, error) {

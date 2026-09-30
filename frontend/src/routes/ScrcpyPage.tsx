@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useScrcpy } from '@/hooks/useScrcpy'
 import { useScrcpyStore } from '@/stores/scrcpyStore'
+import { useDeviceStore } from '@/stores/useDeviceStore'
 import { getScrcpyEncoderSupport } from '@/services/scrcpyService'
 import { VideoContainer } from '@/components/scrcpy/VideoContainer'
 import { ControlDock } from '@/components/scrcpy/ControlDock'
@@ -85,6 +86,7 @@ export default function ScrcpyPage() {
   } = useScrcpy()
 
   const scrcpyOptions = useScrcpyStore((state) => state.options)
+  const deviceInfo = useDeviceStore((state) => state.deviceInfo)
   const setEncoderSupport = useScrcpyStore((state) => state.setEncoderSupport)
   const recordingStartedAt = useScrcpyStore(
     (state) => state.recordingStartedAt,
@@ -252,7 +254,7 @@ export default function ScrcpyPage() {
                   ) : (
                     <>
                       <Play className="h-4 w-4 fill-current" />
-                      Start session
+                      {scrcpyOptions.audio_only ? 'Start audio session' : 'Start session'}
                     </>
                   )}
                 </Button>
@@ -318,6 +320,7 @@ export default function ScrcpyPage() {
                     <Card className="border border-[var(--border)] dark:border-[var(--border)] bg-card dark:bg-[var(--muted)]/40 p-4 rounded-2xl shadow-[var(--shadow-card)]">
                       <AudioControls
                         options={scrcpyOptions}
+                        sdkVersion={deviceInfo?.sdkVersion}
                         onOptionChange={(key, val) => updateOptions({ ...scrcpyOptions, [key]: val })}
                       />
                     </Card>

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import type { ScrcpyOptions, ScrcpySessionEvent } from '@/lib/types'
+import {
+  describeScrcpyError,
+  getScrcpyRecordingDescriptor,
+} from '@/lib/scrcpyUX'
 import { useScrcpyStore } from '@/stores/scrcpyStore'
 import { useDeviceStore } from '@/stores/useDeviceStore'
 import { getAppConfig } from '@/services/settingsService'
@@ -28,30 +32,6 @@ function timestampedFilename(prefix: string, extension: string): string {
     .replace('T', '-')
     .replace('Z', '')
   return `${prefix}-${stamp}.${extension}`
-}
-
-function describeError(err: unknown): { title: string; description: string } {
-  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase()
-  if (msg.includes('scrcpy') || msg.includes('binary')) {
-    return {
-      title: 'Scrcpy binary missing',
-      description:
-        'Scrcpy executable not found. Install scrcpy or configure the path in Settings.',
-    }
-  }
-  if (msg.includes('device') || msg.includes('adb')) {
-    return { title: 'Device connection error', description: err instanceof Error ? err.message : String(err) }
-  }
-  if (msg.includes('unauthorized') || msg.includes('permission')) {
-    return {
-      title: 'Permission denied',
-      description: 'Device authorization required. Approve USB debugging on the device.',
-    }
-  }
-  return {
-    title: 'Operation failed',
-    description: err instanceof Error ? err.message : String(err),
-  }
 }
 
 export function useScrcpy() {
@@ -225,8 +205,11 @@ export function useScrcpy() {
   useEffect(() => {
     const unsubStarted = onScrcpySessionStarted((event: ScrcpySessionEvent) => {
       applyStartedEvent(event)
-      toast.success('Session started', {
-        description: `Mirroring device ${event.serial}`,
+      const audioOnly = useScrcpyStore.getState().options.audio_only
+      toast.success(audioOnly ? 'Audio session started' : 'Session started', {
+        description: audioOnly
+          ? `Forwarding audio from device ${event.serial}`
+          : `Mirroring device ${event.serial}`,
       })
     })
     const unsubStopped = onScrcpySessionStopped((event: ScrcpySessionEvent) => {
@@ -237,7 +220,7 @@ export function useScrcpy() {
     })
     const unsubError = onScrcpyError((event: ScrcpySessionEvent) => {
       applyErrorEvent(event)
-      const { title, description } = describeError(new Error(event.message ?? 'unknown'))
+      const { title, description } = describeScrcpyError(new Error(event.message ?? 'unknown'))
       toast.error(title, { description })
     })
     return () => {
@@ -262,7 +245,7 @@ export function useScrcpy() {
         const next = await startScrcpySession(serial, nextOptions)
         setSession(next)
       } catch (err) {
-        const { title, description } = describeError(err)
+        const { title, description } = describeScrcpyError(err)
         toast.error(title, { description })
         setIsStarting(false)
       }
@@ -277,7 +260,7 @@ export function useScrcpy() {
     try {
       await stopScrcpySession(current.id)
     } catch (err) {
-      const { title, description } = describeError(err)
+      const { title, description } = describeScrcpyError(err)
       toast.error(title, { description })
       setIsStopping(false)
     }
@@ -299,7 +282,7 @@ export function useScrcpy() {
       const savedPath = await takeScrcpyScreenshot(current.id, outputPath)
       toast.success('Screenshot saved', { description: savedPath })
     } catch (err) {
-      const { title, description } = describeError(err)
+      const { title, description } = describeScrcpyError(err)
       toast.error(title, { description })
     }
   }, [])
@@ -319,22 +302,23 @@ export function useScrcpy() {
         setRecordingStartedAt(null)
         toast.success('Recording saved', { description: savedPath })
       } catch (err) {
-        const { title, description } = describeError(err)
+        const { title, description } = describeScrcpyError(err)
         toast.error(title, { description })
       }
       return
     }
     try {
+      const recording = getScrcpyRecordingDescriptor(options)
       const outputPath = await selectScrcpySaveFile(
-        timestampedFilename('scrcpy-recording', 'mp4'),
+        timestampedFilename(recording.prefix, recording.extension),
       )
       if (!outputPath) return
       await startScrcpyRecording(serial, outputPath, options)
       setIsRecording(true)
       setRecordingStartedAt(Date.now())
-      toast.info('Recording started', { description: 'Screen recording in progress' })
+      toast.info(recording.title, { description: recording.description })
     } catch (err) {
-      const { title, description } = describeError(err)
+      const { title, description } = describeScrcpyError(err)
       toast.error(title, { description })
     }
   }, [isRecording, options, setIsRecording, setRecordingStartedAt])
@@ -372,7 +356,7 @@ export function useScrcpy() {
       await pushScrcpyClipboard(serial, text)
       toast.success('Clipboard pushed to device')
     } catch (err) {
-      const { title, description } = describeError(err)
+      const { title, description } = describeScrcpyError(err)
       toast.error(title, { description })
     }
   }, [])
@@ -394,7 +378,7 @@ export function useScrcpy() {
         toast.info('Device clipboard is empty')
       }
     } catch (err) {
-      const { title, description } = describeError(err)
+      const { title, description } = describeScrcpyError(err)
       toast.error(title, { description })
     }
   }, [])

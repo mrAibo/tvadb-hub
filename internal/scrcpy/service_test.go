@@ -1,6 +1,10 @@
 package scrcpy
 
-import "testing"
+import (
+	"ADBKit/internal/core"
+	"reflect"
+	"testing"
+)
 
 func TestCodecScorePrefersHardware(t *testing.T) {
 	hw := CodecSupport{Hardware: true}
@@ -138,4 +142,79 @@ func TestParseEncoderListPrefersCanonicalOverOMXAlias(t *testing.T) {
 	if !video[0].Recommended {
 		t.Fatalf("expected canonical C2 to be marked recommended")
 	}
+}
+
+
+func TestOptionsToArgsAudioSourceAndAudioOnly(t *testing.T) {
+	opts := Options{
+		AudioSource: core.ScrcpyAudioSourceMic,
+		AudioOnly:   true,
+		AudioCodec:  "opus",
+	}
+	args := opts.ToArgs()
+	want := []string{"--audio-source", "mic", "--no-video", "--no-control"}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("args=%v want=%v", args, want)
+	}
+}
+
+func TestOptionsValidateRejectsInvalidAudioCombinations(t *testing.T) {
+	if err := (Options{AudioSource: "bogus"}).Validate(); err == nil {
+		t.Fatal("expected invalid audio source to fail")
+	}
+	if err := (Options{AudioSource: "output", AudioOnly: true, NoAudio: true}).Validate(); err == nil {
+		t.Fatal("expected audio-only plus no-audio to fail")
+	}
+}
+
+func TestValidateAudioCompatibility(t *testing.T) {
+	if err := validateAudioCompatibility(Options{AudioSource: "playback"}, 32); err == nil {
+		t.Fatal("expected playback source to require Android 13+")
+	}
+	if err := validateAudioCompatibility(Options{AudioSource: "mic"}, 29); err == nil {
+		t.Fatal("expected mic source to require Android 11+")
+	}
+	if err := validateAudioCompatibility(Options{AudioSource: "output", AudioOnly: true}, 29); err == nil {
+		t.Fatal("expected audio-only to require Android 11+")
+	}
+	if err := validateAudioCompatibility(Options{AudioSource: "playback"}, 33); err != nil {
+		t.Fatalf("playback should be accepted on Android 13+: %v", err)
+	}
+}
+
+func TestBuildRecordingArgsAudioOnly(t *testing.T) {
+	args := buildRecordingArgs("SERIAL", "capture.mp4", Options{
+		AudioSource:  "mic",
+		AudioOnly:    true,
+		AudioBitRate: 128000,
+		BitRate:      8000000,
+		MaxFPS:       60,
+	})
+	if !containsArgPair(args, "--audio-source", "mic") {
+		t.Fatalf("missing mic source: %v", args)
+	}
+	if !containsArg(args, "--no-video") || !containsArg(args, "--no-control") {
+		t.Fatalf("missing audio-only flags: %v", args)
+	}
+	if containsArg(args, "--video-bit-rate") || containsArg(args, "--max-fps") {
+		t.Fatalf("audio-only recording must not include video tuning: %v", args)
+	}
+}
+
+func containsArg(args []string, value string) bool {
+	for _, arg := range args {
+		if arg == value {
+			return true
+		}
+	}
+	return false
+}
+
+func containsArgPair(args []string, key string, value string) bool {
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == key && args[i+1] == value {
+			return true
+		}
+	}
+	return false
 }
