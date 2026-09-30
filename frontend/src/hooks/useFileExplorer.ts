@@ -4,9 +4,9 @@ import {
   listFiles,
   getDirectorySize,
   pullFile,
-  pullMultipleFiles,
+  pullMultipleFilesDetailed,
   pushFile,
-  pushMultipleFiles,
+  pushMultipleFilesDetailed,
   deleteMultipleFiles,
   createDirectory,
   renameFile,
@@ -19,6 +19,7 @@ import {
 } from '@/services/fileService'
 import { useDeviceStore } from '@/stores/useDeviceStore'
 import { useFileExplorerStore } from '@/stores/useFileExplorerStore'
+import { summarizeTransferBatch } from '@/lib/transferResult'
 import type {
   DeviceSummary,
   FileEntry,
@@ -35,6 +36,14 @@ function getErrorMessage(error: unknown, fallback: string): string {
 function isCancelledMessage(message: string): boolean {
   const normalized = message.toLowerCase()
   return normalized.includes('cancelled') || normalized.includes('canceled')
+}
+
+function canStartTransfer(): boolean {
+  if (useFileExplorerStore.getState().transferProgress?.active) {
+    toast.error('Another file transfer is already active')
+    return false
+  }
+  return true
 }
 
 function normalizePath(value: string): string {
@@ -120,8 +129,12 @@ export function useFileExplorer() {
     const unsub = onFileTransferProgress((progress) => {
       const current = useFileExplorerStore.getState().transferProgress
       if (!current?.active) return
+      if (progress.serial && progress.serial !== useDeviceStore.getState().activeSerial) return
+      if (current.operationId && progress.operationId && current.operationId !== progress.operationId) return
 
       useFileExplorerStore.getState().setTransferProgress({
+        operationId: progress.operationId ?? current.operationId,
+        serial: progress.serial ?? current.serial,
         fileName: progress.fileName || current.fileName,
         direction: progress.direction,
         percent: progress.percent,
@@ -266,20 +279,23 @@ export function useFileExplorer() {
 
   async function pullSingleFile(remotePath: string, localPath: string) {
     if (!localPath.trim()) { toast.error('Destination path is required'); return false }
+    const targetSerial = useDeviceStore.getState().activeSerial
+    if (!targetSerial) { toast.error('Select an ADB device before transferring'); return false }
+    if (!canStartTransfer()) return false
     const name = remotePath.split('/').pop() ?? remotePath
     store.setBusyFilePath(remotePath)
     store.setError(null)
-    store.setTransferProgress({ fileName: name, direction: 'pull', percent: 0, active: true })
+    store.setTransferProgress({ serial: targetSerial, fileName: name, direction: 'pull', percent: 0, active: true })
     try {
-      await pullFile(remotePath, localPath)
-      toast.success(`Pulled ${name}`)
+      const message = await pullFile(remotePath, localPath, targetSerial)
+      toast.success(`${targetSerial}: ${message}`)
       return true
     } catch (err) {
       const msg = getErrorMessage(err, 'Failed to pull file')
       if (isCancelledMessage(msg)) {
         toast.info('Pull cancelled — partial data may remain on your computer')
       } else {
-        store.setError(msg)
+        if (useDeviceStore.getState().activeSerial === targetSerial) store.setError(msg)
         toast.error(msg)
       }
       return false
@@ -291,21 +307,24 @@ export function useFileExplorer() {
 
   async function pushSingleFile(localPath: string, remotePath: string) {
     if (!localPath.trim()) { toast.error('Local file path is required'); return false }
+    const targetSerial = useDeviceStore.getState().activeSerial
+    if (!targetSerial) { toast.error('Select an ADB device before transferring'); return false }
+    if (!canStartTransfer()) return false
     const name = localPath.split(/[/\\]/).pop() ?? localPath
     store.setBusyFilePath(remotePath)
     store.setError(null)
-    store.setTransferProgress({ fileName: name, direction: 'push', percent: 0, active: true })
+    store.setTransferProgress({ serial: targetSerial, fileName: name, direction: 'push', percent: 0, active: true })
     try {
-      await pushFile(localPath, remotePath)
-      toast.success(`Pushed ${name}`)
-      await loadFiles(store.currentPath, { background: true, force: true })
+      const message = await pushFile(localPath, remotePath, targetSerial)
+      toast.success(`${targetSerial}: ${message}`)
+      if (useDeviceStore.getState().activeSerial === targetSerial) await loadFiles(store.currentPath, { background: true, force: true })
       return true
     } catch (err) {
       const msg = getErrorMessage(err, 'Failed to push file')
       if (isCancelledMessage(msg)) {
         toast.info('Push cancelled — partial data may remain on the device')
       } else {
-        store.setError(msg)
+        if (useDeviceStore.getState().activeSerial === targetSerial) store.setError(msg)
         toast.error(msg)
       }
       return false
@@ -402,20 +421,30 @@ export function useFileExplorer() {
     const trimmed = localDir.trim()
     if (store.selectedFiles.length === 0) { toast.error('No files selected'); return false }
     if (!trimmed) { toast.error('Destination directory is required'); return false }
+    const targetSerial = useDeviceStore.getState().activeSerial
+    if (!targetSerial) { toast.error('Select an ADB device before transferring'); return false }
+    if (!canStartTransfer()) return false
     store.setBusyBatchAction('pull')
     store.setError(null)
-    store.setTransferProgress({ fileName: `${store.selectedFiles.length} file(s)`, direction: 'pull', percent: 0, active: true })
+    store.setTransferProgress({ serial: targetSerial, fileName: `${store.selectedFiles.length} file(s)`, direction: 'pull', percent: 0, active: true })
     try {
-      await pullMultipleFiles(store.selectedFiles, trimmed)
-      toast.success(`Pulled ${store.selectedFiles.length} file(s)`)
-      store.clearSelection()
-      return true
+      const result = await pullMultipleFilesDetailed(targetSerial, [...store.selectedFiles], trimmed)
+      store.setLastTransferBatch(result)
+      const summary = summarizeTransferBatch(result, 'pull')
+      if (summary.complete) toast.success(summary.message)
+      else if (summary.cancelled) toast.info(`${summary.message}. Partial data may remain on your computer`)
+      else toast.error(summary.message)
+      if (useDeviceStore.getState().activeSerial === targetSerial) {
+        store.setSelectedFiles(result.items.filter(item => item.status !== 'success').map(item => item.source))
+        if (!summary.complete && !summary.cancelled) store.setError(summary.message)
+      }
+      return summary.complete
     } catch (err) {
       const msg = getErrorMessage(err, 'Failed to pull files')
       if (isCancelledMessage(msg)) {
         toast.info('Pull batch cancelled — partial data may remain on your computer')
       } else {
-        store.setError(msg)
+        if (useDeviceStore.getState().activeSerial === targetSerial) store.setError(msg)
         toast.error(msg)
       }
       return false
@@ -448,21 +477,31 @@ export function useFileExplorer() {
 
   async function pushMultipleToCurrentDir(localPaths: string[]) {
     if (localPaths.length === 0) return false
+    const targetSerial = useDeviceStore.getState().activeSerial
+    if (!targetSerial) { toast.error('Select an ADB device before transferring'); return false }
+    if (!canStartTransfer()) return false
     const remoteDir = normalizePath(store.currentPath)
     store.setBusyBatchAction('push')
     store.setError(null)
-    store.setTransferProgress({ fileName: `${localPaths.length} file(s)`, direction: 'push', percent: 0, active: true })
+    store.setTransferProgress({ serial: targetSerial, fileName: `${localPaths.length} file(s)`, direction: 'push', percent: 0, active: true })
     try {
-      await pushMultipleFiles(localPaths, remoteDir)
-      toast.success(`Pushed ${localPaths.length} file(s)`)
-      await loadFiles(store.currentPath, { background: true, force: true })
-      return true
+      const result = await pushMultipleFilesDetailed(targetSerial, [...localPaths], remoteDir)
+      store.setLastTransferBatch(result)
+      const summary = summarizeTransferBatch(result, 'push')
+      if (summary.complete) toast.success(summary.message)
+      else if (summary.cancelled) toast.info(`${summary.message}. Partial data may remain on the device`)
+      else toast.error(summary.message)
+      if (useDeviceStore.getState().activeSerial === targetSerial) {
+        await loadFiles(store.currentPath, { background: true, force: true })
+        if (useDeviceStore.getState().activeSerial === targetSerial && !summary.complete && !summary.cancelled) store.setError(summary.message)
+      }
+      return summary.complete
     } catch (err) {
       const msg = getErrorMessage(err, 'Failed to push files')
       if (isCancelledMessage(msg)) {
         toast.info('Push batch cancelled — partial data may remain on the device')
       } else {
-        store.setError(msg)
+        if (useDeviceStore.getState().activeSerial === targetSerial) store.setError(msg)
         toast.error(msg)
       }
       return false
@@ -482,7 +521,7 @@ export function useFileExplorer() {
   }
 
   function cancelTransfer() {
-    cancelFileTransfer()
+    cancelFileTransfer(useFileExplorerStore.getState().transferProgress?.operationId)
   }
 
   function dismissError() { store.setError(null) }
@@ -592,6 +631,7 @@ export function useFileExplorer() {
     lastUpdatedAt: store.lastUpdatedAt,
     transferProgress: store.transferProgress,
     lastTransferVerification: store.lastTransferVerification,
+    lastTransferBatch: store.lastTransferBatch,
     totalItems: store.files.length,
     folderCount,
     fileCount,

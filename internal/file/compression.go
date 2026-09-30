@@ -39,7 +39,7 @@ func (s *Service) getADBCompressionCapabilities(ctx context.Context, adbPath str
 		return cached
 	}
 
-	result, err := core.RunCommand(ctx, core.ExecRequest{
+	result, err := s.runTransferProbe(ctx, core.ExecRequest{
 		Command: adbPath,
 		Args:    []string{"help"},
 		Timeout: adbCompressionProbeTimeout,
