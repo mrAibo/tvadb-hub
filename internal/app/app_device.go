@@ -87,23 +87,8 @@ func (a *App) SendTVText(serial string, text string) (device.TVTextInputResult, 
 			return device.TVTextInputResult{}, err
 		}
 
-		// An active scrcpy session gets first use of DroidSphere's existing
-		// clipboard bridge, followed by Android's PASTE key event. If that
-		// path is unavailable, the device service applies its clipboard then
-		// printable-ASCII input-text fallback policy.
-		if a.scrSvc != nil {
-			if session := a.scrSvc.GetActiveSession(); session != nil && session.Serial == resolved {
-				if err := a.scrSvc.PushClipboard(resolved, text); err == nil {
-					if _, err := a.devSvc.SendTVRemoteKey(a.ctx, resolved, "paste"); err == nil {
-						return device.TVTextInputResult{
-							Method: device.TVTextMethodScrcpyClipboard,
-							Detail: "Pasted through the active scrcpy clipboard path",
-						}, nil
-					}
-				}
-			}
-		}
-
+		// The external scrcpy process owns its control channel. Merely having
+		// a session does not provide this facade a scrcpy clipboard transport.
 		return a.devSvc.SendTVText(a.ctx, resolved, text)
 	})
 }

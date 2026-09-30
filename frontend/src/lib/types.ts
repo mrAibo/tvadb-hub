@@ -761,6 +761,7 @@ export interface SafeTuningPackageMatch {
 
 export interface SafeTuningAnalysis {
   serial: string
+  hardwareSerial?: string
   model: string
   manufacturer: string
   androidVersion: string
@@ -775,6 +776,7 @@ export interface SafeTuningAnalysis {
 
 export interface SafeTuningApplyRequest {
   expectedSerial: string
+  expectedHardwareSerial?: string
   profileId: string
   packageNames: string[]
   mode: SafeTuningActionMode
@@ -789,6 +791,9 @@ export interface SafeTuningApplyResult {
 }
 
 export interface TuningSnapshotSummary {
+  version?: number
+  recoverable?: number
+  uncertain?: number
   id: string
   createdAt: string
   serial: string

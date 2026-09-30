@@ -15,12 +15,15 @@ func WriteFileAtomicWithMode(path string, data []byte, mode os.FileMode) error {
 		return NewOperationError("fsutil", "failed to create directory", err.Error(), true)
 	}
 
-	tmp := path + ".tmp"
-	_ = os.Remove(tmp)
-
-	file, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	file, err := os.CreateTemp(dir, "."+filepath.Base(path)+"-*.tmp")
 	if err != nil {
 		return NewOperationError("fsutil", "failed to create temp file", err.Error(), true)
+	}
+	tmp := file.Name()
+	if err := file.Chmod(mode); err != nil {
+		_ = file.Close()
+		_ = os.Remove(tmp)
+		return NewOperationError("fsutil", "failed to set temp file permissions", err.Error(), true)
 	}
 
 	cleanup := func() {
