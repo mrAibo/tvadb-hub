@@ -4,6 +4,8 @@ import (
 	"ADBKit/internal/core"
 	"ADBKit/internal/device"
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -27,16 +29,25 @@ func TestRestoreDoesNotFollowSelectionChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := 0
+	states := map[string]PackageState{"com.example.one": {Installed: true, Enabled: 3}, "com.example.two": {Installed: true, Enabled: 3}}
 	svc.runCommand = func(_ context.Context, req core.ExecRequest) (*core.ExecResult, error) {
 		selected = "B"
 		calls++
 		if req.Args[1] != "A" {
 			t.Fatalf("restore switched target: %+v", req)
 		}
+		pkg := req.Args[len(req.Args)-1]
+		if strings.Contains(strings.Join(req.Args, " "), "dumpsys package") {
+			state := states[pkg]
+			return &core.ExecResult{Stdout: fmt.Sprintf("User 0: installed=%t enabled=%d", state.Installed, state.Enabled)}, nil
+		}
+		if strings.Contains(strings.Join(req.Args, " "), "pm enable") {
+			states[pkg] = PackageState{Installed: true, Enabled: 1}
+		}
 		return &core.ExecResult{}, nil
 	}
 	result, err := svc.Restore(context.Background(), "test")
-	if err != nil || len(result.Restored) != 2 || calls != 3 {
+	if err != nil || len(result.Restored) != 2 || calls < 3 {
 		t.Fatalf("restore=%+v calls=%d err=%v", result, calls, err)
 	}
 }

@@ -269,7 +269,7 @@ export default function TuningPage() {
         ? 'disable the selected packages for Android user 0'
         : 'uninstall the selected preinstalled packages for Android user 0'
     const ok = window.confirm(
-      `DroidSphere will create a restore snapshot for ${analysis.model} (${analysis.serial}), then ${actionText}.${cautionText}\n\nContinue?`,
+      `DroidSphere will create a restore snapshot for ${analysis.model} (${analysis.serial}${analysis.hardwareSerial ? `; hardware ${analysis.hardwareSerial}` : ''}), then ${actionText}.${cautionText}\n\nContinue?`,
     )
     if (!ok) return
 
@@ -277,6 +277,7 @@ export default function TuningPage() {
     try {
       const result = await applySafeTuning({
         expectedSerial: analysis.serial,
+        expectedHardwareSerial: analysis.hardwareSerial ?? '',
         profileId: analysis.selectedProfile.id,
         packageNames: selectedMatches.map((item) => item.packageName),
         mode,
@@ -304,7 +305,7 @@ export default function TuningPage() {
 
   async function handleRestore(snapshot: TuningSnapshotSummary) {
     if (snapshot.serial !== activeSerial || applying || restoring) return
-    if (!window.confirm(`Restore snapshot ${snapshot.id} for ${snapshot.serial}?\n\nDroidSphere will reverse changes recorded in that snapshot.`)) {
+    if (!window.confirm(`Restore snapshot ${snapshot.id} for ${snapshot.serial}?\n\nDroidSphere will reconcile confirmed and uncertain changes against the recorded original state.${snapshot.version !== 2 ? '\nLegacy snapshots preserve an enabled boolean, so exact default/disabled subtypes are unavailable.' : ''}`)) {
       return
     }
     setRestoring(snapshot.id)
@@ -644,13 +645,13 @@ export default function TuningPage() {
                       <div className="text-[10px] font-semibold">{snapshot.profileName}</div>
                       <div className="mt-1 font-mono text-[9px] text-muted-foreground">{snapshot.createdAt}</div>
                       <div className="mt-1 text-[9px] text-muted-foreground">
-                        {snapshot.applied} changed · {snapshot.mode}
+                        {snapshot.applied} confirmed · {snapshot.uncertain ?? 0} unverified · {snapshot.mode}
                       </div>
                       <Button
                         size="sm"
                         variant="outline"
                         className="mt-2 h-7 w-full gap-1.5 text-[10px]"
-                        disabled={applying || restoring !== null || loading || snapshot.serial !== activeSerial || snapshot.applied === 0}
+                        disabled={applying || restoring !== null || loading || snapshot.serial !== activeSerial || (snapshot.recoverable ?? snapshot.applied) === 0}
                         onClick={() => void handleRestore(snapshot)}
                       >
                         {restoring === snapshot.id ? (
