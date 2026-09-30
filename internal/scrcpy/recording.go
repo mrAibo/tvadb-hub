@@ -54,7 +54,7 @@ func (s *Service) StartRecording(serial, outputPath string, opts Options) error 
 	}
 
 	adbPath, _ := s.resolveADBPath()
-	if adbPath != "" && !opts.NoAudio {
+	if adbPath != "" && !opts.NoAudio && (opts.AudioOnly || opts.normalizedAudioSource() != core.ScrcpyAudioSourceOutput) {
 		if sdk, sdkErr := detectAndroidSDK(s.ctx, adbPath, trimmedSerial); sdkErr == nil {
 			if err := validateAudioCompatibility(opts, sdk); err != nil {
 				return err

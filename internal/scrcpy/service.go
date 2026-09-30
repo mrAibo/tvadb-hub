@@ -265,7 +265,7 @@ func (s *Service) StartSession(ctx context.Context, serial string, opts Options)
 	}
 
 	adbPath, _ := s.resolveADBPath()
-	if adbPath != "" && !opts.NoAudio {
+	if adbPath != "" && !opts.NoAudio && (opts.AudioOnly || opts.normalizedAudioSource() != core.ScrcpyAudioSourceOutput) {
 		if sdk, sdkErr := detectAndroidSDK(ctx, adbPath, resolvedSerial); sdkErr == nil {
 			if err := validateAudioCompatibility(opts, sdk); err != nil {
 				return nil, err
