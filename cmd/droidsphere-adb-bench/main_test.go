@@ -84,8 +84,12 @@ func TestPairedBenchmarkAlternatesAndExcludesSetupAndWarmup(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(order, []string{"C", "S", "C", "S", "S", "C", "C", "S", "S", "C", "C", "S"}) || len(r.Samples) != 3 || r.MismatchedPairs != 0 || r.DeviceSetChanged {
 		t.Fatalf("order=%v report=%+v err=%v", order, r, err)
 	}
-	if r.Samples[0].First != "cli" || r.Samples[1].First != "socket" || r.CLI.MaxNS <= 0 || r.Socket.MaxNS <= 0 {
-		t.Fatalf("missing timing/order evidence: %+v", r)
+	// Alternation, warmup exclusion and retained samples are asserted here; the
+	// measured durations deliberately are not. A fake runner returns instantly,
+	// and a host whose monotonic clock has a coarse tick may report 0 ns, so a
+	// positive MaxNS would be a platform assertion rather than a product one.
+	if r.Samples[0].First != "cli" || r.Samples[1].First != "socket" || r.Samples[2].First != "cli" {
+		t.Fatalf("missing alternation evidence: %+v", r)
 	}
 	bytes, err := json.Marshal(r)
 	if err != nil || !strings.Contains(string(bytes), `"cliNs"`) || !strings.Contains(string(bytes), `"samples"`) {
@@ -127,8 +131,43 @@ func TestBenchmarkDetectsMismatchAndRetainsPartialSamplesOnFailure(t *testing.T)
 		return "B device", nil
 	}
 	r := report{Iterations: 3}
-	if err := runBenchmark(context.Background(), &r, time.Second, cli, socket); err == nil || len(r.Samples) != 1 || r.MismatchedPairs != 1 || !r.DeviceSetChanged || r.CLI.MaxNS <= 0 {
+	if err := runBenchmark(context.Background(), &r, time.Second, cli, socket); err == nil || len(r.Samples) != 1 || r.MismatchedPairs != 1 || !r.DeviceSetChanged || r.Samples[0].First != "cli" {
 		t.Fatalf("partial evidence lost: %+v %v", r, err)
+	}
+}
+
+// TestSummarizeIsDeterministicForSyntheticDurations pins the statistics that the
+// paired benchmark reports. It uses explicit synthetic durations instead of
+// measured samples, so the assertions do not depend on the host clock tick (an
+// instantaneous fake runner can legitimately measure 0 ns on Windows).
+func TestSummarizeIsDeterministicForSyntheticDurations(t *testing.T) {
+	values := []time.Duration{5 * time.Millisecond, time.Millisecond, 3 * time.Millisecond, 2 * time.Millisecond, 4 * time.Millisecond}
+	got := summarize(values)
+	want := summary{MinNS: int64(time.Millisecond), MedianNS: int64(3 * time.Millisecond), P95NS: int64(5 * time.Millisecond), MaxNS: int64(5 * time.Millisecond)}
+	if got != want {
+		t.Fatalf("summarize=%+v want %+v", got, want)
+	}
+	if !reflect.DeepEqual(values, []time.Duration{5 * time.Millisecond, time.Millisecond, 3 * time.Millisecond, 2 * time.Millisecond, 4 * time.Millisecond}) {
+		t.Fatal("summarize must not reorder the caller slice")
+	}
+
+	ordered := []time.Duration{time.Millisecond, 2 * time.Millisecond, 3 * time.Millisecond}
+	for _, tc := range []struct {
+		name     string
+		p        float64
+		values   []time.Duration
+		expected time.Duration
+	}{
+		{name: "lower bound", p: 0, values: ordered, expected: time.Millisecond},
+		{name: "median", p: .50, values: ordered, expected: 2 * time.Millisecond},
+		{name: "upper bound", p: 1, values: ordered, expected: 3 * time.Millisecond},
+		{name: "empty", p: .95, values: nil, expected: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := percentile(tc.values, tc.p); got != tc.expected {
+				t.Fatalf("percentile(%v, %v)=%v want %v", tc.values, tc.p, got, tc.expected)
+			}
+		})
 	}
 }
 
