@@ -501,12 +501,16 @@ export type ScrcpySessionStatus =
   | 'stopped'
   | 'error'
 
+export type ScrcpyAudioSource = 'output' | 'playback' | 'mic'
+
 export interface ScrcpyOptions {
   max_size: number
   bit_rate: number
   max_fps: number
   audio_bit_rate: number
   audio_codec: string
+  audio_source: ScrcpyAudioSource
+  audio_only: boolean
   video_codec: string
   show_touches: boolean
   no_audio: boolean

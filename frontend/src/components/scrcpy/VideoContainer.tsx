@@ -2,7 +2,8 @@ import type { ScrcpySessionStatus, ScrcpyOptions } from '@/lib/types'
 import {
   IconLoader2 as Loader2,
   IconAlertTriangle as AlertTriangle,
-  IconCast as MonitorPlay
+  IconCast as MonitorPlay,
+  IconHeadphones as Headphones
 } from "@tabler/icons-react"
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
@@ -42,6 +43,8 @@ export function VideoContainer({
     )
   }
 
+  const audioOnly = options?.audio_only === true
+
   return (
     <div className="flex h-full w-full items-center justify-center p-8">
       <div className="relative flex max-w-sm w-full flex-col items-center gap-4 rounded-3xl border border-[var(--border)] dark:border-[var(--border)] bg-card dark:bg-[var(--muted)]/20 p-6 text-center shadow-[var(--shadow-card)]">
@@ -54,29 +57,45 @@ export function VideoContainer({
           <span className="absolute inline-flex h-12 w-12 animate-pulse rounded-full bg-primary/10 opacity-50" />
           
           <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/20 bg-primary/5 text-primary">
-            <MonitorPlay className="h-5 w-5 text-primary animate-pulse" />
+            {audioOnly
+              ? <Headphones className="h-5 w-5 text-primary animate-pulse" />
+              : <MonitorPlay className="h-5 w-5 text-primary animate-pulse" />}
           </div>
         </div>
 
         <div className="space-y-1">
-          <h2 className="text-xs font-bold text-foreground">Mirror Session Active</h2>
+          <h2 className="text-xs font-bold text-foreground">
+            {audioOnly ? 'Audio-only Session Active' : 'Mirror Session Active'}
+          </h2>
           <p className="text-[10px] text-muted-foreground dark:text-muted-foreground leading-relaxed font-medium">
-            Scrcpy is rendering in its native window. Use the floating control dock below to manage the stream.
+            {audioOnly
+              ? 'Scrcpy is forwarding audio without video or device control.'
+              : 'Scrcpy is rendering in its native window. Use the floating control dock below to manage the stream.'}
           </p>
         </div>
 
         {options && (
           <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-[var(--border)] dark:border-[var(--border)]/80 bg-[var(--muted)]/50 dark:bg-[var(--muted)]/40 px-3 py-1 text-[9px] font-bold text-muted-foreground dark:text-muted-foreground font-mono">
-            <span>{options.video_codec?.toUpperCase() || 'H264'}</span>
-            <span className="text-muted-foreground/30 dark:text-muted-foreground/30">|</span>
-            <span>
-              {options.max_size === 0 ? 'Max Res' : `${options.max_size}px`}
-            </span>
-            <span className="text-muted-foreground/30 dark:text-muted-foreground/30">|</span>
-            <span>
-              {((options.bit_rate || 8000000) / 1000000).toFixed(1)} Mbps
-            </span>
-            {options.max_fps > 0 && (
+            {audioOnly ? (
+              <>
+                <span>{(options.audio_source || 'output').toUpperCase()}</span>
+                <span className="text-muted-foreground/30 dark:text-muted-foreground/30">|</span>
+                <span>{options.audio_codec?.toUpperCase() || 'OPUS'}</span>
+              </>
+            ) : (
+              <>
+                <span>{options.video_codec?.toUpperCase() || 'H264'}</span>
+                <span className="text-muted-foreground/30 dark:text-muted-foreground/30">|</span>
+                <span>
+                  {options.max_size === 0 ? 'Max Res' : `${options.max_size}px`}
+                </span>
+                <span className="text-muted-foreground/30 dark:text-muted-foreground/30">|</span>
+                <span>
+                  {((options.bit_rate || 8000000) / 1000000).toFixed(1)} Mbps
+                </span>
+              </>
+            )}
+            {!audioOnly && options.max_fps > 0 && (
               <>
                 <span className="text-muted-foreground/30 dark:text-muted-foreground/30">|</span>
                 <span>{options.max_fps} FPS</span>

@@ -77,6 +77,8 @@ export interface ScrcpyOptions {
     "max_fps": number;
     "audio_bit_rate": number;
     "audio_codec": string;
+    "audio_source": string;
+    "audio_only": boolean;
     "video_codec": string;
     "show_touches": boolean;
     "no_audio": boolean;

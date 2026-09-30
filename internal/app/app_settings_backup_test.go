@@ -13,6 +13,11 @@ func TestNormalizeImportedConfig(t *testing.T) {
 		DefaultTerminalMode:  "",
 		DeviceRefreshSeconds: 0,
 		FileTransferCompression: "invalid",
+		ScrcpyOptions: core.ScrcpyOptions{
+			AudioSource: "invalid",
+			AudioOnly:   true,
+			NoAudio:     true,
+		},
 	}
 	normalizeImportedConfig(cfg)
 
@@ -30,6 +35,9 @@ func TestNormalizeImportedConfig(t *testing.T) {
 	}
 	if cfg.FileTransferCompression != core.DefaultFileTransferCompression {
 		t.Fatalf("file transfer compression=%q", cfg.FileTransferCompression)
+	}
+	if cfg.ScrcpyOptions.AudioSource != core.ScrcpyAudioSourceOutput || cfg.ScrcpyOptions.AudioOnly {
+		t.Fatalf("scrcpy audio options were not normalized: %#v", cfg.ScrcpyOptions)
 	}
 	if cfg.BinaryVersions == nil || cfg.DeviceNicknames == nil || cfg.RememberedWireless == nil {
 		t.Fatal("maps/slices must be normalized")

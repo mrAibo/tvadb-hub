@@ -123,9 +123,11 @@ func normalizeImportedConfig(cfg *core.AppConfig) {
 	if cfg.RememberedWireless == nil {
 		cfg.RememberedWireless = []core.RememberedWirelessDevice{}
 	}
+	cfg.ScrcpyOptions = core.NormalizeScrcpyOptions(cfg.ScrcpyOptions)
 	if cfg.ScrcpyPresets == nil {
 		cfg.ScrcpyPresets = []core.ScrcpyPreset{}
 	}
+	cfg.ScrcpyPresets = core.NormalizeScrcpyPresets(cfg.ScrcpyPresets)
 	if cfg.LogcatBufferLimit <= 0 {
 		cfg.LogcatBufferLimit = core.DefaultLogcatBufferLimit
 	}

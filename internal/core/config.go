@@ -119,9 +119,11 @@ func LoadConfig(dataDir string) (*AppConfig, error) {
 	if cfg.LogcatBufferLimit > MaxLogcatBufferLimit {
 		cfg.LogcatBufferLimit = MaxLogcatBufferLimit
 	}
+	cfg.ScrcpyOptions = NormalizeScrcpyOptions(cfg.ScrcpyOptions)
 	if cfg.ScrcpyPresets == nil {
 		cfg.ScrcpyPresets = []ScrcpyPreset{}
 	}
+	cfg.ScrcpyPresets = NormalizeScrcpyPresets(cfg.ScrcpyPresets)
 	if cfg.DefaultTerminalMode == "" {
 		cfg.DefaultTerminalMode = DefaultTerminalMode
 	}

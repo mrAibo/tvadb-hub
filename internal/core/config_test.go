@@ -160,3 +160,34 @@ func TestLoadConfigNormalizesInvalidFileTransferCompression(t *testing.T) {
 		t.Fatalf("compression=%q want=%q", config.FileTransferCompression, DefaultFileTransferCompression)
 	}
 }
+
+
+func TestLoadConfigNormalizesLegacyScrcpyAudioOptions(t *testing.T) {
+	dataDir := t.TempDir()
+	configPath := filepath.Join(dataDir, "config.json")
+	if err := os.WriteFile(configPath, []byte(`{"scrcpy_options":{"audio_source":"","audio_only":false}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	config, err := LoadConfig(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.ScrcpyOptions.AudioSource != ScrcpyAudioSourceOutput {
+		t.Fatalf("audio source=%q want=%q", config.ScrcpyOptions.AudioSource, ScrcpyAudioSourceOutput)
+	}
+}
+
+func TestNormalizeScrcpyOptionsResolvesLegacyConflict(t *testing.T) {
+	options := NormalizeScrcpyOptions(ScrcpyOptions{
+		AudioSource: "invalid",
+		AudioOnly:   true,
+		NoAudio:     true,
+	})
+	if options.AudioSource != ScrcpyAudioSourceOutput {
+		t.Fatalf("audio source=%q want=%q", options.AudioSource, ScrcpyAudioSourceOutput)
+	}
+	if options.AudioOnly {
+		t.Fatal("audio-only must be disabled when no-audio is enabled")
+	}
+}

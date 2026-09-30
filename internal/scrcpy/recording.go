@@ -51,29 +51,13 @@ func (s *Service) StartRecording(serial, outputPath string, opts Options) error 
 
 	adbPath, _ := s.resolveADBPath()
 
-	args := []string{"--no-window", "--record", trimmedPath, "--serial", trimmedSerial}
+	args := buildRecordingArgs(trimmedSerial, trimmedPath, opts)
 
 	s.mu.Lock()
 	activeSession := s.process
 	s.mu.Unlock()
 	if activeSession != nil && activeSession.session.Serial == trimmedSerial {
 		args = append(args, "--port", "27199:27209")
-	}
-
-	if opts.BitRate > 0 {
-		args = append(args, "--video-bit-rate", fmt.Sprintf("%d", opts.BitRate))
-	}
-	if opts.MaxFPS > 0 {
-		args = append(args, "--max-fps", fmt.Sprintf("%d", opts.MaxFPS))
-	}
-	if opts.MaxSize > 0 {
-		args = append(args, "--max-size", fmt.Sprintf("%d", opts.MaxSize))
-	}
-	if opts.VideoCodec != "" && opts.VideoCodec != "h264" {
-		args = append(args, "--video-codec", opts.VideoCodec)
-	}
-	if opts.NoAudio {
-		args = append(args, "--no-audio")
 	}
 
 	cmd := core.NewCommandContext(s.ctx, scrcpyPath, args...)
@@ -107,6 +91,40 @@ func (s *Service) StartRecording(serial, outputPath string, opts Options) error 
 	s.logAudit("start_scrcpy_recording", trimmedSerial, true, fmt.Sprintf("path=%s", trimmedPath))
 	go s.monitorRecordingProcess(cmd, stderrPipe)
 	return nil
+}
+
+func buildRecordingArgs(serial string, outputPath string, opts Options) []string {
+	args := []string{"--no-window", "--record", outputPath, "--serial", serial}
+	if !opts.AudioOnly {
+		if opts.BitRate > 0 {
+			args = append(args, "--video-bit-rate", fmt.Sprintf("%d", opts.BitRate))
+		}
+		if opts.MaxFPS > 0 {
+			args = append(args, "--max-fps", fmt.Sprintf("%d", opts.MaxFPS))
+		}
+		if opts.MaxSize > 0 {
+			args = append(args, "--max-size", fmt.Sprintf("%d", opts.MaxSize))
+		}
+		if opts.VideoCodec != "" && opts.VideoCodec != "h264" {
+			args = append(args, "--video-codec", opts.VideoCodec)
+		}
+	}
+	if opts.AudioBitRate > 0 {
+		args = append(args, "--audio-bit-rate", fmt.Sprintf("%d", opts.AudioBitRate))
+	}
+	if opts.AudioCodec != "" && opts.AudioCodec != "opus" {
+		args = append(args, "--audio-codec", opts.AudioCodec)
+	}
+	if source := opts.normalizedAudioSource(); !opts.NoAudio && source != core.ScrcpyAudioSourceOutput {
+		args = append(args, "--audio-source", source)
+	}
+	if opts.NoAudio {
+		args = append(args, "--no-audio")
+	}
+	if opts.AudioOnly {
+		args = append(args, "--no-video", "--no-control")
+	}
+	return args
 }
 
 func (s *Service) monitorRecordingProcess(cmd *exec.Cmd, stderrPipe io.ReadCloser) {
