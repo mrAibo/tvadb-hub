@@ -18,7 +18,7 @@ const (
 func init() {
 	application.RegisterEvent[map[string]string](shell.EventOutput)
 	application.RegisterEvent[map[string]string](shell.EventClosed)
-	application.RegisterEvent[shell.LogcatEntry](shell.EventLine)
+	application.RegisterEvent[[]shell.LogcatEntry](shell.EventBatch)
 	application.RegisterEvent[shell.LogcatStatusEvent](shell.EventStatus)
 	application.RegisterEvent[scrcpy.SessionEvent](scrcpy.EventSessionStarted)
 	application.RegisterEvent[scrcpy.SessionEvent](scrcpy.EventSessionStopped)

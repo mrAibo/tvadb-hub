@@ -13,11 +13,12 @@ protocol stack. Keep the official ADB client as the compatibility baseline and
 introduce direct ADB-server protocol access only where profiling shows a clear
 benefit, such as continuous device tracking.
 
-The next high-value engineering work should instead focus on:
+Backend Logcat event batching is now implemented. The next high-value
+engineering work should instead focus on:
 
-1. Logcat backend event batching and richer crash/ANR filtering.
-2. ADB file-transfer compression exposed through the existing CLI.
-3. Optional transfer integrity verification for large files.
+1. ADB file-transfer compression exposed through the existing CLI.
+2. Optional transfer integrity verification for large files.
+3. Richer Logcat crash/ANR filtering and saved filters.
 4. Better TV text input using clipboard/scrcpy-first fallbacks.
 5. A separately versioned, signed Safe Tuning metadata feed with explicit
    licensing and rollback.
@@ -262,14 +263,16 @@ Particularly important:
 - Logcat state is bounded and frontend updates are batched;
 - CI runs vet, reachable-vulnerability scanning and race detection.
 
-The main remaining security/performance improvement from that audit is backend
-Logcat batching, because one Wails event is still emitted per Logcat line.
+Backend Logcat batching from that audit is now complete: parsed entries are
+emitted in bounded batches on a short interval, with a final flush on stream
+shutdown. Remaining Logcat work is product-level filtering/highlighting rather
+than the previous per-line IPC pressure issue.
 
 ## Recommended order
 
 | Priority | Improvement | Complexity | Recommendation |
 | --- | --- | --- | --- |
-| P1 | Backend Logcat event batching | Medium | Do |
+| Done | Backend Logcat event batching | Medium | Completed |
 | P1 | ADB push/pull compression options | Low | Do |
 | P1 | Transfer SHA-256 verification | Low-Medium | Do |
 | P2 | TV text-entry panel | Low-Medium | Do |

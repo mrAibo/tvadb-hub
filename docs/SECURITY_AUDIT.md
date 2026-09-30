@@ -104,7 +104,7 @@ Reference:
 
 ## 5. Logcat memory and IPC pressure
 
-**Status: bounded; backend batching remains a future optimization.**
+**Status: bounded and backend-batched.**
 
 Protections that already existed:
 
@@ -120,9 +120,12 @@ Protections that already existed:
 - oversized values from legacy settings are clamped;
 - IPC preference updates outside the supported range are rejected by Go.
 
-**Remaining improvement:** the Go Logcat reader still emits one Wails event per
-line. A future Logcat 2.0 change should batch backend events before IPC to reduce
-message overhead during very high-volume logging.
+The Go backend now batches parsed Logcat entries before Wails IPC. Each stream
+flushes approximately every 75 ms or when 128 entries are queued, whichever
+comes first. Ordering is preserved, memory remains bounded, and the final
+partial batch is flushed before the stopped/error status when a stream exits or
+is cancelled. The frontend keeps its existing 100 ms queue, rolling buffer and
+virtualized rendering.
 
 ## 6. Safe Tuning and reversibility
 

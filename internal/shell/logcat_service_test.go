@@ -1,6 +1,11 @@
 package shell
 
-import "testing"
+import (
+	"context"
+	"sync"
+	"testing"
+	"time"
+)
 
 func TestBuildLogcatFilterSpec(t *testing.T) {
 	cases := []struct {
@@ -98,4 +103,127 @@ func FuzzParseLogcatEntry(f *testing.F) {
 			t.Fatalf("serial changed during parsing: %q", entry.Serial)
 		}
 	})
+}
+
+
+func TestRunLogcatBatcherFlushesAtMaxSizeAndPreservesOrdering(t *testing.T) {
+	entries := make(chan LogcatEntry, 5)
+	for _, id := range []string{"1", "2", "3", "4", "5"} {
+		entries <- LogcatEntry{ID: id, Serial: "ABC123"}
+	}
+	close(entries)
+
+	var batches [][]LogcatEntry
+	runLogcatBatcher(entries, time.Hour, 3, func(batch []LogcatEntry) {
+		batches = append(batches, batch)
+	})
+
+	if len(batches) != 2 {
+		t.Fatalf("expected 2 batches, got %d", len(batches))
+	}
+
+	got := []string{
+		batches[0][0].ID,
+		batches[0][1].ID,
+		batches[0][2].ID,
+		batches[1][0].ID,
+		batches[1][1].ID,
+	}
+	want := []string{"1", "2", "3", "4", "5"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("entry %d out of order: got %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestRunLogcatBatcherFlushesFinalPartialBatch(t *testing.T) {
+	entries := make(chan LogcatEntry, 2)
+	entries <- LogcatEntry{ID: "1", Serial: "ABC123"}
+	entries <- LogcatEntry{ID: "2", Serial: "ABC123"}
+	close(entries)
+
+	var batches [][]LogcatEntry
+	runLogcatBatcher(entries, time.Hour, 10, func(batch []LogcatEntry) {
+		batches = append(batches, batch)
+	})
+
+	if len(batches) != 1 {
+		t.Fatalf("expected 1 final batch, got %d", len(batches))
+	}
+	if len(batches[0]) != 2 {
+		t.Fatalf("expected 2 entries in final batch, got %d", len(batches[0]))
+	}
+}
+
+func TestRunLogcatBatcherFlushesOnInterval(t *testing.T) {
+	entries := make(chan LogcatEntry, 1)
+	emitted := make(chan []LogcatEntry, 1)
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		runLogcatBatcher(entries, 10*time.Millisecond, 10, func(batch []LogcatEntry) {
+			emitted <- batch
+		})
+	}()
+
+	entries <- LogcatEntry{ID: "interval", Serial: "ABC123"}
+
+	select {
+	case batch := <-emitted:
+		if len(batch) != 1 || batch[0].ID != "interval" {
+			t.Fatalf("unexpected interval batch: %#v", batch)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timed out waiting for interval flush")
+	}
+
+	close(entries)
+	<-done
+}
+
+func TestCloseStreamFlushesPendingBatchOnCancellation(t *testing.T) {
+	var mu sync.Mutex
+	var batches [][]LogcatEntry
+	var statuses []LogcatStatusEvent
+
+	service := &LogcatService{
+		streams: make(map[string]*logcatStream),
+		emitBatch: func(batch []LogcatEntry) {
+			mu.Lock()
+			defer mu.Unlock()
+			batches = append(batches, batch)
+		},
+		emitStatus: func(event LogcatStatusEvent) {
+			mu.Lock()
+			defer mu.Unlock()
+			statuses = append(statuses, event)
+		},
+	}
+
+	stream := &logcatStream{
+		serial:    "ABC123",
+		entries:   make(chan LogcatEntry, 4),
+		batchDone: make(chan struct{}),
+	}
+	service.streams[stream.serial] = stream
+	go service.emitLogcatBatches(stream)
+
+	stream.entries <- LogcatEntry{ID: "pending", Serial: stream.serial}
+	stream.stopping.Store(true)
+	service.closeStream(stream, "stopped", context.Canceled)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(batches) != 1 || len(batches[0]) != 1 || batches[0][0].ID != "pending" {
+		t.Fatalf("pending batch was not flushed on cancellation: %#v", batches)
+	}
+	if len(statuses) != 1 || statuses[0].Status != "stopped" {
+		t.Fatalf("expected stopped status after cancellation, got %#v", statuses)
+	}
+	if _, ok := service.streams[stream.serial]; ok {
+		t.Fatal("cancelled stream was not removed from active streams")
+	}
 }

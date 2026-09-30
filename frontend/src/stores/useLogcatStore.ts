@@ -27,6 +27,7 @@ interface LogcatActions {
   clearLogs: () => void
   appendLogs: (entries: LogcatEntry[]) => void
   applyLineEvent: (entry: LogcatEntry) => void
+  applyBatchEvent: (entries: LogcatEntry[]) => void
   applyStatusEvent: (event: LogcatStatusEvent) => void
   reset: () => void
 }
@@ -59,8 +60,12 @@ function flushQueuedEntries() {
   useLogcatStore.getState().appendLogs(entries)
 }
 
-function queueLogEntry(entry: LogcatEntry) {
-  queuedEntries.push(entry)
+function queueLogEntries(entries: LogcatEntry[]) {
+  if (entries.length === 0) {
+    return
+  }
+
+  queuedEntries.push(...entries)
 
   if (queuedEntries.length > currentBufferLimit) {
     queuedEntries = queuedEntries.slice(-currentBufferLimit)
@@ -131,10 +136,16 @@ export const useLogcatStore = create<LogcatStore>()((set) => ({
       }
     }),
   applyLineEvent: (entry) => {
-    queueLogEntry({
+    queueLogEntries([{
       ...entry,
       level: normalizeLogLevel(entry.level),
-    })
+    }])
+  },
+  applyBatchEvent: (entries) => {
+    queueLogEntries(entries.map((entry) => ({
+      ...entry,
+      level: normalizeLogLevel(entry.level),
+    })))
   },
   applyStatusEvent: (event) =>
     set((state) => {
