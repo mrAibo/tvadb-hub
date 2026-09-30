@@ -199,7 +199,10 @@ func computeRemoteSHA256(
 			if detail == "command failed" && err != nil && strings.TrimSpace(err.Error()) != "" {
 				detail = err.Error()
 			}
-			if isRemoteHashCommandUnavailable(detail) {
+			// Android shells conventionally use exit code 127 for a missing
+			// command. Some builds emit no useful stderr in that case, so do
+			// not depend on diagnostic text alone.
+			if (result != nil && result.ExitCode == 127) || isRemoteHashCommandUnavailable(detail) {
 				unavailableCount++
 			} else {
 				failures = append(failures, detail)

@@ -266,6 +266,36 @@ func TestVerifyTransferredFileRemoteHashUnavailable(t *testing.T) {
 	}
 }
 
+
+func TestVerifyTransferredFileRemoteHashUnavailableByExit127(t *testing.T) {
+	localPath := filepath.Join(t.TempDir(), "payload.bin")
+	if err := os.WriteFile(localPath, []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	calls := 0
+	result, err := verifyTransferredFile(
+		context.Background(),
+		"adb",
+		"SERIAL",
+		localPath,
+		"/sdcard/payload.bin",
+		func(context.Context, core.ExecRequest) (*core.ExecResult, error) {
+			calls++
+			return &core.ExecResult{ExitCode: 127}, errors.New("exit status 127")
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != VerificationStatusUnavailable {
+		t.Fatalf("status=%q want=%q detail=%q", result.Status, VerificationStatusUnavailable, result.Detail)
+	}
+	if calls != 2 {
+		t.Fatalf("remote hashing calls=%d want=2", calls)
+	}
+}
+
 func TestVerifyTransferredFileMalformedRemoteOutputFails(t *testing.T) {
 	localPath := filepath.Join(t.TempDir(), "payload.bin")
 	if err := os.WriteFile(localPath, []byte("hello"), 0o600); err != nil {
