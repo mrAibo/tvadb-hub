@@ -225,6 +225,7 @@ type ProcessLineWriter struct {
 	onLine  func(string)
 	onError func()
 	err     error
+	lastCR  bool
 }
 
 func NewProcessLineWriter(onLine func(string), onError func()) *ProcessLineWriter {
@@ -237,6 +238,12 @@ func (w *ProcessLineWriter) Write(data []byte) (int, error) {
 	}
 	total := len(data)
 	for len(data) > 0 {
+		if w.lastCR && data[0] == '\n' {
+			w.lastCR = false
+			data = data[1:]
+			continue
+		}
+		w.lastCR = false
 		n := bytes.IndexAny(data, "\r\n")
 		end := n
 		if n < 0 {
@@ -254,6 +261,7 @@ func (w *ProcessLineWriter) Write(data []byte) (int, error) {
 		if n < 0 {
 			break
 		}
+		w.lastCR = data[n] == '\r'
 		w.emit()
 		data = data[n+1:]
 	}

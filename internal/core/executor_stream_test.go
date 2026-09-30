@@ -109,3 +109,17 @@ func TestCapturedOutputIsBoundedAndKeepsTail(t *testing.T) {
 		t.Fatal("capture bound or final diagnostic lost")
 	}
 }
+
+func TestProcessLineWriterDoesNotInventCRLFEmptyLines(t *testing.T) {
+	var lines []string
+	w := NewProcessLineWriter(func(line string) { lines = append(lines, line) }, nil)
+	for _, chunk := range []string{"one\r", "\ntwo\r\n", "three\n\n"} {
+		if _, err := w.Write([]byte(chunk)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.Flush()
+	if strings.Join(lines, "|") != "one|two|three|" {
+		t.Fatalf("phantom CRLF lines: %#v", lines)
+	}
+}
