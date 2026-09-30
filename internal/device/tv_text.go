@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	TVTextMethodScrcpyClipboard = "scrcpy-clipboard"
+	TVTextMethodScrcpyClipboard  = "scrcpy-clipboard"
 	TVTextMethodAndroidClipboard = "android-clipboard"
 	TVTextMethodInputText        = "input-text"
 
@@ -82,15 +82,8 @@ func sendTVText(
 	}
 
 	clipboardDetail := ""
-	setResult, setErr := run(ctx, core.ExecRequest{
-		Command: adbPath,
-		Args: []string{
-			"-s", serial, "shell",
-			"cmd clipboard set " + core.QuoteShellArg(text),
-		},
-		Timeout: 5 * time.Second,
-	})
-	if commandSucceeded(setResult, setErr) {
+	setErr := core.SetAndroidClipboard(ctx, adbPath, serial, text, core.CommandRunner(run))
+	if setErr == nil {
 		pasteResult, pasteErr := run(ctx, core.ExecRequest{
 			Command: adbPath,
 			Args:    []string{"-s", serial, "shell", "input keyevent KEYCODE_PASTE"},
@@ -104,7 +97,10 @@ func sendTVText(
 		}
 		clipboardDetail = commandFailureDetail(pasteResult, pasteErr)
 	} else {
-		clipboardDetail = commandFailureDetail(setResult, setErr)
+		clipboardDetail = setErr.Error()
+	}
+	if ctx.Err() != nil {
+		return TVTextInputResult{}, ctx.Err()
 	}
 
 	if !isSimpleASCIIInput(text) {

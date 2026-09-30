@@ -191,7 +191,7 @@ export function TVRemotePanel({ serial }: TVRemotePanelProps) {
             </div>
           </div>
           <p className="mt-1.5 pl-6 text-[10px] leading-relaxed text-muted-foreground">
-            Uses clipboard paste for Unicode when available; falls back to safe printable ASCII input only.
+            Unicode requires a detected Android clipboard command with verified readback. Otherwise only printable ASCII is supported. You can also paste Unicode in scrcpy’s own window.
           </p>
         </div>
       </CardContent>
