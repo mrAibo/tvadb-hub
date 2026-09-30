@@ -31,6 +31,13 @@ devices.
 
 ## Next: files and backups
 
+For the accepted implementation sequence and actual completion state, see
+[`STATUS.md`](../STATUS.md) and
+[live execution issue #43](https://github.com/mrAibo/tvadb-hub/issues/43).
+Audit remediation precedes the next P3 product feature: the guarded,
+capability-aware TV custom launcher wizard. Macros remain later. The sections
+below are the wider product backlog, not a competing immediate priority list.
+
 - [ ] File preview for images and text
 - [ ] Folder sync with preview, include/exclude filters and conflict policy
 - [ ] Transfer queue with retry/resume history
