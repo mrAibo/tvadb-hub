@@ -24,6 +24,7 @@ type AppConfig struct {
 	AutoRefreshDevices   bool                   `json:"auto_refresh_devices"`
 	DeviceRefreshSeconds int                    `json:"device_refresh_seconds"`
 	AuditEnabled         bool                   `json:"audit_enabled"`
+	FileTransferCompression string               `json:"file_transfer_compression"`
 }
 
 type WirelessHistoryEntry struct {
@@ -54,6 +55,13 @@ const (
 	MaxLogcatBufferLimit        = 50000
 	DefaultTerminalMode         = "adb-shell"
 	DefaultDeviceRefreshSeconds = 8
+
+	FileTransferCompressionAuto    = "auto"
+	FileTransferCompressionOff     = "off"
+	FileTransferCompressionZstd    = "zstd"
+	FileTransferCompressionLZ4     = "lz4"
+	FileTransferCompressionBrotli  = "brotli"
+	DefaultFileTransferCompression = FileTransferCompressionAuto
 )
 
 // DefaultConfig returns a fresh config with empty paths.
@@ -69,7 +77,8 @@ func DefaultConfig() *AppConfig {
 		ScrcpyPresets:        []ScrcpyPreset{},
 		DefaultTerminalMode:  DefaultTerminalMode,
 		AutoRefreshDevices:   true,
-		DeviceRefreshSeconds: DefaultDeviceRefreshSeconds,
+		DeviceRefreshSeconds:    DefaultDeviceRefreshSeconds,
+		FileTransferCompression: DefaultFileTransferCompression,
 	}
 }
 
@@ -118,6 +127,9 @@ func LoadConfig(dataDir string) (*AppConfig, error) {
 	if cfg.DeviceRefreshSeconds <= 0 {
 		cfg.DeviceRefreshSeconds = DefaultDeviceRefreshSeconds
 	}
+	if !IsValidFileTransferCompression(cfg.FileTransferCompression) {
+		cfg.FileTransferCompression = DefaultFileTransferCompression
+	}
 	return cfg, nil
 }
 
@@ -155,5 +167,18 @@ func GetBinaryPaths(cfg *AppConfig) func() BinaryPaths {
 			scrcpy = BinaryNameScrcpy
 		}
 		return BinaryPaths{Adb: adb, Fastboot: fastboot, Scrcpy: scrcpy}
+	}
+}
+
+func IsValidFileTransferCompression(value string) bool {
+	switch value {
+	case FileTransferCompressionAuto,
+		FileTransferCompressionOff,
+		FileTransferCompressionZstd,
+		FileTransferCompressionLZ4,
+		FileTransferCompressionBrotli:
+		return true
+	default:
+		return false
 	}
 }

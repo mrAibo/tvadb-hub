@@ -35,12 +35,17 @@ func (s *Service) PullFile(ctx context.Context, remotePath string, localPath str
 		s.clearCancel()
 	}()
 
+	adbPath := s.getBinPath().Adb
+	compression := s.transferCompressionPreference()
+	capabilities := s.getADBCompressionCapabilities(transferCtx, adbPath)
+	args := buildADBPullArgs(serial, normalizedRemotePath, trimmedLocalPath, compression, capabilities)
+
 	var result *core.ExecResult
 	var cmdErr error
 	for attempt := 1; attempt <= transferRetries; attempt++ {
 		result, cmdErr = core.RunCommandStreaming(transferCtx, core.StreamingExecRequest{
-			Command: s.getBinPath().Adb,
-			Args:    []string{"-s", serial, "pull", "-a", normalizedRemotePath, trimmedLocalPath},
+			Command: adbPath,
+			Args:    args,
 			OnStderrLine: func(line string) {
 				if m := adbProgressPattern.FindStringSubmatch(line); len(m) > 1 {
 					name := fileName

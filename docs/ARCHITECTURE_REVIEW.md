@@ -13,12 +13,11 @@ protocol stack. Keep the official ADB client as the compatibility baseline and
 introduce direct ADB-server protocol access only where profiling shows a clear
 benefit, such as continuous device tracking.
 
-Backend Logcat event batching is now implemented. The next high-value
-engineering work should instead focus on:
+Backend Logcat event batching and ADB CLI transfer compression are now
+implemented. The next high-value engineering work should instead focus on:
 
-1. ADB file-transfer compression exposed through the existing CLI.
-2. Optional transfer integrity verification for large files.
-3. Richer Logcat crash/ANR filtering and saved filters.
+1. Optional transfer integrity verification for large files.
+2. Richer Logcat crash/ANR filtering and saved filters.
 4. Better TV text input using clipboard/scrcpy-first fallbacks.
 5. A separately versioned, signed Safe Tuning metadata feed with explicit
    licensing and rollback.
@@ -145,19 +144,15 @@ license.
 
 ### ADB compression
 
-**Verdict: implement before any custom Sync-v2 client.**
+**Status: implemented.**
 
 **Complexity:** Low.
 
-Modern ADB already exposes compression through the CLI:
-
-- `adb push -z any`
-- `adb pull -z any`
-
-and supports Brotli, LZ4 and Zstd where negotiated. DroidSphere can gain most
-of the practical benefit by adding an Auto/None/algorithm option to the
-existing transfer engine. There is no need to reimplement Sync v2 merely to
-obtain compression.
+DroidSphere now uses the official ADB CLI compression flags for both push and
+pull. Auto uses `-z any` when the installed ADB advertises compression support;
+Off uses `-Z` where available; explicit Zstd, LZ4 and Brotli preferences are
+used only when advertised. Older ADB versions fall back to ordinary transfers
+without unsupported flags. No custom Sync-v2 implementation is required.
 
 ### Scoped Storage fallback
 
@@ -273,7 +268,7 @@ than the previous per-line IPC pressure issue.
 | Priority | Improvement | Complexity | Recommendation |
 | --- | --- | --- | --- |
 | Done | Backend Logcat event batching | Medium | Completed |
-| P1 | ADB push/pull compression options | Low | Do |
+| Done | ADB push/pull compression options | Low | Completed |
 | P1 | Transfer SHA-256 verification | Low-Medium | Do |
 | P2 | TV text-entry panel | Low-Medium | Do |
 | P2 | Signed/versioned Safe Tuning metadata feed | Medium-High | Do carefully |

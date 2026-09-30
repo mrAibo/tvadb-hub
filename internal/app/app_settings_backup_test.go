@@ -12,6 +12,7 @@ func TestNormalizeImportedConfig(t *testing.T) {
 		LogcatBufferLimit:    0,
 		DefaultTerminalMode:  "",
 		DeviceRefreshSeconds: 0,
+		FileTransferCompression: "invalid",
 	}
 	normalizeImportedConfig(cfg)
 
@@ -26,6 +27,9 @@ func TestNormalizeImportedConfig(t *testing.T) {
 	}
 	if cfg.DeviceRefreshSeconds != core.DefaultDeviceRefreshSeconds {
 		t.Fatalf("refresh seconds=%d", cfg.DeviceRefreshSeconds)
+	}
+	if cfg.FileTransferCompression != core.DefaultFileTransferCompression {
+		t.Fatalf("file transfer compression=%q", cfg.FileTransferCompression)
 	}
 	if cfg.BinaryVersions == nil || cfg.DeviceNicknames == nil || cfg.RememberedWireless == nil {
 		t.Fatal("maps/slices must be normalized")

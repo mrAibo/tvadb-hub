@@ -317,6 +317,8 @@ export type FileSortField = 'name' | 'size' | 'date'
 
 export type FileSortDirection = 'asc' | 'desc'
 
+export type FileTransferCompression = 'auto' | 'off' | 'zstd' | 'lz4' | 'brotli'
+
 export type TerminalMode = 'adb-shell' | 'adb-host' | 'fastboot-host'
 
 export interface TerminalSession {
@@ -619,6 +621,7 @@ export interface PreferencesPayload {
   auto_refresh_devices?: boolean
   device_refresh_seconds?: number
   audit_enabled?: boolean
+  file_transfer_compression?: FileTransferCompression
 }
 
 export interface AppConfigSnapshot {
@@ -636,6 +639,7 @@ export interface AppConfigSnapshot {
   auto_refresh_devices: boolean
   device_refresh_seconds: number
   audit_enabled: boolean
+  file_transfer_compression: FileTransferCompression
 }
 
 export interface RuntimeDiagnostics {

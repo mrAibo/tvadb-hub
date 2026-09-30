@@ -135,4 +135,7 @@ func normalizeImportedConfig(cfg *core.AppConfig) {
 	if cfg.DeviceRefreshSeconds <= 0 {
 		cfg.DeviceRefreshSeconds = core.DefaultDeviceRefreshSeconds
 	}
+	if !core.IsValidFileTransferCompression(cfg.FileTransferCompression) {
+		cfg.FileTransferCompression = core.DefaultFileTransferCompression
+	}
 }

@@ -226,3 +226,17 @@ func TestSaveWirelessHistoryRejectsInvalidAddress(t *testing.T) {
 		t.Fatal("expected invalid wireless address to be rejected")
 	}
 }
+
+
+func TestUpdatePreferencesRejectsInvalidFileTransferCompression(t *testing.T) {
+	app, _ := newTestApp(t)
+	_, err := app.UpdatePreferences(core.PreferencesPayload{
+		FileTransferCompression: "definitely-not-supported",
+	})
+	if err == nil {
+		t.Fatal("expected invalid file transfer compression to be rejected")
+	}
+	if !strings.Contains(err.Error(), "invalid file transfer compression mode") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

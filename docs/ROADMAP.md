@@ -18,6 +18,7 @@ devices.
 - [x] scrcpy presets, recording controls, screenshot capture and clipboard support
 - [x] Interactive shell and live Logcat
 - [x] Backend Logcat IPC batching with bounded interval/size flushes
+- [x] Capability-aware ADB push/pull compression with Auto/Off/algorithm preferences
 - [x] Fastboot/flash workflows
 - [x] Managed ADB/Fastboot/scrcpy tools with visible resolved paths
 - [x] Portable JSON settings backup

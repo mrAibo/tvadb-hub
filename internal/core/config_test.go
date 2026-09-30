@@ -127,3 +127,36 @@ func TestLoadConfigClampsOversizedLogcatBuffer(t *testing.T) {
 		t.Fatalf("buffer limit=%d want=%d", config.LogcatBufferLimit, MaxLogcatBufferLimit)
 	}
 }
+
+
+func TestLoadConfigDefaultsFileTransferCompressionForLegacyConfig(t *testing.T) {
+	dataDir := t.TempDir()
+	configPath := filepath.Join(dataDir, "config.json")
+	if err := os.WriteFile(configPath, []byte(`{"theme":"dark"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	config, err := LoadConfig(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.FileTransferCompression != DefaultFileTransferCompression {
+		t.Fatalf("compression=%q want=%q", config.FileTransferCompression, DefaultFileTransferCompression)
+	}
+}
+
+func TestLoadConfigNormalizesInvalidFileTransferCompression(t *testing.T) {
+	dataDir := t.TempDir()
+	configPath := filepath.Join(dataDir, "config.json")
+	if err := os.WriteFile(configPath, []byte(`{"file_transfer_compression":"invalid"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	config, err := LoadConfig(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.FileTransferCompression != DefaultFileTransferCompression {
+		t.Fatalf("compression=%q want=%q", config.FileTransferCompression, DefaultFileTransferCompression)
+	}
+}

@@ -45,6 +45,7 @@ type PreferencesPayload struct {
 	AutoRefreshDevices   bool              `json:"auto_refresh_devices"`
 	DeviceRefreshSeconds int               `json:"device_refresh_seconds"`
 	AuditEnabled         *bool             `json:"audit_enabled,omitempty"`
+	FileTransferCompression string          `json:"file_transfer_compression"`
 }
 
 type AppConfigSnapshot struct {
@@ -62,6 +63,7 @@ type AppConfigSnapshot struct {
 	AutoRefreshDevices   bool              `json:"auto_refresh_devices"`
 	DeviceRefreshSeconds int               `json:"device_refresh_seconds"`
 	AuditEnabled         bool              `json:"audit_enabled"`
+	FileTransferCompression string          `json:"file_transfer_compression"`
 }
 
 type RuntimeDiagnostics struct {
