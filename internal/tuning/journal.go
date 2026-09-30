@@ -120,6 +120,11 @@ func (s *Service) applyJournal(ctx context.Context, snapshot *Snapshot, result A
 		if current != *item.Before {
 			return result, core.NewOperationError("tuning_apply", "package state changed; analyze again", item.PackageName, false)
 		}
+		// Re-read device recovery roles before each disabling action. A launcher
+		// or keyboard may have changed after analysis or an earlier batch item.
+		if err := s.requireNonRecoveryPackage(ctx, snapshot.Serial, item.PackageName); err != nil {
+			return result, err
+		}
 		item.State = JournalPending
 		// This durable intent closes the command-to-result-write interruption gap.
 		if err := s.persistSnapshot(*snapshot); err != nil {
@@ -211,6 +216,15 @@ func (s *Service) restoreJournal(ctx context.Context, snapshot *Snapshot) (Resto
 			if isHardProtectedPackage(item.PackageName) && original.Enabled >= 2 {
 				result.Failed[item.PackageName] = "recovery cannot disable a protected package"
 				continue
+			}
+			// Restoring a disabled original state is still a disabling operation.
+			// Do not let an imported/old journal disable today's OEM HOME or IME.
+			// Enabling/reinstalling recovery remains possible if HOME is broken.
+			if original.Enabled >= 2 {
+				if err := s.requireNonRecoveryPackage(ctx, snapshot.Serial, item.PackageName); err != nil {
+					result.Failed[item.PackageName] = err.Error()
+					continue
+				}
 			}
 			item.State = JournalRestorePending
 			if err := s.persistSnapshot(*snapshot); err != nil {

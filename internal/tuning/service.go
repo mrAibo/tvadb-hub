@@ -82,6 +82,13 @@ func (s *Service) analyze(ctx context.Context, info device.Info, profileID strin
 		installedMap[pkg.PackageName] = pkg
 	}
 	protected, riskFloors := deviceSafetyFloor(info, profile)
+	dynamicProtected, err := s.recoveryPackages(ctx, serial)
+	if err != nil {
+		return Analysis{}, err
+	}
+	for pkg := range dynamicProtected {
+		protected[pkg] = struct{}{}
+	}
 
 	matches := make([]PackageMatch, 0)
 	defaultSelected := make([]string, 0)
