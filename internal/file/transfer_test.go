@@ -266,14 +266,14 @@ func TestVerifyTransferredFileRemoteHashUnavailable(t *testing.T) {
 	}
 }
 
-func TestVerifyTransferredFileMalformedRemoteOutputIsUnavailable(t *testing.T) {
+func TestVerifyTransferredFileMalformedRemoteOutputFails(t *testing.T) {
 	localPath := filepath.Join(t.TempDir(), "payload.bin")
 	if err := os.WriteFile(localPath, []byte("hello"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	calls := 0
-	result, err := verifyTransferredFile(
+	_, err := verifyTransferredFile(
 		context.Background(),
 		"adb",
 		"SERIAL",
@@ -284,16 +284,53 @@ func TestVerifyTransferredFileMalformedRemoteOutputIsUnavailable(t *testing.T) {
 			return &core.ExecResult{Stdout: "definitely-not-a-sha256  -\n", ExitCode: 0}, nil
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Status != VerificationStatusUnavailable {
-		t.Fatalf("status=%q want=%q detail=%q", result.Status, VerificationStatusUnavailable, result.Detail)
+	if err == nil {
+		t.Fatal("expected malformed remote digest to fail verification")
 	}
 	if calls != 2 {
 		t.Fatalf("remote hashing calls=%d want=2", calls)
 	}
-	if !strings.Contains(strings.ToLower(result.Detail), "malformed") {
-		t.Fatalf("expected malformed-output detail, got %q", result.Detail)
+	if !strings.Contains(strings.ToLower(err.Error()), "malformed") {
+		t.Fatalf("expected malformed-output error, got %q", err.Error())
+	}
+}
+
+func TestVerifyTransferredFileRemoteHashFailureIsNotUnavailable(t *testing.T) {
+	localPath := filepath.Join(t.TempDir(), "payload.bin")
+	if err := os.WriteFile(localPath, []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := verifyTransferredFile(
+		context.Background(),
+		"adb",
+		"SERIAL",
+		localPath,
+		"/sdcard/payload.bin",
+		func(context.Context, core.ExecRequest) (*core.ExecResult, error) {
+			return &core.ExecResult{Stderr: "permission denied", ExitCode: 1}, errors.New("exit status 1")
+		},
+	)
+	if err == nil {
+		t.Fatal("expected remote hash failure to fail verification")
+	}
+	if errors.Is(err, errRemoteSHA256Unavailable) {
+		t.Fatalf("permission failure must not be reported as unavailable: %v", err)
+	}
+}
+
+func TestComputeHostSHA256RejectsSymlink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.bin")
+	link := filepath.Join(dir, "link.bin")
+	if err := os.WriteFile(target, []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlink unavailable on this platform: %v", err)
+	}
+
+	if _, err := computeHostSHA256(context.Background(), link); err == nil {
+		t.Fatal("expected symlink hashing to be rejected")
 	}
 }

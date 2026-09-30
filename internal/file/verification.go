@@ -21,6 +21,8 @@ type transferVerificationResult struct {
 
 type verificationCommandRunner func(context.Context, core.ExecRequest) (*core.ExecResult, error)
 
+var errRemoteSHA256Unavailable = errors.New("remote SHA-256 tools unavailable")
+
 func (s *Service) transferVerificationEnabled() bool {
 	s.mu.Lock()
 	resolve := s.getTransferVerification
@@ -89,11 +91,14 @@ func verifyTransferredFile(
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return transferVerificationResult{}, err
 		}
-		return transferVerificationResult{
-			Status:      VerificationStatusUnavailable,
-			Detail:      err.Error(),
-			LocalDigest: localDigest,
-		}, nil
+		if errors.Is(err, errRemoteSHA256Unavailable) {
+			return transferVerificationResult{
+				Status:      VerificationStatusUnavailable,
+				Detail:      err.Error(),
+				LocalDigest: localDigest,
+			}, nil
+		}
+		return transferVerificationResult{}, err
 	}
 
 	if localDigest != remoteDigest {
@@ -127,6 +132,14 @@ func computeHostSHA256(ctx context.Context, filePath string) (string, error) {
 		return "", err
 	}
 	defer fileHandle.Close()
+
+	openedInfo, err := fileHandle.Stat()
+	if err != nil {
+		return "", err
+	}
+	if !openedInfo.Mode().IsRegular() || !os.SameFile(info, openedInfo) {
+		return "", fmt.Errorf("host file changed or became unsafe before verification")
+	}
 
 	hasher := sha256.New()
 	buffer := make([]byte, 1024*1024)
@@ -166,6 +179,7 @@ func computeRemoteSHA256(
 	}
 
 	failures := make([]string, 0, len(commands))
+	unavailableCount := 0
 	for _, command := range commands {
 		result, err := run(ctx, core.ExecRequest{
 			Command: adbPath,
@@ -185,7 +199,11 @@ func computeRemoteSHA256(
 			if err != nil && strings.TrimSpace(err.Error()) != "" {
 				detail = err.Error()
 			}
-			failures = append(failures, detail)
+			if isRemoteHashCommandUnavailable(detail) {
+				unavailableCount++
+			} else {
+				failures = append(failures, detail)
+			}
 			continue
 		}
 
@@ -197,11 +215,22 @@ func computeRemoteSHA256(
 		return digest, nil
 	}
 
+	if unavailableCount == len(commands) && len(failures) == 0 {
+		return "", fmt.Errorf("%w: sha256sum and toybox sha256sum are unavailable", errRemoteSHA256Unavailable)
+	}
+
 	detail := strings.Join(failures, "; ")
 	if detail == "" {
-		detail = "sha256sum and toybox sha256sum are unavailable"
+		detail = "Android hashing failed for an unknown reason"
 	}
-	return "", fmt.Errorf("Android SHA-256 unavailable: %s", detail)
+	return "", fmt.Errorf("Android SHA-256 verification failed: %s", detail)
+}
+
+func isRemoteHashCommandUnavailable(detail string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(detail))
+	return strings.Contains(normalized, "not found") ||
+		strings.Contains(normalized, "unknown command") ||
+		strings.Contains(normalized, "inaccessible or not found")
 }
 
 func parseSHA256Output(output string) (string, error) {
