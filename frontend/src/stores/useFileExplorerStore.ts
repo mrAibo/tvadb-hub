@@ -5,6 +5,7 @@ import type {
   FileSortDirection,
   TransferVerificationStatus,
   TransferVerificationSummary,
+  TransferBatchResult,
 } from '@/lib/types'
 
 interface FileCacheEntry {
@@ -13,6 +14,8 @@ interface FileCacheEntry {
 }
 
 interface TransferProgress {
+  operationId?: string
+  serial?: string
   fileName: string
   direction: 'push' | 'pull'
   percent: number
@@ -48,6 +51,7 @@ interface FileExplorerState {
   lastUpdatedAt: number | null
   transferProgress: TransferProgress | null
   lastTransferVerification: TransferVerificationSummary | null
+  lastTransferBatch: TransferBatchResult | null
 }
 
 interface FileExplorerActions {
@@ -81,6 +85,7 @@ interface FileExplorerActions {
   setLastUpdatedAt: (timestamp: number | null) => void
   setTransferProgress: (progress: TransferProgress | null) => void
   setLastTransferVerification: (result: TransferVerificationSummary | null) => void
+  setLastTransferBatch: (result: TransferBatchResult | null) => void
   resetFilters: () => void
   reset: () => void
 }
@@ -114,6 +119,7 @@ const initialState: FileExplorerState = {
   lastUpdatedAt: null,
   transferProgress: null,
   lastTransferVerification: null,
+  lastTransferBatch: null,
 }
 
 export const useFileExplorerStore = create<FileExplorerStore>()((set) => ({
@@ -200,6 +206,7 @@ export const useFileExplorerStore = create<FileExplorerStore>()((set) => ({
   setLastUpdatedAt: (lastUpdatedAt) => set({ lastUpdatedAt }),
   setTransferProgress: (transferProgress) => set({ transferProgress }),
   setLastTransferVerification: (lastTransferVerification) => set({ lastTransferVerification }),
+  setLastTransferBatch: (lastTransferBatch) => set({ lastTransferBatch }),
   resetFilters: () =>
     set({
       searchTerm: initialState.searchTerm,

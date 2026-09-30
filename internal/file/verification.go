@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
+	"time"
 )
 
 type transferVerificationResult struct {
@@ -22,6 +24,10 @@ type transferVerificationResult struct {
 type verificationCommandRunner func(context.Context, core.ExecRequest) (*core.ExecResult, error)
 
 var errRemoteSHA256Unavailable = errors.New("remote SHA-256 tools unavailable")
+var errHostSHA256Unsupported = errors.New("verification is only available for regular host files")
+
+var missingHashCommandPattern = regexp.MustCompile(`^(?:(?:/system/bin/)?sh: (?:[0-9]+: )?)?(?:sha256sum|toybox): (?:inaccessible or )?not found$`)
+var missingToyboxAppletPattern = regexp.MustCompile(`^toybox: unknown command ['"]?sha256sum['"]?(?:\s.*)?$`)
 
 func (s *Service) transferVerificationEnabled() bool {
 	s.mu.Lock()
@@ -32,6 +38,7 @@ func (s *Service) transferVerificationEnabled() bool {
 }
 
 func (s *Service) verifyTransferIfEnabled(
+	op *transferOperation,
 	ctx context.Context,
 	adbPath string,
 	serial string,
@@ -40,13 +47,15 @@ func (s *Service) verifyTransferIfEnabled(
 	fileName string,
 	direction string,
 ) (transferVerificationResult, error) {
-	if !s.transferVerificationEnabled() {
+	if !op.verify {
 		return transferVerificationResult{}, nil
 	}
 
-	s.emitTransferVerification(
+	s.emitOperationProgress(
+		op,
 		fileName,
 		direction,
+		100,
 		VerificationStatusVerifying,
 		"Computing host and Android SHA-256 digests",
 	)
@@ -57,13 +66,14 @@ func (s *Service) verifyTransferIfEnabled(
 		serial,
 		localPath,
 		remotePath,
-		core.RunCommand,
+		s.runTransferProbe,
 	)
 	if err != nil {
+		s.emitOperationProgress(op, fileName, direction, 100, VerificationStatusFailure, err.Error())
 		return transferVerificationResult{}, err
 	}
 
-	s.emitTransferVerification(fileName, direction, result.Status, result.Detail)
+	s.emitOperationProgress(op, fileName, direction, 100, result.Status, result.Detail)
 	return result, nil
 }
 
@@ -79,6 +89,9 @@ func verifyTransferredFile(
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return transferVerificationResult{}, err
+		}
+		if !errors.Is(err, errHostSHA256Unsupported) {
+			return transferVerificationResult{}, fmt.Errorf("host SHA-256 verification failed: %w", err)
 		}
 		return transferVerificationResult{
 			Status: VerificationStatusUnavailable,
@@ -119,12 +132,15 @@ func verifyTransferredFile(
 }
 
 func computeHostSHA256(ctx context.Context, filePath string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	info, err := os.Lstat(filePath)
 	if err != nil {
 		return "", err
 	}
 	if !info.Mode().IsRegular() {
-		return "", fmt.Errorf("verification is only available for regular host files")
+		return "", errHostSHA256Unsupported
 	}
 
 	fileHandle, err := os.Open(filePath)
@@ -162,6 +178,17 @@ func computeHostSHA256(ctx context.Context, filePath string) (string, error) {
 		}
 	}
 
+	after, err := fileHandle.Stat()
+	if err != nil {
+		return "", err
+	}
+	current, err := os.Lstat(filePath)
+	if err != nil {
+		return "", err
+	}
+	if !current.Mode().IsRegular() || !os.SameFile(openedInfo, current) || after.Size() != openedInfo.Size() || !after.ModTime().Equal(openedInfo.ModTime()) {
+		return "", fmt.Errorf("host file changed during verification")
+	}
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
@@ -184,6 +211,7 @@ func computeRemoteSHA256(
 		result, err := run(ctx, core.ExecRequest{
 			Command: adbPath,
 			Args:    []string{"-s", serial, "shell", command},
+			Timeout: 10 * time.Minute,
 		})
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return "", ctxErr
@@ -230,10 +258,13 @@ func computeRemoteSHA256(
 }
 
 func isRemoteHashCommandUnavailable(detail string) bool {
-	normalized := strings.ToLower(strings.TrimSpace(detail))
-	return strings.Contains(normalized, "not found") ||
-		strings.Contains(normalized, "unknown command") ||
-		strings.Contains(normalized, "inaccessible or not found")
+	for _, line := range strings.Split(strings.ToLower(detail), "\n") {
+		line = strings.TrimSpace(line)
+		if missingHashCommandPattern.MatchString(line) || missingToyboxAppletPattern.MatchString(line) {
+			return true
+		}
+	}
+	return false
 }
 
 func parseSHA256Output(output string) (string, error) {

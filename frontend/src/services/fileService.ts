@@ -20,11 +20,13 @@ import {
   UnblockPath,
 } from '../../bindings/ADBKit/internal/app/app'
 import { Events } from '@wailsio/runtime'
-import type { FileEntry, HostFileSystemInfo, StorageInfo, SdCard, TransferVerificationStatus, UnblockResult } from '@/lib/types'
+import type { FileEntry, HostFileSystemInfo, StorageInfo, SdCard, TransferVerificationStatus, TransferBatchResult, UnblockResult } from '@/lib/types'
 
 export const FILE_TRANSFER_PROGRESS_EVENT = 'file_transfer_progress'
 
 export interface FileTransferProgress {
+  operationId?: string
+  serial?: string
   fileName: string
   direction: 'push' | 'pull'
   percent: number
@@ -71,7 +73,8 @@ export async function selectDirectory(): Promise<string> {
   return SelectDirectory()
 }
 
-export async function pullFile(remotePath: string, localPath: string): Promise<string> {
+export async function pullFile(remotePath: string, localPath: string, expectedSerial?: string): Promise<string> {
+  if (expectedSerial !== undefined) return WailsCall.ByName('ADBKit/internal/app.App.PullFileForDevice', expectedSerial, remotePath, localPath) as Promise<string>
   return PullFile(remotePath, localPath)
 }
 
@@ -79,12 +82,21 @@ export async function pullMultipleFiles(remotePaths: string[], localDirectory: s
   return PullMultipleFiles(remotePaths, localDirectory)
 }
 
-export async function pushFile(localPath: string, remotePath: string): Promise<string> {
+export async function pushFile(localPath: string, remotePath: string, expectedSerial?: string): Promise<string> {
+  if (expectedSerial !== undefined) return WailsCall.ByName('ADBKit/internal/app.App.PushFileForDevice', expectedSerial, localPath, remotePath) as Promise<string>
   return PushFile(localPath, remotePath)
 }
 
 export async function pushMultipleFiles(localPaths: string[], remoteDirectory: string): Promise<string> {
   return PushMultipleFiles(localPaths, remoteDirectory)
+}
+
+export async function pushMultipleFilesDetailed(serial: string, paths: string[], destination: string): Promise<TransferBatchResult> {
+  return WailsCall.ByName('ADBKit/internal/app.App.PushMultipleFilesDetailed', serial, paths, destination) as Promise<TransferBatchResult>
+}
+
+export async function pullMultipleFilesDetailed(serial: string, paths: string[], destination: string): Promise<TransferBatchResult> {
+  return WailsCall.ByName('ADBKit/internal/app.App.PullMultipleFilesDetailed', serial, paths, destination) as Promise<TransferBatchResult>
 }
 
 export async function deleteFile(remotePath: string): Promise<string> {
@@ -103,8 +115,9 @@ export async function renameFile(oldRemotePath: string, newRemotePath: string): 
   return RenameFile(oldRemotePath, newRemotePath)
 }
 
-export function cancelFileTransfer(): void {
-  CancelFileTransfer()
+export function cancelFileTransfer(operationId?: string): void {
+  if (operationId) void WailsCall.ByName('ADBKit/internal/app.App.CancelFileTransferFor', operationId)
+  else CancelFileTransfer()
 }
 
 // listSdCards calls adb shell sm list-volumes and returns mounted volumes.
