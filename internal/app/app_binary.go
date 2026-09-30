@@ -9,18 +9,18 @@ import (
 )
 
 func (a *App) GetBinaryStatus() *binary.BinarySetupResult {
-	return a.binSvc.GetBinaryStatus(a.cfg)
+	return a.binSvc.GetBinaryStatus(a.currentConfig())
 }
 
 func (a *App) GetSetupState() *binary.SetupState {
-	return a.binSvc.GetSetupState(a.cfg)
+	return a.binSvc.GetSetupState(a.currentConfig())
 }
 
 func (a *App) RetryBinaryDetection() (*binary.BinarySetupResult, error) {
 	return auditAction(a, "retry_binary_detection", func() (*binary.BinarySetupResult, error) {
 		a.mu.Lock()
+		defer a.mu.Unlock()
 		result := a.binSvc.RevalidateConfig(a.cfg)
-		a.mu.Unlock()
 		if result.Changed {
 			if err := core.SaveConfig(a.dataDir, a.cfg); err != nil {
 				return nil, err
@@ -55,8 +55,8 @@ func (a *App) ClearCustomBinary(name string) error {
 func (a *App) CompleteSetup() (*binary.SetupState, error) {
 	return auditAction(a, "complete_setup", func() (*binary.SetupState, error) {
 		a.mu.Lock()
+		defer a.mu.Unlock()
 		state, err := a.binSvc.CompleteSetup(a.cfg)
-		a.mu.Unlock()
 		if err != nil {
 			return nil, err
 		}
@@ -76,14 +76,16 @@ func (a *App) ListManagedBinaries() ([]string, error) {
 }
 
 func (a *App) GetCapabilities() map[string]bool {
-	a.mu.Lock()
-	status := a.binSvc.GetBinaryStatus(a.cfg)
-	a.mu.Unlock()
+	config := a.currentConfig()
+	if config == nil {
+		config = core.DefaultConfig()
+	}
+	status := a.binSvc.GetBinaryStatus(config)
 	return map[string]bool{
 		"adbAvailable":             status.Adb.Status == core.BinaryReady,
 		"fastbootAvailable":        status.Fastboot.Status == core.BinaryReady,
 		"scrcpyAvailable":          status.Scrcpy.Status == core.BinaryReady,
-		"setupCompleted":           a.cfg.SetupCompleted && status.Ready,
+		"setupCompleted":           config.SetupCompleted && status.Ready,
 		"wirelessPairingSupported": wirelessPairingSupported(status.Adb),
 		"clipboardSyncSupported":   status.Scrcpy.Status == core.BinaryReady,
 		"audioCaptureSupported":    audioCaptureSupported(status.Scrcpy),

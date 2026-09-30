@@ -69,6 +69,7 @@ type PackageMatch struct {
 
 type Analysis struct {
 	Serial             string           `json:"serial"`
+	HardwareSerial     string           `json:"hardwareSerial,omitempty"`
 	Model              string           `json:"model"`
 	Manufacturer       string           `json:"manufacturer"`
 	AndroidVersion     string           `json:"androidVersion"`
@@ -82,11 +83,12 @@ type Analysis struct {
 }
 
 type ApplyRequest struct {
-	ExpectedSerial     string     `json:"expectedSerial"`
-	ProfileID          string     `json:"profileId"`
-	PackageNames       []string   `json:"packageNames"`
-	Mode               ActionMode `json:"mode"`
-	AcknowledgeCaution bool       `json:"acknowledgeCaution"`
+	ExpectedSerial         string     `json:"expectedSerial"`
+	ExpectedHardwareSerial string     `json:"expectedHardwareSerial,omitempty"`
+	ProfileID              string     `json:"profileId"`
+	PackageNames           []string   `json:"packageNames"`
+	Mode                   ActionMode `json:"mode"`
+	AcknowledgeCaution     bool       `json:"acknowledgeCaution"`
 }
 
 type ApplyResult struct {
@@ -97,25 +99,52 @@ type ApplyResult struct {
 }
 
 type SnapshotItem struct {
-	PackageName string     `json:"packageName"`
-	WasEnabled  bool       `json:"wasEnabled"`
-	IsSystemApp bool       `json:"isSystemApp"`
-	Risk        Risk       `json:"risk"`
-	Action      ActionMode `json:"action"`
-	Applied     bool       `json:"applied"`
+	PackageName string        `json:"packageName"`
+	WasEnabled  bool          `json:"wasEnabled"`
+	IsSystemApp bool          `json:"isSystemApp"`
+	Risk        Risk          `json:"risk"`
+	Action      ActionMode    `json:"action"`
+	Applied     bool          `json:"applied"`
+	State       JournalState  `json:"state,omitempty"`
+	Before      *PackageState `json:"before,omitempty"`
+	LastError   string        `json:"lastError,omitempty"`
+}
+
+type JournalState string
+
+const (
+	JournalPlanned        JournalState = "planned"
+	JournalPending        JournalState = "pending"
+	JournalApplied        JournalState = "applied"
+	JournalUnknown        JournalState = "unknown"
+	JournalRestorePending JournalState = "restore-pending"
+	JournalRestored       JournalState = "restored"
+)
+
+// Enabled preserves Android's exact DEFAULT/ENABLED/DISABLED/DISABLED_USER/
+// DISABLED_UNTIL_USED setting, rather than a lossy effective-enabled boolean.
+type PackageState struct {
+	Installed bool `json:"installed"`
+	Enabled   int  `json:"enabled"`
 }
 
 type Snapshot struct {
-	ID          string         `json:"id"`
-	CreatedAt   string         `json:"createdAt"`
-	Serial      string         `json:"serial"`
-	ProfileID   string         `json:"profileId"`
-	ProfileName string         `json:"profileName"`
-	Mode        ActionMode     `json:"mode"`
-	Items       []SnapshotItem `json:"items"`
+	Version        int            `json:"version,omitempty"`
+	UserID         int            `json:"userId"`
+	HardwareSerial string         `json:"hardwareSerial,omitempty"`
+	ID             string         `json:"id"`
+	CreatedAt      string         `json:"createdAt"`
+	Serial         string         `json:"serial"`
+	ProfileID      string         `json:"profileId"`
+	ProfileName    string         `json:"profileName"`
+	Mode           ActionMode     `json:"mode"`
+	Items          []SnapshotItem `json:"items"`
 }
 
 type SnapshotSummary struct {
+	Version     int        `json:"version"`
+	Recoverable int        `json:"recoverable"`
+	Uncertain   int        `json:"uncertain"`
 	ID          string     `json:"id"`
 	CreatedAt   string     `json:"createdAt"`
 	Serial      string     `json:"serial"`

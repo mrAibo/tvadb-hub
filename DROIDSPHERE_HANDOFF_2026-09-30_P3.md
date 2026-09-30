@@ -27,9 +27,9 @@ git pull --ff-only origin main
 git rev-parse HEAD
 ```
 
-Verified source checkpoint before this documentation package:
-`e194c441d9a9967009d463ead02c017e3cdaea51`, merge of PR #38.
-Post-merge run [36710126650](https://github.com/mrAibo/tvadb-hub/actions/runs/36710126650)
+Verified source checkpoint before this documentation refresh:
+`3b3482aab5457d3018af1f54fa47c6c98e742e15`, merge of PR #42.
+Post-merge run [36749845032](https://github.com/mrAibo/tvadb-hub/actions/runs/36749845032)
 passed frontend-check, go-test, Windows, Linux and macOS builds.
 Inspect every intervening commit if main is newer and preserve valid newer work.
 Never overwrite a parallel session's valid changes or duplicate merged features.
@@ -64,40 +64,52 @@ New audit fixes merged:
   stale frontend response rejection, strict model/codename profile eligibility.
 - #39: applicable built-in safety floors independent of external profile IDs;
   serialized feed refresh/rollback and trust recheck before cache/state commit.
+- #40: durable pending intent before mutation, exact installed/enabled-state
+  recovery, interrupted-operation reconciliation and unique atomic-write temps.
+- #41: advertised clipboard set/get support and exact readback before TV PASTE;
+  no false inference of scrcpy control access from an external process.
+- #42: detached configuration snapshots, synchronized access, selection
+  deadlock prevention and application facade race checks.
+
+All three were integrated with current main before merging. Post-merge runs
+[36743305430](https://github.com/mrAibo/tvadb-hub/actions/runs/36743305430) (#40),
+[36746045096](https://github.com/mrAibo/tvadb-hub/actions/runs/36746045096) (#41),
+and [36749845032](https://github.com/mrAibo/tvadb-hub/actions/runs/36749845032) (#42)
+passed all five jobs. These packages are complete; do not implement them again.
 
 ## Published but not yet merged at this milestone
 
-| PR | Scope | Head SHA | Verified full PR CI |
+| PR | Scope | Head SHA | Evidence / next action |
 | --- | --- | --- | --- |
-| #40 | Durable intent journal before mutation; exact installation/enabled-state restore; pending/unknown reconciliation; unique atomic-write temporary files | `e6088a474a36452806c814c8a7f5e32458e1a1b6` | [36710393028](https://github.com/mrAibo/tvadb-hub/actions/runs/36710393028) |
-| #41 | Detect advertised clipboard set/get support, exact readback before TV PASTE, no false scrcpy transport inference | `88d4bb77e254d3107edea5d7a0bedd6c3a97a823` | [36710693943](https://github.com/mrAibo/tvadb-hub/actions/runs/36710693943) |
-| #42 | Detached configuration snapshots, synchronized reads/writes, selection deadlock prevention, app facade race CI | `771e400fc82b3906b865924a1898659c6db04976` | [36710807103](https://github.com/mrAibo/tvadb-hub/actions/runs/36710807103) |
+| #45 | Bounded command diagnostics; joined process output; explicit reader errors; cancellation/reaping; Logcat final batches and status ordering; CRLF coalescing | `4e7c3defd54d6f326c84d75e4c84e25a12f97f9e` | Original full CI 36745517600 green. Updated tree includes #41/#42; fresh integration run 36750569010 pending. |
 
-All five jobs in each listed run passed. An interrupted tool call did not merge
-#40. Read issue #43 and current PR metadata before acting; these may be merged
-after this document is written. Integrate current main into pending PRs and
-validate their combined tree, then merge one at a time and check main CI.
+Read issue #43 and current PR metadata before acting; #45 may be merged after
+this document is written. Transfer isolation/pinned batch/result/hash/retry
+fixes are implemented in local branch `fix/transfer-operation-results`, not yet
+published at this milestone. Production frontend build/tests and Windows Go
+test-package cross-compilation are available; desktop-dependent runtime tests
+must pass in CI. Never rely on a transient worktree instead of a published PR.
 
 ## Accepted remaining sequence
 
-1. Complete #40 -> #41 -> #42 with integration and post-merge CI.
-2. Streams and Logcat: finish stdout/stderr reads before Wait closes pipes,
+1. Finish #45 integration, merge and verify main. Streams and Logcat:
+   finish stdout/stderr reads before Wait closes pipes,
    surface scanner failures, preserve bounded batching/final flush, and make
    cancellation/reader failure cleanup deterministic.
-3. Transfers: prevent overlapping operations from replacing each other's cancel
+2. Transfers: publish and complete the implemented package; prevent overlapping operations from replacing each other's cancel
    function; pin target/tool/preferences for the whole batch; return truthful
    per-file results; distinguish unsupported host hashing types from real I/O
    failures; classify retries from actual stderr/stdout diagnostics.
-4. Extend Safe Tuning protection to discovered current HOME/IME packages for
+3. Extend Safe Tuning protection to discovered current HOME/IME packages for
    unknown OEMs, not only a static list of known recovery packages.
-5. Benchmark: CLI and smart socket must use the same endpoint; alternate paired
+4. Benchmark: CLI and smart socket must use the same endpoint; alternate paired
    samples; check snapshot consistency; export raw/summary JSON evidence.
-6. Validation/distribution: make frontend typecheck actually check application,
+5. Validation/distribution: make frontend typecheck actually check application,
    tooling and tests; pin Bun/Wails/NSIS across all workflows; associate build
    artifacts with exact source SHA. Do not claim old binaries are current.
-7. Guarded TV Custom Launcher Wizard. This is the next accepted P3 product
+6. Guarded TV Custom Launcher Wizard. This is the next accepted P3 product
    feature after the safety prerequisites, not macros.
-8. Final review, documentation, full CI, updated handoff.
+7. Final review, documentation, full CI, updated handoff.
 
 For each package use a fresh branch from current main, tests and documentation,
 commit/push/open PR autonomously, fix full CI, merge only green and verify main.
@@ -143,8 +155,10 @@ frontend tests must cover stale target/confirmation/error handling.
 ## Limitations and recovery facts
 
 Automatic workspace maintenance removed the previous transient checkout and
-toolchain. Published PRs are intact. Early stream/PTY edits were uncommitted and
-not pushed; rebuild them from the requirements above, not from assumed code.
+toolchain. Published PRs are intact. Early stream/PTY edits were rebuilt and
+are now published in #45; do not rebuild or duplicate that package again.
+Local GTK/WebKit dependency installation was denied by environment permissions;
+do not bypass them. Full desktop-dependent testing/builds use GitHub CI.
 
 Unit/fake-device tests do not establish real firmware compatibility. Physical TV
 validation, user experience smoke tests and cross-platform ADB measurements are
