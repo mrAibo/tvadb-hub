@@ -3,10 +3,9 @@ package shell
 import (
 	"ADBKit/internal/binary"
 	"ADBKit/internal/core"
-	"bufio"
 	"context"
+	"errors"
 	"fmt"
-	"io"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -51,11 +50,13 @@ type LogcatStatusEvent struct {
 type logcatStream struct {
 	serial    string
 	cmd       *exec.Cmd
-	stdout    io.ReadCloser
-	stderr    io.ReadCloser
+	stdout    *core.ProcessLineWriter
+	stderr    *core.ProcessLineWriter
 	entries   chan LogcatEntry
 	batchDone chan struct{}
-	readers   sync.WaitGroup
+	finished  chan struct{}
+	cancel    context.CancelFunc
+	ctx       context.Context
 	once      sync.Once
 	stopping  atomic.Bool
 }
@@ -65,6 +66,7 @@ type LogcatService struct {
 	binaryService *binary.Service
 	getConfig     func() *core.AppConfig
 
+	opMu       sync.Mutex
 	mu         sync.Mutex
 	streams    map[string]*logcatStream
 	emitBatch  func([]LogcatEntry)
@@ -76,7 +78,7 @@ func NewLogcatService(ctx context.Context, binaryService *binary.Service, getCon
 		ctx:           ctx,
 		binaryService: binaryService,
 		getConfig:     getConfig,
-		streams: make(map[string]*logcatStream),
+		streams:       make(map[string]*logcatStream),
 		emitBatch: func(entries []LogcatEntry) {
 			application.Get().Event.Emit(EventBatch, entries)
 		},
@@ -87,6 +89,8 @@ func NewLogcatService(ctx context.Context, binaryService *binary.Service, getCon
 }
 
 func (s *LogcatService) StartStream(ctx context.Context, serial string, levels string, tagFilter string) error {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
 	trimmedSerial := strings.TrimSpace(serial)
 	if trimmedSerial == "" {
 		return core.NewOperationError("start_logcat_stream", "Device serial is required", "serial must not be empty", false)
@@ -98,7 +102,7 @@ func (s *LogcatService) StartStream(ctx context.Context, serial string, levels s
 	}
 
 	if s.hasStream(trimmedSerial) {
-		if err := s.StopStream(trimmedSerial); err != nil {
+		if err := s.stopStream(trimmedSerial); err != nil {
 			return err
 		}
 	}
@@ -109,56 +113,60 @@ func (s *LogcatService) StartStream(ctx context.Context, serial string, levels s
 		args = append(args, filterSpec)
 	}
 
-	cmd := core.NewCommandContext(ctx, adbPath, args...)
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return core.NewOperationError("start_logcat_stream", "Failed to open logcat stdout", err.Error(), true)
-	}
+	streamCtx, cancel := context.WithCancel(ctx)
+	_, err = s.startCommand(streamCtx, trimmedSerial, core.NewCommandContext(streamCtx, adbPath, args...), cancel)
+	return err
+}
 
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return core.NewOperationError("start_logcat_stream", "Failed to open logcat stderr", err.Error(), true)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return core.NewOperationError("start_logcat_stream", "Failed to start logcat stream", err.Error(), true)
-	}
-
+// The assigned writers let Wait drain output before closing the batch channel.
+func (s *LogcatService) startCommand(ctx context.Context, serial string, cmd *exec.Cmd, cancel context.CancelFunc) (*logcatStream, error) {
 	stream := &logcatStream{
-		serial:    trimmedSerial,
+		serial:    serial,
 		cmd:       cmd,
-		stdout:    stdoutPipe,
-		stderr:    stderrPipe,
 		entries:   make(chan LogcatEntry, logcatBatchChannelSize),
 		batchDone: make(chan struct{}),
+		finished:  make(chan struct{}),
+		cancel:    cancel,
+		ctx:       ctx,
+	}
+	lineWriter := func(isError bool) *core.ProcessLineWriter {
+		return core.NewProcessLineWriter(func(line string) {
+			entry := parseLogcatEntry(serial, line)
+			if isError && entry.Tag == "" {
+				entry.Level = "W"
+			}
+			stream.entries <- entry
+		}, cancel)
+	}
+	stream.stdout, stream.stderr = lineWriter(false), lineWriter(true)
+	cmd.Stdout, cmd.Stderr = stream.stdout, stream.stderr
+	if err := cmd.Start(); err != nil {
+		cancel()
+		return nil, core.NewOperationError("start_logcat_stream", "Failed to start logcat stream", err.Error(), true)
 	}
 
 	s.mu.Lock()
-	s.streams[trimmedSerial] = stream
+	s.streams[serial] = stream
 	s.mu.Unlock()
 
 	go s.emitLogcatBatches(stream)
 
-	stream.readers.Add(2)
-	go func() {
-		defer stream.readers.Done()
-		s.readLogcatOutput(stream, stdoutPipe, false)
-	}()
-	go func() {
-		defer stream.readers.Done()
-		s.readLogcatOutput(stream, stderrPipe, true)
-	}()
-	go s.waitForStreamExit(stream)
-
 	s.emitStatus(LogcatStatusEvent{
-		Serial: trimmedSerial,
+		Serial: serial,
 		Status: "started",
 	})
+	go s.waitForStreamExit(stream)
 
-	return nil
+	return stream, nil
 }
 
 func (s *LogcatService) StopStream(serial string) error {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+	return s.stopStream(serial)
+}
+
+func (s *LogcatService) stopStream(serial string) error {
 	trimmedSerial := strings.TrimSpace(serial)
 	if trimmedSerial == "" {
 		return core.NewOperationError("stop_logcat_stream", "Device serial is required", "serial must not be empty", false)
@@ -172,11 +180,14 @@ func (s *LogcatService) StopStream(serial string) error {
 	}
 
 	stream.stopping.Store(true)
-	s.closeStream(stream, "stopped", nil)
+	stream.cancel()
+	<-stream.finished // Wait reaps the process and joins output readers first.
 	return nil
 }
 
 func (s *LogcatService) Shutdown() {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
 	s.mu.Lock()
 	streams := make([]*logcatStream, 0, len(s.streams))
 	for _, stream := range s.streams {
@@ -186,41 +197,23 @@ func (s *LogcatService) Shutdown() {
 
 	for _, stream := range streams {
 		stream.stopping.Store(true)
-		s.closeStream(stream, "stopped", nil)
+		stream.cancel()
 	}
-}
-
-func (s *LogcatService) readLogcatOutput(stream *logcatStream, pipe io.ReadCloser, isError bool) {
-	defer pipe.Close()
-
-	scanner := bufio.NewScanner(pipe)
-	buffer := make([]byte, 0, 64*1024)
-	scanner.Buffer(buffer, 1024*1024)
-
-	for scanner.Scan() {
-		entry := parseLogcatEntry(stream.serial, scanner.Text())
-		// adb menulis diagnostik non-fatal ke stderr (mis. "waiting for device").
-		// Hanya tandai sebagai warning bila baris bukan format logcat valid;
-		// baris yang sudah terparse mempertahankan level aslinya.
-		if isError && entry.Tag == "" {
-			entry.Level = "W"
-		}
-		stream.entries <- entry
-	}
-
-	if err := scanner.Err(); err != nil && !stream.stopping.Load() {
-		stream.entries <- LogcatEntry{
-			ID:      uuid.NewString(),
-			Serial:  stream.serial,
-			Level:   "E",
-			Message: err.Error(),
-			Raw:     err.Error(),
-		}
+	for _, stream := range streams {
+		<-stream.finished
 	}
 }
 
 func (s *LogcatService) waitForStreamExit(stream *logcatStream) {
 	err := stream.cmd.Wait()
+	stream.stdout.Flush()
+	stream.stderr.Flush()
+	readErr := errors.Join(stream.stdout.ReadError(), stream.stderr.ReadError())
+	if readErr != nil {
+		err = fmt.Errorf("logcat output reader failed: %w", readErr)
+	} else if stream.ctx.Err() != nil {
+		stream.stopping.Store(true)
+	}
 	// Kill yang dipicu user (StopStream/Shutdown) membuat Wait() mengembalikan
 	// signal error; itu bukan kegagalan jadi tetap dilaporkan sebagai "stopped".
 	if err != nil {
@@ -249,24 +242,7 @@ func (s *LogcatService) closeStream(stream *logcatStream, status string, streamE
 			status = "stopped"
 		}
 
-		s.mu.Lock()
-		delete(s.streams, stream.serial)
-		s.mu.Unlock()
-
-		if stream.stdout != nil {
-			_ = stream.stdout.Close()
-		}
-		if stream.stderr != nil {
-			_ = stream.stderr.Close()
-		}
-		if stream.cmd != nil && stream.cmd.Process != nil {
-			_ = core.TerminateProcessTree(stream.cmd)
-		}
-
-		// Readers may already hold parsed lines when cancellation closes the
-		// pipes. Wait for them before closing the batch channel so those final
-		// entries are emitted instead of being dropped.
-		stream.readers.Wait()
+		// Wait has already joined the output copiers, including final lines.
 		close(stream.entries)
 		<-stream.batchDone
 
@@ -274,6 +250,17 @@ func (s *LogcatService) closeStream(stream *logcatStream, status string, streamE
 			Serial: stream.serial,
 			Status: status,
 		})
+		s.mu.Lock()
+		if s.streams[stream.serial] == stream {
+			delete(s.streams, stream.serial)
+		}
+		s.mu.Unlock()
+		if stream.cancel != nil {
+			stream.cancel()
+		}
+		if stream.finished != nil {
+			close(stream.finished)
+		}
 	})
 }
 
