@@ -65,18 +65,13 @@ func (s *Service) Analyze(ctx context.Context, info device.Info, profileID strin
 	for _, pkg := range installed {
 		installedMap[pkg.PackageName] = pkg
 	}
-	protected := make(map[string]struct{}, len(profile.Keep)+len(hardProtectedPackages))
-	for packageName := range hardProtectedPackages {
-		protected[packageName] = struct{}{}
-	}
-	for _, pkg := range profile.Keep {
-		protected[pkg] = struct{}{}
-	}
+	protected, riskFloors := deviceSafetyFloor(info, profile)
 
 	matches := make([]PackageMatch, 0)
 	defaultSelected := make([]string, 0)
 	protectedInstalled := make([]string, 0)
 	for _, rule := range profile.Rules {
+		rule = enforceRuleFloor(rule, protected, riskFloors)
 		pkg, ok := installedMap[rule.PackageName]
 		if !ok {
 			continue

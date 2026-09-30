@@ -22,10 +22,22 @@ A feed is accepted only when all of the following are true:
 - caution/dangerous/blocked rules are never selected by default;
 - DroidSphere's hard-protected Android package floor cannot be made actionable.
 
+The backend derives keep-list and minimum risk protection from all applicable
+built-in device profiles, independently of the selected feed profile's ID.
+A new external profile ID cannot remove those protections. Known HOME launchers
+and recovery-critical TV input packages are hard protected across profiles.
+Selecting a different catalog changes metadata, never the built-in safety policy.
+
 Verified payloads are cached under a namespace derived from the feed URL and
 public key. The active and previous signed revisions are retained so the user
 can explicitly roll back. A remote refresh cannot silently downgrade an active
 revision or reuse the same revision number with different signed content.
+
+Refresh and rollback transactions are serialized. Network downloads leave state
+unlocked so disabling/changing trust can take effect immediately. Before cache
+promotion and activation, the backend checks the live URL/key again. A response
+from an old trust configuration is discarded without writing its cache. Cache
+rotation and runtime activation use the same transaction boundary.
 
 If configuration, download, signature, schema or cache validation fails,
 DroidSphere continues with the built-in catalog.
