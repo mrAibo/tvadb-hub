@@ -18,6 +18,12 @@ func journalTestService(t *testing.T, states map[string]PackageState) (*Service,
 			t.Fatalf("unexpected target %+v", req)
 		}
 		args := strings.Join(req.Args, " ")
+		if strings.Contains(args, "cmd package query-activities") || strings.Contains(args, "cmd package resolve-activity") {
+			return &core.ExecResult{Stdout: "com.oem.home/.Home\n"}, nil
+		}
+		if strings.Contains(args, "settings --user 0 get secure") {
+			return &core.ExecResult{Stdout: "com.oem.keyboard/.IME\n"}, nil
+		}
 		pkg := req.Args[len(req.Args)-1]
 		current := states[pkg]
 		if strings.Contains(args, "dumpsys package") {

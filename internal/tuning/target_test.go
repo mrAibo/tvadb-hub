@@ -37,6 +37,13 @@ func TestRestoreDoesNotFollowSelectionChanges(t *testing.T) {
 			t.Fatalf("restore switched target: %+v", req)
 		}
 		pkg := req.Args[len(req.Args)-1]
+		args := strings.Join(req.Args, " ")
+		if strings.Contains(args, "cmd package query-activities") || strings.Contains(args, "cmd package resolve-activity") {
+			return &core.ExecResult{Stdout: "com.oem.home/.Home\n"}, nil
+		}
+		if strings.Contains(args, "settings --user 0 get secure") {
+			return &core.ExecResult{Stdout: "com.oem.keyboard/.IME\n"}, nil
+		}
 		if strings.Contains(strings.Join(req.Args, " "), "dumpsys package") {
 			state := states[pkg]
 			return &core.ExecResult{Stdout: fmt.Sprintf("User 0: installed=%t enabled=%d", state.Installed, state.Enabled)}, nil

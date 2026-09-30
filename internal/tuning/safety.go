@@ -1,9 +1,33 @@
 package tuning
 
 import (
+	"ADBKit/internal/core"
 	"ADBKit/internal/device"
+	"context"
 	"strings"
 )
+
+func (s *Service) recoveryPackages(ctx context.Context, serial string) (map[string]struct{}, error) {
+	packages, err := core.AndroidRecoveryPackages(ctx, s.getBinPath().Adb, serial, s.runCommand)
+	if err != nil {
+		return nil, core.NewOperationError("tuning_safety", "cannot establish HOME/IME protection; no disabling action attempted", err.Error(), true)
+	}
+	return packages, nil
+}
+
+func (s *Service) requireNonRecoveryPackage(ctx context.Context, serial, pkg string) error {
+	if isHardProtectedPackage(pkg) {
+		return core.NewOperationError("tuning_safety", "protected package cannot be disabled or removed", pkg, false)
+	}
+	protected, err := s.recoveryPackages(ctx, serial)
+	if err != nil {
+		return err
+	}
+	if _, exists := protected[pkg]; exists {
+		return core.NewOperationError("tuning_safety", "HOME/IME recovery package cannot be disabled or removed", pkg, false)
+	}
+	return nil
+}
 
 // hardProtectedPackages is the non-overridable Safe Tuning safety floor.
 // A signed metadata feed may add stronger protection, but it cannot make

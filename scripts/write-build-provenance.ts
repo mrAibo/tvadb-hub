@@ -24,7 +24,7 @@ export function buildProvenance(rootDir: string, platform: string, artifacts: st
     workflowRun: env.GITHUB_RUN_ID ?? null,
     workflowAttempt: env.GITHUB_RUN_ATTEMPT ?? null,
     toolchainPins: pins,
-    tools: { go: command('go', ['version']), bun: command('bun', ['--version']), wails: command('wails3', ['version']) },
+    tools: { go: command('go', ['version']), bun: command('bun', ['--version']), wails: command('wails3', ['version']), ...(platform.startsWith('windows') ? { nsis: command('makensis', ['/VERSION']) } : {}) },
     artifacts: artifacts.map(path => ({ name: basename(path), sha256: createHash('sha256').update(readFileSync(resolve(rootDir, path))).digest('hex') })),
   }
 }
