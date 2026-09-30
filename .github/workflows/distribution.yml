@@ -19,20 +19,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26.x'
+          go-version: '1.26.7'
+      - name: Validate pinned toolchain
+        run: bun scripts/check-toolchain.ts
       - name: Install Wails CLI
         shell: pwsh
-        run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.20
       - name: Install NSIS
         shell: pwsh
-        run: |
-          $nsisPath = Join-Path ${env:ProgramFiles(x86)} "NSIS"
-          if (-not (Test-Path (Join-Path $nsisPath "makensis.exe"))) {
-            winget install --id NSIS.NSIS --exact --silent --accept-package-agreements --accept-source-agreements
-          }
-          $nsisPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        run: ./scripts/setup-nsis.ps1
       - name: Install frontend dependencies
         working-directory: frontend
         run: bun install --frozen-lockfile
@@ -42,6 +41,11 @@ jobs:
       - name: Canonical Windows filenames
         shell: bash
         run: bash scripts/rename-release-assets.sh windows
+      - name: Record Windows distribution provenance
+        shell: bash
+        run: |
+          VERSION="$(awk '/^VERSION :=/ {print $3; exit}' Makefile)"
+          bun scripts/write-build-provenance.ts windows "bin/DroidSphere-$VERSION-windows-amd64.exe" "bin/DroidSphere-$VERSION-windows-amd64-installer.exe"
       - name: Upload Windows distribution
         uses: actions/upload-artifact@v4
         with:
@@ -49,6 +53,7 @@ jobs:
           path: |
             bin/DroidSphere-*-windows-amd64.exe
             bin/DroidSphere-*-windows-amd64-installer.exe
+            bin/BUILD_PROVENANCE-windows.json
           if-no-files-found: error
 
   linux:
@@ -57,15 +62,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26.x'
+          go-version: '1.26.7'
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libfuse2
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.20
       - name: Install frontend dependencies
         working-directory: frontend
         run: bun install --frozen-lockfile
@@ -91,6 +98,11 @@ jobs:
             cp "$DEB" "bin/DroidSphere-$VERSION-linux-amd64.deb"
           fi
           chmod +x "bin/DroidSphere-$VERSION-linux-amd64.AppImage"
+      - name: Record Linux distribution provenance
+        shell: bash
+        run: |
+          VERSION="$(awk '/^VERSION :=/ {print $3; exit}' Makefile)"
+          bun scripts/write-build-provenance.ts linux "bin/DroidSphere-$VERSION-linux-amd64.AppImage" "bin/DroidSphere-$VERSION-linux-amd64.deb"
       - name: Upload Linux distribution
         uses: actions/upload-artifact@v4
         with:
@@ -98,6 +110,7 @@ jobs:
           path: |
             bin/DroidSphere-*-linux-amd64.AppImage
             bin/DroidSphere-*-linux-amd64.deb
+            bin/BUILD_PROVENANCE-linux.json
           if-no-files-found: error
 
   macos:
@@ -106,13 +119,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26.x'
+          go-version: '1.26.7'
       - name: Verify Xcode Command Line Tools
         run: xcode-select -p
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.20
       - name: Install frontend dependencies
         working-directory: frontend
         run: bun install --frozen-lockfile
@@ -125,11 +140,18 @@ jobs:
           VERSION="$(awk '/^VERSION :=/ {print $3; exit}' Makefile)"
           lipo -info bin/DroidSphere.app/Contents/MacOS/DroidSphere
           ditto -c -k --sequesterRsrc --keepParent             bin/DroidSphere.app             "bin/DroidSphere-$VERSION-macos-universal.zip"
+      - name: Record macOS distribution provenance
+        shell: bash
+        run: |
+          VERSION="$(awk '/^VERSION :=/ {print $3; exit}' Makefile)"
+          bun scripts/write-build-provenance.ts macos "bin/DroidSphere-$VERSION-macos-universal.zip"
       - name: Upload macOS distribution
         uses: actions/upload-artifact@v4
         with:
           name: droidsphere-dist-macos
-          path: bin/DroidSphere-*-macos-universal.zip
+          path: |
+            bin/DroidSphere-*-macos-universal.zip
+            bin/BUILD_PROVENANCE-macos.json
           if-no-files-found: error
 
   collect:
@@ -157,6 +179,9 @@ jobs:
           cp _distribution/*linux-amd64.AppImage distribution/linux/
           cp _distribution/*linux-amd64.deb distribution/linux/
           cp _distribution/*macos-universal.zip distribution/macos/
+          cp _distribution/BUILD_PROVENANCE-windows.json distribution/windows/
+          cp _distribution/BUILD_PROVENANCE-linux.json distribution/linux/
+          cp _distribution/BUILD_PROVENANCE-macos.json distribution/macos/
 
           chmod +x distribution/linux/*.AppImage
 
