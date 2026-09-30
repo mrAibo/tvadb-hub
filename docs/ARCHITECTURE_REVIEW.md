@@ -184,9 +184,11 @@ regular files it computes SHA-256 on the host, then tries `sha256sum` and
 - matching digests are reported as verified;
 - a digest mismatch fails the transfer result instead of being presented as
   success;
-- missing or unusable Android hashing is reported explicitly as verification
-  unavailable;
-- malformed remote hash output is rejected;
+- if neither Android `sha256sum` nor `toybox sha256sum` is available, the
+  result is reported explicitly as verification unavailable;
+- malformed hash output, permission failures and other hashing execution
+  failures are rejected as verification failures rather than being mislabeled
+  as unavailable;
 - directories and non-regular host paths are reported as verification
   unavailable rather than being followed or treated as verified;
 - hashing shares the transfer cancellation context.

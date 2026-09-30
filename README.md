@@ -89,7 +89,7 @@ currently used for ADB, Fastboot, scrcpy and managed tool directories.
 
 Settings can export/import a JSON backup containing preferences, binary paths,
 device nicknames, scrcpy presets, remembered wireless devices, file-transfer
-compression preference and window state.
+compression and verification preferences, and window state.
 Older `tvadb-hub-settings` backups remain import-compatible after the rename.
 
 ## How to install
