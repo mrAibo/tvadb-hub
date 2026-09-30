@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   IconAlertTriangle as AlertTriangle,
   IconArrowBackUp as ArrowBackUp,
@@ -98,6 +98,9 @@ function PackageRow({
 
 export default function TuningPage() {
   const { activeSerial, deviceInfo } = useDevices()
+  const currentSerial = useRef(activeSerial)
+  currentSerial.current = activeSerial
+  const loadGeneration = useRef(0)
   const [analysis, setAnalysis] = useState<SafeTuningAnalysis | null>(null)
   const [snapshots, setSnapshots] = useState<TuningSnapshotSummary[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -111,6 +114,8 @@ export default function TuningPage() {
   const [feedBusy, setFeedBusy] = useState(false)
 
   async function reload(profileId = '') {
+    const generation = ++loadGeneration.current
+    const target = activeSerial
     if (!activeSerial) {
       setAnalysis(null)
       setSnapshots([])
@@ -121,22 +126,29 @@ export default function TuningPage() {
     setError(null)
     try {
       const [nextAnalysis, nextSnapshots] = await Promise.all([
-        analyzeSafeTuning(profileId),
-        listTuningSnapshots(),
+        analyzeSafeTuning(target, profileId),
+        listTuningSnapshots(target),
       ])
+      if (currentSerial.current !== target || generation !== loadGeneration.current) return
+      if (nextAnalysis.serial !== target) throw new Error('Device target changed; analyze again')
       setAnalysis(nextAnalysis)
       setSnapshots(nextSnapshots)
       setSelected(new Set(nextAnalysis.defaultSelected))
     } catch (loadError) {
+      if (currentSerial.current !== target || generation !== loadGeneration.current) return
       setError(loadError instanceof Error ? loadError.message : String(loadError))
       setAnalysis(null)
     } finally {
-      setLoading(false)
+      if (currentSerial.current === target && generation === loadGeneration.current) setLoading(false)
     }
   }
 
   useEffect(() => {
+    setAnalysis(null)
+    setSnapshots([])
+    setSelected(new Set())
     void reload()
+    return () => { loadGeneration.current++ }
   }, [activeSerial])
 
   useEffect(() => {
@@ -247,7 +259,7 @@ export default function TuningPage() {
   }
 
   async function handleApply() {
-    if (!analysis || selectedMatches.length === 0) return
+    if (!analysis || analysis.serial !== activeSerial || loading || restoring || applying || selectedMatches.length === 0) return
 
     const cautionText = cautionSelected
       ? '\n\nYour selection contains CAUTION packages. Their related features may stop working.'
@@ -257,13 +269,14 @@ export default function TuningPage() {
         ? 'disable the selected packages for Android user 0'
         : 'uninstall the selected preinstalled packages for Android user 0'
     const ok = window.confirm(
-      `TVADB Hub will create a restore snapshot first, then ${actionText}.${cautionText}\n\nContinue?`,
+      `DroidSphere will create a restore snapshot for ${analysis.model} (${analysis.serial}), then ${actionText}.${cautionText}\n\nContinue?`,
     )
     if (!ok) return
 
     setApplying(true)
     try {
       const result = await applySafeTuning({
+        expectedSerial: analysis.serial,
         profileId: analysis.selectedProfile.id,
         packageNames: selectedMatches.map((item) => item.packageName),
         mode,
@@ -279,7 +292,7 @@ export default function TuningPage() {
           description: `${result.changed.length} package(s) changed. Snapshot: ${result.snapshotId || 'none'}`,
         })
       }
-      await reload(analysis.selectedProfile.id)
+      if (currentSerial.current === analysis.serial) await reload(analysis.selectedProfile.id)
     } catch (applyError) {
       toast.error('Safe Tuning failed', {
         description: applyError instanceof Error ? applyError.message : String(applyError),
@@ -290,12 +303,13 @@ export default function TuningPage() {
   }
 
   async function handleRestore(snapshot: TuningSnapshotSummary) {
-    if (!window.confirm(`Restore snapshot ${snapshot.id} for this device?\n\nTVADB Hub will reverse only changes recorded in that snapshot.`)) {
+    if (snapshot.serial !== activeSerial || applying || restoring) return
+    if (!window.confirm(`Restore snapshot ${snapshot.id} for ${snapshot.serial}?\n\nDroidSphere will reverse changes recorded in that snapshot.`)) {
       return
     }
     setRestoring(snapshot.id)
     try {
-      const result = await restoreTuningSnapshot(snapshot.id)
+      const result = await restoreTuningSnapshot(snapshot.serial, snapshot.id)
       const failed = Object.keys(result.failed ?? {}).length
       if (failed > 0) {
         toast.warning('Restore completed with warnings', {
@@ -306,7 +320,7 @@ export default function TuningPage() {
           description: `${result.restored.length} package(s) restored.`,
         })
       }
-      await reload(analysis?.selectedProfile.id ?? '')
+      if (currentSerial.current === snapshot.serial) await reload(analysis?.selectedProfile.id ?? '')
     } catch (restoreError) {
       toast.error('Restore failed', {
         description: restoreError instanceof Error ? restoreError.message : String(restoreError),
@@ -484,7 +498,7 @@ export default function TuningPage() {
                 <Button
                   size="sm"
                   onClick={() => void handleApply()}
-                  disabled={applying || selectedMatches.length === 0}
+                  disabled={applying || restoring !== null || loading || analysis.serial !== activeSerial || selectedMatches.length === 0}
                   className="gap-1.5"
                 >
                   {applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
@@ -636,7 +650,7 @@ export default function TuningPage() {
                         size="sm"
                         variant="outline"
                         className="mt-2 h-7 w-full gap-1.5 text-[10px]"
-                        disabled={restoring !== null || snapshot.applied === 0}
+                        disabled={applying || restoring !== null || loading || snapshot.serial !== activeSerial || snapshot.applied === 0}
                         onClick={() => void handleRestore(snapshot)}
                       >
                         {restoring === snapshot.id ? (

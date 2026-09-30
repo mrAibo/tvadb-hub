@@ -82,6 +82,7 @@ type Analysis struct {
 }
 
 type ApplyRequest struct {
+	ExpectedSerial     string     `json:"expectedSerial"`
 	ProfileID          string     `json:"profileId"`
 	PackageNames       []string   `json:"packageNames"`
 	Mode               ActionMode `json:"mode"`

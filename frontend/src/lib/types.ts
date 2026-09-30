@@ -774,6 +774,7 @@ export interface SafeTuningAnalysis {
 }
 
 export interface SafeTuningApplyRequest {
+  expectedSerial: string
   profileId: string
   packageNames: string[]
   mode: SafeTuningActionMode

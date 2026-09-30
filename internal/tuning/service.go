@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -20,6 +21,8 @@ type Service struct {
 	getBinPath          func() core.BinaryPaths
 	packages            *packagemgr.Service
 	feed                *feedManager
+	operationMu         sync.Mutex
+	runCommand          func(context.Context, core.ExecRequest) (*core.ExecResult, error)
 }
 
 func NewService(
@@ -39,9 +42,9 @@ func (s *Service) GetProfiles(info device.Info) []ProfileSummary {
 }
 
 func (s *Service) Analyze(ctx context.Context, info device.Info, profileID string) (Analysis, error) {
-	serial, err := s.resolveActiveSerial(ctx)
-	if err != nil {
-		return Analysis{}, err
+	serial := strings.TrimSpace(info.Serial)
+	if serial == "" {
+		return Analysis{}, core.NewOperationError("tuning_analyze", "explicit device target is required", "", false)
 	}
 	profiles := s.currentProfiles()
 	profile, err := resolveProfileFrom(profiles, info, profileID)
@@ -57,7 +60,7 @@ func (s *Service) Analyze(ctx context.Context, info device.Info, profileID strin
 		}
 	}
 
-	installed, err := s.packages.ListPackages(ctx, "all")
+	installed, err := s.packages.ForTarget(serial, 0).ListPackages(ctx, "all")
 	if err != nil {
 		return Analysis{}, err
 	}
@@ -115,16 +118,17 @@ func (s *Service) Analyze(ctx context.Context, info device.Info, profileID strin
 }
 
 func (s *Service) Apply(ctx context.Context, info device.Info, request ApplyRequest) (ApplyResult, error) {
+	s.operationMu.Lock()
+	defer s.operationMu.Unlock()
+	if strings.TrimSpace(request.ExpectedSerial) == "" || request.ExpectedSerial != info.Serial {
+		return ApplyResult{}, core.NewOperationError("tuning_apply", "device target changed; analyze and confirm again", "", false)
+	}
 	if request.Mode != ActionDisable && request.Mode != ActionUninstallUser {
 		return ApplyResult{}, core.NewOperationError("tuning_apply", "unsupported tuning action", string(request.Mode), false)
 	}
 	analysis, err := s.Analyze(ctx, info, request.ProfileID)
 	if err != nil {
 		return ApplyResult{}, err
-	}
-	profile, ok := findProfile(s.currentProfiles(), analysis.SelectedProfile.ID)
-	if !ok {
-		return ApplyResult{}, core.NewOperationError("tuning_apply", "profile not found", request.ProfileID, false)
 	}
 	if len(request.PackageNames) == 0 {
 		return ApplyResult{}, core.NewOperationError("tuning_apply", "no packages selected", "", false)
@@ -133,10 +137,6 @@ func (s *Service) Apply(ctx context.Context, info device.Info, request ApplyRequ
 	matchByName := make(map[string]PackageMatch, len(analysis.Matches))
 	for _, match := range analysis.Matches {
 		matchByName[match.PackageName] = match
-	}
-	keep := make(map[string]struct{}, len(profile.Keep))
-	for _, pkg := range profile.Keep {
-		keep[pkg] = struct{}{}
 	}
 
 	seen := map[string]struct{}{}
@@ -155,7 +155,7 @@ func (s *Service) Apply(ctx context.Context, info device.Info, request ApplyRequ
 		if !exists {
 			return ApplyResult{}, core.NewOperationError("tuning_apply", "selected package is not part of the active profile or is not installed", packageName, false)
 		}
-		if _, protected := keep[packageName]; protected || match.Protected || isHardProtectedPackage(packageName) {
+		if match.Protected || isHardProtectedPackage(packageName) {
 			return ApplyResult{}, core.NewOperationError("tuning_apply", "protected package cannot be changed", packageName, false)
 		}
 		if match.Risk == RiskDangerous || match.Risk == RiskBlocked {
@@ -182,7 +182,7 @@ func (s *Service) Apply(ctx context.Context, info device.Info, request ApplyRequ
 
 	snapshot := Snapshot{
 		ID: snapshotID(), CreatedAt: time.Now().UTC().Format(time.RFC3339),
-		Serial: analysis.Serial, ProfileID: profile.ID, ProfileName: profile.Name,
+		Serial: analysis.Serial, ProfileID: analysis.SelectedProfile.ID, ProfileName: analysis.SelectedProfile.Name,
 		Mode: request.Mode, Items: items,
 	}
 	if err := s.saveSnapshot(snapshot); err != nil {
@@ -197,7 +197,7 @@ func (s *Service) Apply(ctx context.Context, info device.Info, request ApplyRequ
 		var changeErr error
 		switch request.Mode {
 		case ActionDisable:
-			_, changeErr = s.packages.DisablePackage(ctx, item.PackageName)
+			changeErr = s.runPM(ctx, analysis.Serial, []string{"disable-user", "--user", "0", item.PackageName}, "disable failed")
 		case ActionUninstallUser:
 			changeErr = s.uninstallForUser(ctx, analysis.Serial, item.PackageName)
 		}
@@ -219,6 +219,10 @@ func (s *Service) ListSnapshots(ctx context.Context) ([]SnapshotSummary, error) 
 	if err != nil {
 		return nil, err
 	}
+	return s.ListSnapshotsForSerial(serial)
+}
+
+func (s *Service) ListSnapshotsForSerial(serial string) ([]SnapshotSummary, error) {
 	dir := s.snapshotDir(serial)
 	entries, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
@@ -257,6 +261,12 @@ func (s *Service) Restore(ctx context.Context, snapshotID string) (RestoreResult
 	if err != nil {
 		return RestoreResult{}, err
 	}
+	return s.RestoreForSerial(ctx, serial, snapshotID)
+}
+
+func (s *Service) RestoreForSerial(ctx context.Context, serial, snapshotID string) (RestoreResult, error) {
+	s.operationMu.Lock()
+	defer s.operationMu.Unlock()
 	snapshot, err := s.loadSnapshot(serial, snapshotID)
 	if err != nil {
 		return RestoreResult{}, err
@@ -278,9 +288,9 @@ func (s *Service) Restore(ctx context.Context, snapshotID string) (RestoreResult
 		}
 		var stateErr error
 		if item.WasEnabled {
-			_, stateErr = s.packages.EnablePackage(ctx, item.PackageName)
+			stateErr = s.runPM(ctx, serial, []string{"enable", "--user", "0", item.PackageName}, "restore enable failed")
 		} else {
-			_, stateErr = s.packages.DisablePackage(ctx, item.PackageName)
+			stateErr = s.runPM(ctx, serial, []string{"disable-user", "--user", "0", item.PackageName}, "restore disable failed")
 		}
 		if stateErr != nil {
 			result.Failed[item.PackageName] = stateErr.Error()
@@ -341,7 +351,11 @@ func (s *Service) runShell(ctx context.Context, serial string, args []string, us
 }
 
 func (s *Service) runADB(ctx context.Context, args []string, userMessage string) error {
-	result, err := core.RunCommand(ctx, core.ExecRequest{
+	run := s.runCommand
+	if run == nil {
+		run = core.RunCommand
+	}
+	result, err := run(ctx, core.ExecRequest{
 		Command: s.getBinPath().Adb, Args: args, Timeout: 30 * time.Second,
 	})
 	if err != nil {

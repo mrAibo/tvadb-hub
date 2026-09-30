@@ -9,8 +9,8 @@ import type {
   TuningSnapshotSummary,
 } from '@/lib/types'
 
-export async function analyzeSafeTuning(profileId = ''): Promise<SafeTuningAnalysis> {
-  const raw = await WailsCall.ByName('ADBKit/internal/app.App.AnalyzeSafeTuning', profileId)
+export async function analyzeSafeTuning(serial: string, profileId = ''): Promise<SafeTuningAnalysis> {
+  const raw = await WailsCall.ByName('ADBKit/internal/app.App.AnalyzeSafeTuningForDevice', serial, profileId)
   return raw as SafeTuningAnalysis
 }
 
@@ -21,13 +21,13 @@ export async function applySafeTuning(
   return raw as SafeTuningApplyResult
 }
 
-export async function listTuningSnapshots(): Promise<TuningSnapshotSummary[]> {
-  const raw = await WailsCall.ByName('ADBKit/internal/app.App.ListTuningSnapshots')
+export async function listTuningSnapshots(serial: string): Promise<TuningSnapshotSummary[]> {
+  const raw = await WailsCall.ByName('ADBKit/internal/app.App.ListTuningSnapshotsForDevice', serial)
   return (raw as TuningSnapshotSummary[] | null) ?? []
 }
 
-export async function restoreTuningSnapshot(snapshotId: string): Promise<TuningRestoreResult> {
-  const raw = await WailsCall.ByName('ADBKit/internal/app.App.RestoreTuningSnapshot', snapshotId)
+export async function restoreTuningSnapshot(serial: string, snapshotId: string): Promise<TuningRestoreResult> {
+  const raw = await WailsCall.ByName('ADBKit/internal/app.App.RestoreTuningSnapshotForDevice', serial, snapshotId)
   return raw as TuningRestoreResult
 }
 
