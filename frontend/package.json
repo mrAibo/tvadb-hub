@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build:dev": "tsc && vite build --minify false --mode development",
+    "build:dev": "tsc -b && vite build --minify false --mode development",
     "build": "tsc -b && vite build",
     "lint": "oxlint --react-plugin --type-aware",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b --force && tsc -p tsconfig.tests.json --noEmit",
     "test": "vitest run",
     "format": "prettier --write ."
   },
@@ -20,7 +20,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-query": "^5.102.8",
     "@tanstack/react-virtual": "^3.14.11",
-    "@wailsio/runtime": "^3.0.0-beta.20",
+    "@wailsio/runtime": "3.0.0-beta.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
