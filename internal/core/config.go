@@ -26,6 +26,8 @@ type AppConfig struct {
 	AuditEnabled         bool                   `json:"audit_enabled"`
 	FileTransferCompression string               `json:"file_transfer_compression"`
 	VerifyAfterTransfer      bool                 `json:"verify_after_transfer"`
+	SafeTuningFeedURL        string               `json:"safe_tuning_feed_url"`
+	SafeTuningFeedPublicKey  string               `json:"safe_tuning_feed_public_key"`
 }
 
 type WirelessHistoryEntry struct {

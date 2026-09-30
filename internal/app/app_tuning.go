@@ -44,3 +44,35 @@ func (a *App) activeTuningDeviceInfo() (*device.Info, error) {
 	}
 	return a.devSvc.GetDeviceInfo(a.ctx, serial)
 }
+
+
+func (a *App) GetSafeTuningFeedStatus() tuning.FeedStatus {
+	if a.tuneSvc == nil {
+		return tuning.FeedStatus{Source: "builtin", Message: "Safe Tuning service is not ready."}
+	}
+	return a.tuneSvc.FeedStatus()
+}
+
+func (a *App) RefreshSafeTuningFeed() (tuning.FeedStatus, error) {
+	return auditAction(a, "refresh_safe_tuning_feed", func() (tuning.FeedStatus, error) {
+		return a.tuneSvc.RefreshFeed(a.ctx)
+	})
+}
+
+func (a *App) RollbackSafeTuningFeed() (tuning.FeedStatus, error) {
+	return auditAction(a, "rollback_safe_tuning_feed", func() (tuning.FeedStatus, error) {
+		return a.tuneSvc.RollbackFeed()
+	})
+}
+
+func (a *App) currentSafeTuningFeedConfig() tuning.FeedConfig {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.cfg == nil {
+		return tuning.FeedConfig{}
+	}
+	return tuning.FeedConfig{
+		URL:       a.cfg.SafeTuningFeedURL,
+		PublicKey: a.cfg.SafeTuningFeedPublicKey,
+	}
+}

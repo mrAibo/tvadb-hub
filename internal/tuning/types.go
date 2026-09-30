@@ -17,12 +17,12 @@ const (
 )
 
 type MatchCriteria struct {
-	Manufacturers []string
-	Brands        []string
-	Models        []string
-	Codenames     []string
-	TVOnly        bool
-	Generic       bool
+	Manufacturers []string `json:"manufacturers,omitempty"`
+	Brands        []string `json:"brands,omitempty"`
+	Models        []string `json:"models,omitempty"`
+	Codenames     []string `json:"codenames,omitempty"`
+	TVOnly        bool     `json:"tvOnly,omitempty"`
+	Generic       bool     `json:"generic,omitempty"`
 }
 
 type PackageRule struct {
@@ -42,7 +42,7 @@ type Profile struct {
 	SourceName    string        `json:"sourceName"`
 	SourceURL     string        `json:"sourceUrl"`
 	SourceLicense string        `json:"sourceLicense"`
-	Criteria      MatchCriteria `json:"-"`
+	Criteria      MatchCriteria `json:"criteria"`
 	Keep          []string      `json:"keep"`
 	Rules         []PackageRule `json:"rules"`
 }

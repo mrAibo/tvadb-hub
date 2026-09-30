@@ -19,6 +19,7 @@ type Service struct {
 	resolveActiveSerial func(context.Context) (string, error)
 	getBinPath          func() core.BinaryPaths
 	packages            *packagemgr.Service
+	feed                *feedManager
 }
 
 func NewService(
@@ -29,12 +30,12 @@ func NewService(
 ) *Service {
 	return &Service{
 		dataDir: dataDir, resolveActiveSerial: resolveActiveSerial,
-		getBinPath: getBinPath, packages: packages,
+		getBinPath: getBinPath, packages: packages, feed: newFeedManager(dataDir),
 	}
 }
 
 func (s *Service) GetProfiles(info device.Info) []ProfileSummary {
-	return ProfilesForDevice(info)
+	return profilesForDevice(s.currentProfiles(), info)
 }
 
 func (s *Service) Analyze(ctx context.Context, info device.Info, profileID string) (Analysis, error) {
@@ -42,11 +43,12 @@ func (s *Service) Analyze(ctx context.Context, info device.Info, profileID strin
 	if err != nil {
 		return Analysis{}, err
 	}
-	profile, err := s.resolveProfile(info, profileID)
+	profiles := s.currentProfiles()
+	profile, err := resolveProfileFrom(profiles, info, profileID)
 	if err != nil {
 		return Analysis{}, err
 	}
-	allProfiles := ProfilesForDevice(info)
+	allProfiles := profilesForDevice(profiles, info)
 	selectedSummary := profileSummary(profile, profileMatchScore(profile, info), false)
 	for _, summary := range allProfiles {
 		if summary.ID == profile.ID {
@@ -117,7 +119,7 @@ func (s *Service) Apply(ctx context.Context, info device.Info, request ApplyRequ
 	if err != nil {
 		return ApplyResult{}, err
 	}
-	profile, ok := FindProfile(analysis.SelectedProfile.ID)
+	profile, ok := findProfile(s.currentProfiles(), analysis.SelectedProfile.ID)
 	if !ok {
 		return ApplyResult{}, core.NewOperationError("tuning_apply", "profile not found", request.ProfileID, false)
 	}
@@ -290,14 +292,14 @@ func (s *Service) Restore(ctx context.Context, snapshotID string) (RestoreResult
 	return result, nil
 }
 
-func (s *Service) resolveProfile(info device.Info, profileID string) (Profile, error) {
+func resolveProfileFrom(profiles []Profile, info device.Info, profileID string) (Profile, error) {
 	if strings.TrimSpace(profileID) != "" {
-		profile, ok := FindProfile(profileID)
+		profile, ok := findProfile(profiles, profileID)
 		if !ok {
 			return Profile{}, core.NewOperationError("tuning_profile", "tuning profile not found", profileID, false)
 		}
 		allowed := false
-		for _, summary := range ProfilesForDevice(info) {
+		for _, summary := range profilesForDevice(profiles, info) {
 			if summary.ID == profile.ID {
 				allowed = true
 				break
@@ -308,7 +310,7 @@ func (s *Service) resolveProfile(info device.Info, profileID string) (Profile, e
 		}
 		return profile, nil
 	}
-	profile, ok := RecommendedProfile(info)
+	profile, ok := recommendedProfile(profiles, info)
 	if !ok {
 		return Profile{}, core.NewOperationError("tuning_profile", "no compatible tuning profile is available", info.Model, false)
 	}
