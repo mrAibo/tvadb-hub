@@ -8,6 +8,8 @@ import (
 )
 
 func (a *App) isAuditEnabled() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.cfg == nil {
 		return false
 	}

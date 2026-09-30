@@ -89,9 +89,8 @@ func (a *App) ImportSettings(path string) (core.AppConfigSnapshot, error) {
 		if a.cfg == nil {
 			a.cfg = core.DefaultConfig()
 		}
-		// Mutate the existing config object instead of replacing its pointer:
-		// several services hold closures that resolve paths through this object.
-		*a.cfg = *next
+		// Services resolve synchronized snapshots and do not retain this pointer.
+		a.cfg = next
 		if err := core.SaveConfig(a.dataDir, a.cfg); err != nil {
 			a.mu.Unlock()
 			return core.AppConfigSnapshot{}, err

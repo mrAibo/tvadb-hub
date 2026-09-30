@@ -20,9 +20,6 @@ func (a *App) GetActiveSerial() string {
 
 func (a *App) SetActiveSerial(serial string) error {
 	return auditVoidAction(a, "set_active_serial", func() error {
-		a.mu.Lock()
-		defer a.mu.Unlock()
-
 		devices, err := a.devSvc.ListDevices(a.ctx)
 		if err != nil {
 			return err
@@ -30,7 +27,9 @@ func (a *App) SetActiveSerial(serial string) error {
 
 		for _, d := range devices {
 			if d.Serial == serial {
+				a.mu.Lock()
 				a.activeSerial = serial
+				a.mu.Unlock()
 				return nil
 			}
 		}
@@ -250,14 +249,25 @@ func (a *App) GetPerformanceSnapshot(serial string) (device.PerformanceSnapshot,
 }
 
 func (a *App) GetDeviceNicknames() map[string]string {
-	return a.cfg.DeviceNicknames
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.cfg == nil {
+		return map[string]string{}
+	}
+	return cloneStringMap(a.cfg.DeviceNicknames)
 }
 
 func (a *App) SetDeviceNickname(serial string, nickname string) error {
 	return auditVoidAction(a, "set_device_nickname", func() error {
 		a.mu.Lock()
+		defer a.mu.Unlock()
+		if a.cfg == nil {
+			return core.NewOperationError("set_device_nickname", "app config is not available", "", false)
+		}
+		if a.cfg.DeviceNicknames == nil {
+			a.cfg.DeviceNicknames = map[string]string{}
+		}
 		a.cfg.DeviceNicknames[serial] = nickname
-		a.mu.Unlock()
 		return core.SaveConfig(a.dataDir, a.cfg)
 	})
 }
@@ -265,8 +275,11 @@ func (a *App) SetDeviceNickname(serial string, nickname string) error {
 func (a *App) ClearDeviceNickname(serial string) error {
 	return auditVoidAction(a, "clear_device_nickname", func() error {
 		a.mu.Lock()
+		defer a.mu.Unlock()
+		if a.cfg == nil {
+			return core.NewOperationError("clear_device_nickname", "app config is not available", "", false)
+		}
 		delete(a.cfg.DeviceNicknames, serial)
-		a.mu.Unlock()
 		return core.SaveConfig(a.dataDir, a.cfg)
 	})
 }
