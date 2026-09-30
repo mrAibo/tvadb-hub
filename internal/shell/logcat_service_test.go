@@ -86,3 +86,16 @@ func TestParseLogcatEntry_PreservesRawField(t *testing.T) {
 		t.Errorf("expected tid '456', got %q", entry.TID)
 	}
 }
+
+func FuzzParseLogcatEntry(f *testing.F) {
+	f.Add("01-02 03:04:05.000 123 456 I TestTag: hello world")
+	f.Add("vendor-specific unstructured output")
+	f.Add("")
+
+	f.Fuzz(func(t *testing.T, input string) {
+		entry := parseLogcatEntry("FUZZ", input)
+		if entry.Serial != "FUZZ" {
+			t.Fatalf("serial changed during parsing: %q", entry.Serial)
+		}
+	})
+}

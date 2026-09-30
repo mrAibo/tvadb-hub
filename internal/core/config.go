@@ -49,7 +49,9 @@ const (
 	ThemeDark  = "dark"
 	ThemeLight = "light"
 
+	MinLogcatBufferLimit        = 1000
 	DefaultLogcatBufferLimit    = 5000
+	MaxLogcatBufferLimit        = 50000
 	DefaultTerminalMode         = "adb-shell"
 	DefaultDeviceRefreshSeconds = 8
 )
@@ -101,8 +103,11 @@ func LoadConfig(dataDir string) (*AppConfig, error) {
 	if cfg.RememberedWireless == nil {
 		cfg.RememberedWireless = []RememberedWirelessDevice{}
 	}
-	if cfg.LogcatBufferLimit <= 0 {
+	if cfg.LogcatBufferLimit < MinLogcatBufferLimit {
 		cfg.LogcatBufferLimit = DefaultLogcatBufferLimit
+	}
+	if cfg.LogcatBufferLimit > MaxLogcatBufferLimit {
+		cfg.LogcatBufferLimit = MaxLogcatBufferLimit
 	}
 	if cfg.ScrcpyPresets == nil {
 		cfg.ScrcpyPresets = []ScrcpyPreset{}

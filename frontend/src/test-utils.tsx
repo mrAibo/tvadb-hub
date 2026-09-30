@@ -18,6 +18,8 @@ vi.mock('@/services/deviceService', () => ({
   disconnectWireless: vi.fn().mockResolvedValue('disconnected'),
   getWirelessHistory: vi.fn().mockResolvedValue([]),
   saveWirelessHistory: vi.fn().mockResolvedValue(undefined),
+  getRememberedWirelessDevices: vi.fn().mockResolvedValue([]),
+  autoConnectWireless: vi.fn().mockResolvedValue({ service: { address: '192.168.1.2:37121' } }),
   getPerformanceSnapshot: vi.fn().mockResolvedValue({}),
   getDeviceNicknames: vi.fn().mockResolvedValue({}),
   setDeviceNickname: vi.fn().mockResolvedValue(undefined),

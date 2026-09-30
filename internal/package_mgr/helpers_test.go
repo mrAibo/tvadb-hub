@@ -18,6 +18,12 @@ func TestValidatePackageName(t *testing.T) {
 		{"with leading spaces", "  com.android.chrome", "com.android.chrome", false},
 		{"with trailing spaces", "com.android.chrome  ", "com.android.chrome", false},
 		{"system package", "com.android.settings", "com.android.settings", false},
+		{"underscore allowed", "com.vendor.feature_test", "com.vendor.feature_test", false},
+		{"reject semicolon", "com.example.app;id", "", true},
+		{"reject pipe", "com.example.app|sh", "", true},
+		{"reject slash", "com/example/app", "", true},
+		{"reject newline", "com.example.app\nwhoami", "", true},
+		{"reject internal space", "com.example app", "", true},
 	}
 
 	for _, tt := range tests {

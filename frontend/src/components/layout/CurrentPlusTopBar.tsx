@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -145,68 +146,72 @@ export function CurrentPlusTopBar() {
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="start" className="w-[330px]">
-            <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Connected devices
-            </DropdownMenuLabel>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Connected devices
+              </DropdownMenuLabel>
 
-            {devices.length === 0 ? (
-              <div className="px-2 py-2 text-xs text-muted-foreground">No connected devices.</div>
-            ) : (
-              devices.map((device) => {
-                const label = nicknames[device.serial] || device.model || device.product || device.serial
-                const selected = device.serial === activeSerial
-                return (
-                  <DropdownMenuItem
-                    key={device.serial}
-                    onClick={() => void selectDevice(device.serial)}
-                    className="flex items-center gap-2"
-                  >
-                    <DeviceMobile className="h-3.5 w-3.5 text-muted-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-xs font-medium">{label}</div>
-                      <div className="truncate font-mono text-[9px] text-muted-foreground">{device.serial}</div>
-                    </div>
-                    {selected && <Check className="h-3.5 w-3.5 text-primary" />}
-                  </DropdownMenuItem>
-                )
-              })
-            )}
+              {devices.length === 0 ? (
+                <div className="px-2 py-2 text-xs text-muted-foreground">No connected devices.</div>
+              ) : (
+                devices.map((device) => {
+                  const label = nicknames[device.serial] || device.model || device.product || device.serial
+                  const selected = device.serial === activeSerial
+                  return (
+                    <DropdownMenuItem
+                      key={device.serial}
+                      onClick={() => void selectDevice(device.serial)}
+                      className="flex items-center gap-2"
+                    >
+                      <DeviceMobile className="h-3.5 w-3.5 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-medium">{label}</div>
+                        <div className="truncate font-mono text-[9px] text-muted-foreground">{device.serial}</div>
+                      </div>
+                      {selected && <Check className="h-3.5 w-3.5 text-primary" />}
+                    </DropdownMenuItem>
+                  )
+                })
+              )}
+            </DropdownMenuGroup>
 
             {rememberedOffline.length > 0 && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                  <History className="h-3 w-3" />
-                  Remembered devices
-                </DropdownMenuLabel>
-                {rememberedOffline.map((entry) => {
-                  const selector = entry.instance_name || entry.host
-                  const loading = connectingKey === entry.key
-                  return (
-                    <DropdownMenuItem
-                      key={entry.key}
-                      disabled={Boolean(connectingKey)}
-                      onClick={() => void handleRememberedConnect(entry.key, selector)}
-                      className="flex items-center gap-2"
-                    >
-                      {loading ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                      ) : (
-                        <Wifi className="h-3.5 w-3.5 text-muted-foreground" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs font-medium">
-                          {entry.name || entry.model || entry.host}
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <History className="h-3 w-3" />
+                    Remembered devices
+                  </DropdownMenuLabel>
+                  {rememberedOffline.map((entry) => {
+                    const selector = entry.instance_name || entry.host
+                    const loading = connectingKey === entry.key
+                    return (
+                      <DropdownMenuItem
+                        key={entry.key}
+                        disabled={Boolean(connectingKey)}
+                        onClick={() => void handleRememberedConnect(entry.key, selector)}
+                        className="flex items-center gap-2"
+                      >
+                        {loading ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                        ) : (
+                          <Wifi className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-xs font-medium">
+                            {entry.name || entry.model || entry.host}
+                          </div>
+                          <div className="truncate font-mono text-[9px] text-muted-foreground">
+                            {entry.host}
+                            {entry.android_version ? ` · Android ${entry.android_version}` : ''}
+                          </div>
                         </div>
-                        <div className="truncate font-mono text-[9px] text-muted-foreground">
-                          {entry.host}
-                          {entry.android_version ? ` · Android ${entry.android_version}` : ''}
-                        </div>
-                      </div>
-                      <span className="text-[9px] font-medium text-primary">Reconnect</span>
-                    </DropdownMenuItem>
-                  )
-                })}
+                        <span className="text-[9px] font-medium text-primary">Reconnect</span>
+                      </DropdownMenuItem>
+                    )
+                  })}
+                </DropdownMenuGroup>
               </>
             )}
 

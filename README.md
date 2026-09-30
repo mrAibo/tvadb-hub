@@ -182,7 +182,8 @@ DroidSphere intentionally keeps high-impact operations explicit:
   user actions.
 
 See [Safe Tuning source notes](docs/research/DEBLOAT_PROFILE_SOURCES.md) for
-profile provenance and licensing.
+profile provenance and licensing. The current security hardening status is documented in
+[docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md).
 
 ## Platform status
 

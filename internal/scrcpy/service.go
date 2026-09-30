@@ -205,8 +205,7 @@ func (s *Service) StartSession(ctx context.Context, serial string, opts Options)
 	args := []string{"--serial", resolvedSerial}
 	args = append(args, opts.ToArgs()...)
 
-	cmd := exec.CommandContext(processCtx, scrcpyPath, args...)
-	core.ConfigureChildProcess(cmd)
+	cmd := core.NewCommandContext(processCtx, scrcpyPath, args...)
 	if adbPath != "" {
 		cmd.Env = append(os.Environ(), "ADB="+adbPath)
 	}
@@ -312,7 +311,7 @@ func (s *Service) closeSession(process *scrcpyProcess, status SessionStatus, emi
 			process.cancel()
 		}
 		if process.cmd != nil && process.cmd.Process != nil {
-			_ = process.cmd.Process.Kill()
+			_ = core.TerminateProcessTree(process.cmd)
 		}
 
 		if !emitEvent {

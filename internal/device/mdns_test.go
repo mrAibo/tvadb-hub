@@ -196,3 +196,19 @@ func TestResolveConnectForPairing_PrefersInstanceThenFallsBackToHost(t *testing.
 		t.Fatalf("expected host fallback to resolve TV connect endpoint, got %#v", got)
 	}
 }
+
+
+func FuzzParseMDNSServices(f *testing.F) {
+	f.Add("adb-device _adb-tls-connect._tcp 192.168.1.20:37121\n")
+	f.Add("adb-device _adb-tls-pairing._tcp [fe80::1]:42629\n")
+	f.Add("malformed input\x00with noise\n")
+
+	f.Fuzz(func(t *testing.T, input string) {
+		services := parseMDNSServices(input)
+		for _, service := range services {
+			if service.Host == "" || service.Port == "" {
+				t.Fatalf("parser returned incomplete service: %#v", service)
+			}
+		}
+	})
+}

@@ -170,12 +170,12 @@ export function LogcatWorkspace({ embedded = false }: LogcatWorkspaceProps) {
             <input
               type="number"
               min={1000}
-              max={500000}
+              max={50000}
               step={1000}
               value={bufferLimit}
               onChange={(e) => {
                 const val = parseInt(e.target.value, 10)
-                if (!isNaN(val) && val >= 1000) {
+                if (!isNaN(val) && val >= 1000 && val <= 50000) {
                   setBufferLimit(val)
                 }
               }}

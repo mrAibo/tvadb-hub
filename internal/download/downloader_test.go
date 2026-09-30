@@ -225,6 +225,27 @@ func TestFetchCancellation(t *testing.T) {
 	}
 }
 
+func TestVerifySHA1AndSize(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "archive.zip")
+	if err := os.WriteFile(path, []byte("hello world"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	const expectedSHA1 = "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed"
+	if err := VerifySHA1(path, expectedSHA1); err != nil {
+		t.Fatalf("expected matching SHA-1 to pass: %v", err)
+	}
+	if err := VerifySHA1(path, "0000000000000000000000000000000000000000"); err == nil {
+		t.Fatal("expected mismatched SHA-1 to fail")
+	}
+	if err := VerifyFileSize(path, int64(len("hello world"))); err != nil {
+		t.Fatalf("expected matching size to pass: %v", err)
+	}
+	if err := VerifyFileSize(path, 999); err == nil {
+		t.Fatal("expected mismatched size to fail")
+	}
+}
+
 func TestVerifySHA256(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "archive.zip")
 	if err := os.WriteFile(path, []byte("hello world"), 0o644); err != nil {

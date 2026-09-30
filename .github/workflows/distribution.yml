@@ -2,7 +2,7 @@ name: Build Distribution Packages
 
 on:
   push:
-    branches: [feat/connection-doctor]
+    branches: [fix/base-ui-menu-group-error]
   workflow_dispatch:
 
 permissions:
@@ -171,7 +171,7 @@ jobs:
           path: distribution/
           if-no-files-found: error
       - name: Commit packages to distribution
-        if: github.ref_name == 'feat/connection-doctor'
+        if: github.ref_name == 'fix/base-ui-menu-group-error'
         shell: bash
         run: |
           set -euo pipefail
@@ -183,4 +183,4 @@ jobs:
             exit 0
           fi
           git commit -m "chore(distribution): add DroidSphere multi-platform packages [distribution]"
-          git push origin HEAD:feat/connection-doctor
+          git push origin HEAD:fix/base-ui-menu-group-error

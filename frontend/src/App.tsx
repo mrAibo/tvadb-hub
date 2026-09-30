@@ -1,6 +1,6 @@
 import { lazy, Suspense, type ReactNode } from 'react'
 import { createHashRouter } from 'react-router-dom'
-import { RouteErrorBoundary } from '@/components/common/ErrorBoundary'
+import { RouteErrorBoundary, RouterErrorPage } from '@/components/common/ErrorBoundary'
 import { AppShell } from '@/components/layout/AppShell'
 
 const DashboardPage = lazy(() => import('@/routes/DashboardPage'))
@@ -38,6 +38,7 @@ export const router = createHashRouter([
   {
     path: '/',
     element: <AppShell />,
+    errorElement: <RouterErrorPage />,
     children: [
       {
         index: true,

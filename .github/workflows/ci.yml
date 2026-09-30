@@ -60,6 +60,15 @@ jobs:
         run: go mod download
       - name: Run Go tests
         run: go test ./...
+      - name: Run Go vet
+        run: go vet ./...
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: Scan reachable Go vulnerabilities
+        run: govulncheck ./...
+      - name: Run race detector on concurrent backend packages
+        run: |
+          go test -race             ./internal/core             ./internal/device             ./internal/file             ./internal/package_mgr             ./internal/shell             ./internal/scrcpy             ./internal/tuning
 
   windows-build:
     runs-on: windows-latest
