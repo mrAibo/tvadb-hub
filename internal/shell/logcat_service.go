@@ -12,14 +12,19 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 const (
-	EventLine   = "logcat_line"
+	EventBatch  = "logcat_batch"
 	EventStatus = "logcat_status"
+
+	logcatBatchInterval    = 75 * time.Millisecond
+	logcatBatchMaxEntries  = 128
+	logcatBatchChannelSize = logcatBatchMaxEntries * 4
 )
 
 var logcatPattern = regexp.MustCompile(`^(\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+(.+?):\s?(.*)$`)
@@ -44,12 +49,15 @@ type LogcatStatusEvent struct {
 }
 
 type logcatStream struct {
-	serial   string
-	cmd      *exec.Cmd
-	stdout   io.ReadCloser
-	stderr   io.ReadCloser
-	once     sync.Once
-	stopping atomic.Bool
+	serial    string
+	cmd       *exec.Cmd
+	stdout    io.ReadCloser
+	stderr    io.ReadCloser
+	entries   chan LogcatEntry
+	batchDone chan struct{}
+	readers   sync.WaitGroup
+	once      sync.Once
+	stopping  atomic.Bool
 }
 
 type LogcatService struct {
@@ -57,8 +65,10 @@ type LogcatService struct {
 	binaryService *binary.Service
 	getConfig     func() *core.AppConfig
 
-	mu      sync.Mutex
-	streams map[string]*logcatStream
+	mu         sync.Mutex
+	streams    map[string]*logcatStream
+	emitBatch  func([]LogcatEntry)
+	emitStatus func(LogcatStatusEvent)
 }
 
 func NewLogcatService(ctx context.Context, binaryService *binary.Service, getConfig func() *core.AppConfig) *LogcatService {
@@ -66,7 +76,13 @@ func NewLogcatService(ctx context.Context, binaryService *binary.Service, getCon
 		ctx:           ctx,
 		binaryService: binaryService,
 		getConfig:     getConfig,
-		streams:       make(map[string]*logcatStream),
+		streams: make(map[string]*logcatStream),
+		emitBatch: func(entries []LogcatEntry) {
+			application.Get().Event.Emit(EventBatch, entries)
+		},
+		emitStatus: func(event LogcatStatusEvent) {
+			application.Get().Event.Emit(EventStatus, event)
+		},
 	}
 }
 
@@ -109,21 +125,32 @@ func (s *LogcatService) StartStream(ctx context.Context, serial string, levels s
 	}
 
 	stream := &logcatStream{
-		serial: trimmedSerial,
-		cmd:    cmd,
-		stdout: stdoutPipe,
-		stderr: stderrPipe,
+		serial:    trimmedSerial,
+		cmd:       cmd,
+		stdout:    stdoutPipe,
+		stderr:    stderrPipe,
+		entries:   make(chan LogcatEntry, logcatBatchChannelSize),
+		batchDone: make(chan struct{}),
 	}
 
 	s.mu.Lock()
 	s.streams[trimmedSerial] = stream
 	s.mu.Unlock()
 
-	go s.readLogcatOutput(stream, stdoutPipe, false)
-	go s.readLogcatOutput(stream, stderrPipe, true)
+	go s.emitLogcatBatches(stream)
+
+	stream.readers.Add(2)
+	go func() {
+		defer stream.readers.Done()
+		s.readLogcatOutput(stream, stdoutPipe, false)
+	}()
+	go func() {
+		defer stream.readers.Done()
+		s.readLogcatOutput(stream, stderrPipe, true)
+	}()
 	go s.waitForStreamExit(stream)
 
-	application.Get().Event.Emit(EventStatus, LogcatStatusEvent{
+	s.emitStatus(LogcatStatusEvent{
 		Serial: trimmedSerial,
 		Status: "started",
 	})
@@ -144,7 +171,8 @@ func (s *LogcatService) StopStream(serial string) error {
 		return core.NewOperationError("stop_logcat_stream", "Logcat stream was not found", fmt.Sprintf("stream '%s' is not active", trimmedSerial), true)
 	}
 
-	s.closeStream(stream, "stopped")
+	stream.stopping.Store(true)
+	s.closeStream(stream, "stopped", nil)
 	return nil
 }
 
@@ -157,7 +185,8 @@ func (s *LogcatService) Shutdown() {
 	s.mu.Unlock()
 
 	for _, stream := range streams {
-		s.closeStream(stream, "stopped")
+		stream.stopping.Store(true)
+		s.closeStream(stream, "stopped", nil)
 	}
 }
 
@@ -176,17 +205,17 @@ func (s *LogcatService) readLogcatOutput(stream *logcatStream, pipe io.ReadClose
 		if isError && entry.Tag == "" {
 			entry.Level = "W"
 		}
-		application.Get().Event.Emit(EventLine, entry)
+		stream.entries <- entry
 	}
 
-	if err := scanner.Err(); err != nil {
-		application.Get().Event.Emit(EventLine, LogcatEntry{
+	if err := scanner.Err(); err != nil && !stream.stopping.Load() {
+		stream.entries <- LogcatEntry{
 			ID:      uuid.NewString(),
 			Serial:  stream.serial,
 			Level:   "E",
 			Message: err.Error(),
 			Raw:     err.Error(),
-		})
+		}
 	}
 }
 
@@ -194,28 +223,31 @@ func (s *LogcatService) waitForStreamExit(stream *logcatStream) {
 	err := stream.cmd.Wait()
 	// Kill yang dipicu user (StopStream/Shutdown) membuat Wait() mengembalikan
 	// signal error; itu bukan kegagalan jadi tetap dilaporkan sebagai "stopped".
-	if err != nil && !stream.stopping.Load() {
-		s.emitError(stream, err)
-		s.closeStream(stream, "error")
+	if err != nil {
+		s.closeStream(stream, "error", err)
 		return
 	}
 
-	s.closeStream(stream, "stopped")
+	s.closeStream(stream, "stopped", nil)
 }
 
-func (s *LogcatService) emitError(stream *logcatStream, err error) {
-	application.Get().Event.Emit(EventLine, LogcatEntry{
-		ID:      uuid.NewString(),
-		Serial:  stream.serial,
-		Level:   "E",
-		Message: fmt.Sprintf("logcat stream ended: %s", err.Error()),
-		Raw:     err.Error(),
-	})
-}
-
-func (s *LogcatService) closeStream(stream *logcatStream, status string) {
+func (s *LogcatService) closeStream(stream *logcatStream, status string, streamErr error) {
 	stream.once.Do(func() {
+		intentionalStop := stream.stopping.Load()
 		stream.stopping.Store(true)
+
+		if streamErr != nil && !intentionalStop {
+			stream.entries <- LogcatEntry{
+				ID:      uuid.NewString(),
+				Serial:  stream.serial,
+				Level:   "E",
+				Message: fmt.Sprintf("logcat stream ended: %s", streamErr.Error()),
+				Raw:     streamErr.Error(),
+			}
+			status = "error"
+		} else if intentionalStop {
+			status = "stopped"
+		}
 
 		s.mu.Lock()
 		delete(s.streams, stream.serial)
@@ -231,11 +263,76 @@ func (s *LogcatService) closeStream(stream *logcatStream, status string) {
 			_ = core.TerminateProcessTree(stream.cmd)
 		}
 
-		application.Get().Event.Emit(EventStatus, LogcatStatusEvent{
+		// Readers may already hold parsed lines when cancellation closes the
+		// pipes. Wait for them before closing the batch channel so those final
+		// entries are emitted instead of being dropped.
+		stream.readers.Wait()
+		close(stream.entries)
+		<-stream.batchDone
+
+		s.emitStatus(LogcatStatusEvent{
 			Serial: stream.serial,
 			Status: status,
 		})
 	})
+}
+
+func (s *LogcatService) emitLogcatBatches(stream *logcatStream) {
+	defer close(stream.batchDone)
+
+	runLogcatBatcher(
+		stream.entries,
+		logcatBatchInterval,
+		logcatBatchMaxEntries,
+		s.emitBatch,
+	)
+}
+
+func runLogcatBatcher(
+	entries <-chan LogcatEntry,
+	flushInterval time.Duration,
+	maxEntries int,
+	emit func([]LogcatEntry),
+) {
+	if flushInterval <= 0 {
+		flushInterval = logcatBatchInterval
+	}
+	if maxEntries <= 0 {
+		maxEntries = logcatBatchMaxEntries
+	}
+
+	ticker := time.NewTicker(flushInterval)
+	defer ticker.Stop()
+
+	batch := make([]LogcatEntry, 0, maxEntries)
+	flush := func() {
+		if len(batch) == 0 {
+			return
+		}
+
+		// Emit a detached slice so the next batch can safely reuse capacity
+		// even if the Wails runtime serializes the payload asynchronously.
+		ready := append([]LogcatEntry(nil), batch...)
+		emit(ready)
+		batch = batch[:0]
+	}
+
+	for {
+		select {
+		case entry, ok := <-entries:
+			if !ok {
+				flush()
+				return
+			}
+
+			batch = append(batch, entry)
+			if len(batch) >= maxEntries {
+				flush()
+			}
+		case <-ticker.C:
+			flush()
+		}
+	}
 }
 
 func (s *LogcatService) resolveADBPath() (string, error) {

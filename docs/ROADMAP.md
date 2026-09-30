@@ -17,6 +17,7 @@ devices.
 - [x] Dual-pane host ↔ Android file manager
 - [x] scrcpy presets, recording controls, screenshot capture and clipboard support
 - [x] Interactive shell and live Logcat
+- [x] Backend Logcat IPC batching with bounded interval/size flushes
 - [x] Fastboot/flash workflows
 - [x] Managed ADB/Fastboot/scrcpy tools with visible resolved paths
 - [x] Portable JSON settings backup
