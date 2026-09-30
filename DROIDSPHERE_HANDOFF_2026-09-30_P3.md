@@ -28,8 +28,8 @@ git rev-parse HEAD
 ```
 
 Verified source checkpoint before this documentation refresh:
-`3b3482aab5457d3018af1f54fa47c6c98e742e15`, merge of PR #42.
-Post-merge run [36749845032](https://github.com/mrAibo/tvadb-hub/actions/runs/36749845032)
+`41967b679551dc190d02461b5d8850245babaa23`, merge of PR #45.
+Post-merge run [36752405380](https://github.com/mrAibo/tvadb-hub/actions/runs/36752405380)
 passed frontend-check, go-test, Windows, Linux and macOS builds.
 Inspect every intervening commit if main is newer and preserve valid newer work.
 Never overwrite a parallel session's valid changes or duplicate merged features.
@@ -77,39 +77,38 @@ All three were integrated with current main before merging. Post-merge runs
 and [36749845032](https://github.com/mrAibo/tvadb-hub/actions/runs/36749845032) (#42)
 passed all five jobs. These packages are complete; do not implement them again.
 
+- #45: joined streaming output, bounded diagnostic tails, reader errors,
+  deterministic cancellation/reaping, ordered Logcat final batches/status and
+  CRLF coalescing. Fresh integration CI 36750569010 and post-merge main CI
+  36752405380 passed all five jobs. `docs/STREAM_LIFECYCLE.md` describes the
+  regression coverage; no physical-device validation is implied.
+
 ## Published but not yet merged at this milestone
 
 | PR | Scope | Head SHA | Evidence / next action |
 | --- | --- | --- | --- |
-| #45 | Bounded command diagnostics; joined process output; explicit reader errors; cancellation/reaping; Logcat final batches and status ordering; CRLF coalescing | `4e7c3defd54d6f326c84d75e4c84e25a12f97f9e` | Original full CI 36745517600 green. Updated tree includes #41/#42; fresh integration run 36750569010 pending. |
+| #46 | Single transfer admission, operation-aware cancellation, pinned target/tool/settings, truthful per-item results, retry/hash diagnostics and stale UI guards | `c0113d418701e337ba90a6aa7d1308b78d95ae5d` | Includes #45; full integration CI 36752572581 pending. |
+| #47 | Read-only dynamic user-0 HOME/IME safety floor, per-action recheck and disabled-state snapshot guard | `b71d3490604989b1a7c4148de97ada9012bd8ab4` | Based on #45; full CI 36753585452 pending. |
 
-Read issue #43 and current PR metadata before acting; #45 may be merged after
-this document is written. Transfer isolation/pinned batch/result/hash/retry
-fixes are implemented in local branch `fix/transfer-operation-results`, not yet
-published at this milestone. Production frontend build/tests and Windows Go
-test-package cross-compilation are available; desktop-dependent runtime tests
-must pass in CI. Never rely on a transient worktree instead of a published PR.
+Read issue #43 and current PR metadata before acting; these may be merged after
+this document is written. Transfer changes passed the production frontend
+build and 114 frontend tests; full Go tests are verified in CI, not inferred
+from Windows cross-compilation. Dynamic recovery core tests/race/vet passed
+locally; tuning runtime tests require CI. Both packages are durably published.
 
 ## Accepted remaining sequence
 
-1. Finish #45 integration, merge and verify main. Streams and Logcat:
-   finish stdout/stderr reads before Wait closes pipes,
-   surface scanner failures, preserve bounded batching/final flush, and make
-   cancellation/reader failure cleanup deterministic.
-2. Transfers: publish and complete the implemented package; prevent overlapping operations from replacing each other's cancel
-   function; pin target/tool/preferences for the whole batch; return truthful
-   per-file results; distinguish unsupported host hashing types from real I/O
-   failures; classify retries from actual stderr/stdout diagnostics.
-3. Extend Safe Tuning protection to discovered current HOME/IME packages for
-   unknown OEMs, not only a static list of known recovery packages.
-4. Benchmark: CLI and smart socket must use the same endpoint; alternate paired
+1. Finish #46 current-main integration/full CI, merge and verify main.
+2. Finish #47 integration/full CI, merge and verify main. Unknown recovery
+   capability blocks disabling actions; enabling recovery remains possible.
+3. Benchmark: CLI and smart socket must use the same endpoint; alternate paired
    samples; check snapshot consistency; export raw/summary JSON evidence.
-5. Validation/distribution: make frontend typecheck actually check application,
+4. Validation/distribution: make frontend typecheck actually check application,
    tooling and tests; pin Bun/Wails/NSIS across all workflows; associate build
    artifacts with exact source SHA. Do not claim old binaries are current.
-6. Guarded TV Custom Launcher Wizard. This is the next accepted P3 product
+5. Guarded TV Custom Launcher Wizard. This is the next accepted P3 product
    feature after the safety prerequisites, not macros.
-7. Final review, documentation, full CI, updated handoff.
+6. Final review, documentation, full CI, updated handoff.
 
 For each package use a fresh branch from current main, tests and documentation,
 commit/push/open PR autonomously, fix full CI, merge only green and verify main.
