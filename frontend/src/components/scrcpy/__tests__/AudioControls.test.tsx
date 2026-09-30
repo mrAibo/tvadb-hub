@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { AudioControls, getScrcpyAudioCapability } from '../AudioControls'
+import { AudioControls } from '../AudioControls'
+import { getScrcpyAudioCapability } from '../audioCapabilities'
 import type { ScrcpyOptions } from '@/lib/types'
 
 const options: ScrcpyOptions = {

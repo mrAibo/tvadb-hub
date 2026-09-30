@@ -2,6 +2,7 @@ import type { ScrcpyAudioSource, ScrcpyOptions } from '@/lib/types'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { getScrcpyAudioCapability } from '@/components/scrcpy/audioCapabilities'
 import {
   Select,
   SelectContent,
@@ -34,61 +35,6 @@ const AUDIO_SOURCES: Array<AudioChoice & { value: ScrcpyAudioSource; minSdk: num
   { value: 'playback', name: 'Playback', description: 'Capture app playback where Android permits it', minSdk: 33 },
   { value: 'mic', name: 'Microphone', description: 'Capture the device microphone', minSdk: 30 },
 ]
-
-export interface ScrcpyAudioCapability {
-  detected: boolean
-  sdk: number | null
-  audioSupported: boolean
-  playbackSupported: boolean
-  hint: string
-}
-
-export function getScrcpyAudioCapability(sdkVersion?: string): ScrcpyAudioCapability {
-  const sdk = Number.parseInt(sdkVersion ?? '', 10)
-  if (!Number.isFinite(sdk)) {
-    return {
-      detected: false,
-      sdk: null,
-      audioSupported: true,
-      playbackSupported: true,
-      hint: 'Audio requires Android 11+; Playback source requires Android 13+.',
-    }
-  }
-  if (sdk < 30) {
-    return {
-      detected: true,
-      sdk,
-      audioSupported: false,
-      playbackSupported: false,
-      hint: 'Audio forwarding requires Android 11 or newer on the selected device.',
-    }
-  }
-  if (sdk === 30) {
-    return {
-      detected: true,
-      sdk,
-      audioSupported: true,
-      playbackSupported: false,
-      hint: 'Android 11 audio works when the device is unlocked; Playback source requires Android 13+.',
-    }
-  }
-  if (sdk < 33) {
-    return {
-      detected: true,
-      sdk,
-      audioSupported: true,
-      playbackSupported: false,
-      hint: 'Output and microphone are available; Playback source requires Android 13+.',
-    }
-  }
-  return {
-    detected: true,
-    sdk,
-    audioSupported: true,
-    playbackSupported: true,
-    hint: 'Output, playback and microphone sources are available on this Android version.',
-  }
-}
 
 export function AudioControls({ options, sdkVersion, onOptionChange }: AudioControlsProps) {
   const capability = getScrcpyAudioCapability(sdkVersion)
