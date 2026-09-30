@@ -1,6 +1,17 @@
 package app
 
-import "ADBKit/internal/file"
+import (
+	"ADBKit/internal/core"
+	"ADBKit/internal/file"
+	"strings"
+)
+
+func requireTransferTarget(serial string) error {
+	if strings.TrimSpace(serial) == "" {
+		return core.NewOperationError("file_transfer", "Confirmed device is required", "select and confirm an ADB device", false)
+	}
+	return nil
+}
 
 func (a *App) ListFiles(remotePath string, showHidden bool) ([]file.Entry, error) {
 	return auditAction(a, "list_files", func() ([]file.Entry, error) {
@@ -42,6 +53,44 @@ func (a *App) PushMultipleFiles(localPaths []string, remoteDirectory string) (st
 	return auditAction(a, "push_multiple_files", func() (string, error) {
 		return a.fileSvc.PushMultipleFiles(a.ctx, localPaths, remoteDirectory)
 	})
+}
+
+func (a *App) PushMultipleFilesDetailed(expectedSerial string, localPaths []string, remoteDirectory string) (file.TransferBatchResult, error) {
+	if err := requireTransferTarget(expectedSerial); err != nil {
+		return file.TransferBatchResult{}, err
+	}
+	return auditAction(a, "push_multiple_files", func() (file.TransferBatchResult, error) {
+		return a.fileSvc.PushMultipleFilesDetailed(a.ctx, expectedSerial, localPaths, remoteDirectory)
+	})
+}
+
+func (a *App) PullMultipleFilesDetailed(expectedSerial string, remotePaths []string, localDirectory string) (file.TransferBatchResult, error) {
+	if err := requireTransferTarget(expectedSerial); err != nil {
+		return file.TransferBatchResult{}, err
+	}
+	return auditAction(a, "pull_multiple_files", func() (file.TransferBatchResult, error) {
+		return a.fileSvc.PullMultipleFilesDetailed(a.ctx, expectedSerial, remotePaths, localDirectory)
+	})
+}
+
+func (a *App) PushFileForDevice(serial string, localPath string, remotePath string) (string, error) {
+	if err := requireTransferTarget(serial); err != nil {
+		return "", err
+	}
+	return auditAction(a, "push_file", func() (string, error) { return a.fileSvc.PushFileForDevice(a.ctx, serial, localPath, remotePath) })
+}
+
+func (a *App) PullFileForDevice(serial string, remotePath string, localPath string) (string, error) {
+	if err := requireTransferTarget(serial); err != nil {
+		return "", err
+	}
+	return auditAction(a, "pull_file", func() (string, error) { return a.fileSvc.PullFileForDevice(a.ctx, serial, remotePath, localPath) })
+}
+
+func (a *App) CancelFileTransferFor(operationID string) {
+	if a.fileSvc != nil {
+		a.fileSvc.CancelTransferFor(operationID)
+	}
 }
 
 func (a *App) DeleteFile(remotePath string) (string, error) {
@@ -98,7 +147,6 @@ func (a *App) SelectMultipleFiles() ([]string, error) {
 	return a.diaSvc.SelectMultipleFiles()
 }
 
-
 func (a *App) GetHostFileSystemInfo() (file.HostFileSystemInfo, error) {
 	return auditAction(a, "get_host_filesystem_info", func() (file.HostFileSystemInfo, error) {
 		return a.fileSvc.GetHostFileSystemInfo()
@@ -110,7 +158,6 @@ func (a *App) ListLocalFiles(localPath string, showHidden bool) ([]file.Entry, e
 		return a.fileSvc.ListLocalFiles(localPath, showHidden)
 	})
 }
-
 
 func (a *App) GetLocalParentPath(localPath string) string {
 	return a.fileSvc.GetLocalParentPath(localPath)

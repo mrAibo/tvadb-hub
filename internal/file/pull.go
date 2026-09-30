@@ -7,14 +7,22 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 func (s *Service) PullFile(ctx context.Context, remotePath string, localPath string) (string, error) {
-	serial, err := s.requireActiveSerial(ctx)
+	return s.PullFileForDevice(ctx, "", remotePath, localPath)
+}
+
+func (s *Service) PullFileForDevice(ctx context.Context, expectedSerial string, remotePath string, localPath string) (string, error) {
+	op, release, err := s.beginTransfer(ctx, expectedSerial, "pull")
 	if err != nil {
 		return "", err
 	}
+	defer release()
+	return s.pullFile(op, remotePath, localPath)
+}
+
+func (s *Service) pullFile(op *transferOperation, remotePath string, localPath string) (string, error) {
 
 	normalizedRemotePath, err := normalizeRemotePath(remotePath)
 	if err != nil {
@@ -25,25 +33,20 @@ func (s *Service) PullFile(ctx context.Context, remotePath string, localPath str
 	if trimmedLocalPath == "" {
 		return "", core.NewOperationError("pull_file", "Destination path is required", "local destination path is empty", false)
 	}
+	trimmedLocalPath, pathErr := filepath.Abs(trimmedLocalPath)
+	if pathErr != nil {
+		return "", core.NewOperationError("pull_file", "Cannot resolve host destination", pathErr.Error(), false)
+	}
 
 	fileName := path.Base(normalizedRemotePath)
 
-	transferCtx, cancel := context.WithCancel(ctx)
-	s.setCancel(cancel)
-	defer func() {
-		cancel()
-		s.clearCancel()
-	}()
-
-	adbPath := s.getBinPath().Adb
-	compression := s.transferCompressionPreference()
-	capabilities := s.getADBCompressionCapabilities(transferCtx, adbPath)
-	args := buildADBPullArgs(serial, normalizedRemotePath, trimmedLocalPath, compression, capabilities)
+	transferCtx, adbPath, serial := op.ctx, op.adbPath, op.serial
+	args := buildADBPullArgs(serial, normalizedRemotePath, trimmedLocalPath, op.compression, op.capabilities)
 
 	var result *core.ExecResult
 	var cmdErr error
 	for attempt := 1; attempt <= transferRetries; attempt++ {
-		result, cmdErr = core.RunCommandStreaming(transferCtx, core.StreamingExecRequest{
+		result, cmdErr = s.runTransferCommand(transferCtx, core.StreamingExecRequest{
 			Command: adbPath,
 			Args:    args,
 			OnStderrLine: func(line string) {
@@ -54,14 +57,15 @@ func (s *Service) PullFile(ctx context.Context, remotePath string, localPath str
 							name = base
 						}
 					}
-					s.emitTransferProgress(name, "pull", parseAdbPercent(m[1]))
+					s.emitOperationProgress(op, name, "pull", parseAdbPercent(m[1]), "", "")
 				}
 			},
 		})
-		if cmdErr == nil {
-			s.emitTransferProgress(fileName, "pull", 100)
+		if cmdErr == nil && result != nil && result.ExitCode == 0 {
+			s.emitOperationProgress(op, fileName, "pull", 100, "", "")
 			message := fallbackMessage(result.Stdout, fmt.Sprintf("Saved file to %s", trimmedLocalPath))
 			verification, verifyErr := s.verifyTransferIfEnabled(
+				op,
 				transferCtx,
 				adbPath,
 				serial,
@@ -86,45 +90,51 @@ func (s *Service) PullFile(ctx context.Context, remotePath string, localPath str
 			return "", core.NewOperationError("pull_file", "Pull cancelled by user", "transfer context cancelled", false)
 		}
 
-		if !isTransientADBError(cmdErr.Error()) || attempt == transferRetries {
+		if !isTransientADBError(transferDiagnostic(result, cmdErr)) || attempt == transferRetries {
 			break
 		}
 
-		select {
-		case <-transferCtx.Done():
+		if waitTransferRetry(transferCtx) != nil {
 			return "", core.NewOperationError("pull_file", "Pull cancelled by user", "transfer context cancelled", false)
-		case <-time.After(transferDelay):
 		}
 	}
 
-	return "", core.NewOperationError("pull_file", "Failed to pull file", cmdErr.Error(), true)
+	return "", core.NewOperationError("pull_file", "Failed to pull file", transferDiagnostic(result, cmdErr), true)
 }
 
 func (s *Service) PullMultipleFiles(ctx context.Context, remotePaths []string, localDirectory string) (string, error) {
+	result, err := s.PullMultipleFilesDetailed(ctx, "", remotePaths, localDirectory)
+	return legacyBatchResult("pull", result, err)
+}
+
+func (s *Service) PullMultipleFilesDetailed(ctx context.Context, expectedSerial string, remotePaths []string, localDirectory string) (TransferBatchResult, error) {
 	trimmedLocalDir := strings.TrimSpace(localDirectory)
 	if trimmedLocalDir == "" {
-		return "", core.NewOperationError("pull_multiple_files", "Destination directory is required", "local destination directory is empty", false)
+		return TransferBatchResult{}, core.NewOperationError("pull_multiple_files", "Destination directory is required", "local destination directory is empty", false)
 	}
 	if len(remotePaths) == 0 {
-		return "", core.NewOperationError("pull_multiple_files", "No files were selected", "remote path list is empty", false)
+		return TransferBatchResult{}, core.NewOperationError("pull_multiple_files", "No files were selected", "remote path list is empty", false)
+	}
+	if len(remotePaths) > 1000 {
+		return TransferBatchResult{}, core.NewOperationError("pull_multiple_files", "Batch exceeds 1000 items", "select a smaller batch or transfer a directory", false)
 	}
 
-	completed := 0
-	for _, remotePath := range remotePaths {
-		if ctx.Err() != nil {
-			return "", core.NewOperationError("pull_multiple_files", "Pull batch cancelled", "transfer context cancelled", false)
-		}
-		name := path.Base(strings.TrimSpace(remotePath))
-		if _, err := s.PullFile(ctx, remotePath, filepath.Join(trimmedLocalDir, name)); err != nil {
-			if isCancelledError(err) || ctx.Err() != nil {
-				return "", core.NewOperationError("pull_multiple_files", "Pull batch cancelled", "transfer context cancelled", false)
-			}
-			return "", err
-		}
-		completed++
+	op, release, err := s.beginTransfer(ctx, expectedSerial, "pull")
+	if err != nil {
+		return TransferBatchResult{}, err
 	}
-
-	return fmt.Sprintf("Pulled %d file(s) to %s", completed, trimmedLocalDir), nil
+	defer release()
+	items := make([]TransferItemResult, len(remotePaths))
+	for i, remotePath := range remotePaths {
+		items[i] = TransferItemResult{Source: remotePath, Destination: filepath.Join(trimmedLocalDir, path.Base(strings.TrimSpace(remotePath)))}
+	}
+	return runTransferBatch(op, items, func(item TransferItemResult) (string, error) {
+		name := path.Base(strings.TrimSpace(item.Source))
+		if !filepath.IsLocal(name) || filepath.Base(name) != name {
+			return "", core.NewOperationError("pull_file", "Remote name cannot be mapped safely to a host file", name, false)
+		}
+		return s.pullFile(op, item.Source, item.Destination)
+	}), nil
 }
 
 func parseAdbPercent(s string) int {

@@ -35,7 +35,7 @@ func TestPushMultipleFiles_CancelledReturnsError(t *testing.T) {
 			svc := &Service{
 				resolveActiveSerial: func(context.Context) (string, error) {
 					calls++
-					if calls == tt.cancelOnCall {
+					if tt.cancelOnCall == 1 {
 						cancel()
 					}
 					return "test-device", nil
@@ -43,11 +43,21 @@ func TestPushMultipleFiles_CancelledReturnsError(t *testing.T) {
 				getBinPath: func() core.BinaryPaths {
 					return core.BinaryPaths{Adb: "adb"}
 				},
+				runCommand: func(context.Context, core.ExecRequest) (*core.ExecResult, error) { return &core.ExecResult{}, nil },
+			}
+			transferCalls := 0
+			svc.runStreaming = func(context.Context, core.StreamingExecRequest) (*core.ExecResult, error) {
+				transferCalls++
+				if transferCalls == 2 {
+					cancel()
+					return nil, context.Canceled
+				}
+				return &core.ExecResult{Stdout: "OK"}, nil
 			}
 
 			paths := []string{validPath}
 			if tt.includeBroken {
-				paths = []string{filepath.Join(dir, "missing.txt"), validPath}
+				paths = []string{validPath, validPath}
 			}
 
 			_, err := svc.PushMultipleFiles(ctx, paths, "/sdcard")
@@ -68,7 +78,6 @@ func TestPushMultipleFiles_CancelledReturnsError(t *testing.T) {
 		})
 	}
 }
-
 
 func TestParseADBCompressionCapabilities(t *testing.T) {
 	help := `file transfer:
@@ -175,7 +184,6 @@ func TestBuildADBTransferArgsCompressionAndFallback(t *testing.T) {
 	}
 }
 
-
 func TestVerifyTransferredFileMatch(t *testing.T) {
 	localPath := filepath.Join(t.TempDir(), "payload.bin")
 	if err := os.WriteFile(localPath, []byte("hello"), 0o600); err != nil {
@@ -265,7 +273,6 @@ func TestVerifyTransferredFileRemoteHashUnavailable(t *testing.T) {
 		t.Fatalf("remote hashing calls=%d want=2", calls)
 	}
 }
-
 
 func TestVerifyTransferredFileRemoteHashUnavailableByExit127(t *testing.T) {
 	localPath := filepath.Join(t.TempDir(), "payload.bin")

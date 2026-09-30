@@ -24,12 +24,32 @@ const (
 	VerificationStatusVerified    = "verified"
 	VerificationStatusUnavailable = "unavailable"
 	VerificationStatusMismatch    = "mismatch"
+	VerificationStatusFailure     = "failure"
 )
 
 type TransferProgress struct {
+	OperationID        string `json:"operationId,omitempty"`
+	Serial             string `json:"serial,omitempty"`
 	FileName           string `json:"fileName"`
 	Direction          string `json:"direction"`
 	Percent            int    `json:"percent"`
 	Verification       string `json:"verification,omitempty"`
 	VerificationDetail string `json:"verificationDetail,omitempty"`
+}
+
+type TransferItemResult struct {
+	Source      string `json:"source"`
+	Destination string `json:"destination"`
+	Status      string `json:"status"`
+	Message     string `json:"message"`
+}
+
+type TransferBatchResult struct {
+	OperationID string               `json:"operationId"`
+	Serial      string               `json:"serial"`
+	Items       []TransferItemResult `json:"items"`
+	Completed   int                  `json:"completed"`
+	Failed      int                  `json:"failed"`
+	Cancelled   int                  `json:"cancelled"`
+	Skipped     int                  `json:"skipped"`
 }

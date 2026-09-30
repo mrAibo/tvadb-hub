@@ -8,16 +8,24 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 func (s *Service) PushFile(ctx context.Context, localPath string, remotePath string) (string, error) {
-	serial, err := s.requireActiveSerial(ctx)
+	return s.PushFileForDevice(ctx, "", localPath, remotePath)
+}
+
+func (s *Service) PushFileForDevice(ctx context.Context, expectedSerial string, localPath string, remotePath string) (string, error) {
+	op, release, err := s.beginTransfer(ctx, expectedSerial, "push")
 	if err != nil {
 		return "", err
 	}
+	defer release()
+	return s.pushFile(op, localPath, remotePath)
+}
+
+func (s *Service) pushFile(op *transferOperation, localPath string, remotePath string) (string, error) {
 
 	trimmedLocalPath := strings.TrimSpace(localPath)
 	if trimmedLocalPath == "" {
@@ -27,6 +35,10 @@ func (s *Service) PushFile(ctx context.Context, localPath string, remotePath str
 	localInfo, statErr := validateReadableHostPath("push_file", trimmedLocalPath)
 	if statErr != nil {
 		return "", statErr
+	}
+	trimmedLocalPath, pathErr := filepath.Abs(trimmedLocalPath)
+	if pathErr != nil {
+		return "", core.NewOperationError("push_file", "Cannot resolve host path", pathErr.Error(), false)
 	}
 
 	normalizedRemotePath, err := normalizeRemotePath(remotePath)
@@ -39,22 +51,13 @@ func (s *Service) PushFile(ctx context.Context, localPath string, remotePath str
 
 	fileName := localInfo.Name()
 
-	transferCtx, cancel := context.WithCancel(ctx)
-	s.setCancel(cancel)
-	defer func() {
-		cancel()
-		s.clearCancel()
-	}()
-
-	adbPath := s.getBinPath().Adb
-	compression := s.transferCompressionPreference()
-	capabilities := s.getADBCompressionCapabilities(transferCtx, adbPath)
-	args := buildADBPushArgs(serial, trimmedLocalPath, normalizedRemotePath, compression, capabilities)
+	transferCtx, adbPath, serial := op.ctx, op.adbPath, op.serial
+	args := buildADBPushArgs(serial, trimmedLocalPath, normalizedRemotePath, op.compression, op.capabilities)
 
 	var result *core.ExecResult
 	var cmdErr error
 	for attempt := 1; attempt <= transferRetries; attempt++ {
-		result, cmdErr = core.RunCommandStreaming(transferCtx, core.StreamingExecRequest{
+		result, cmdErr = s.runTransferCommand(transferCtx, core.StreamingExecRequest{
 			Command: adbPath,
 			Args:    args,
 			OnStderrLine: func(line string) {
@@ -65,14 +68,15 @@ func (s *Service) PushFile(ctx context.Context, localPath string, remotePath str
 							name = base
 						}
 					}
-					s.emitTransferProgress(name, "push", parseAdbPercent(m[1]))
+					s.emitOperationProgress(op, name, "push", parseAdbPercent(m[1]), "", "")
 				}
 			},
 		})
-		if cmdErr == nil {
-			s.emitTransferProgress(fileName, "push", 100)
+		if cmdErr == nil && result != nil && result.ExitCode == 0 {
+			s.emitOperationProgress(op, fileName, "push", 100, "", "")
 			message := fallbackMessage(result.Stdout, fmt.Sprintf("Pushed to %s", normalizedRemotePath))
 			verification, verifyErr := s.verifyTransferIfEnabled(
+				op,
 				transferCtx,
 				adbPath,
 				serial,
@@ -97,69 +101,53 @@ func (s *Service) PushFile(ctx context.Context, localPath string, remotePath str
 			return "", core.NewOperationError("push_file", "Push cancelled by user", "transfer context cancelled", false)
 		}
 
-		if !isTransientADBError(cmdErr.Error()) || attempt == transferRetries {
+		if !isTransientADBError(transferDiagnostic(result, cmdErr)) || attempt == transferRetries {
 			break
 		}
 
-		select {
-		case <-transferCtx.Done():
+		if waitTransferRetry(transferCtx) != nil {
 			return "", core.NewOperationError("push_file", "Push cancelled by user", "transfer context cancelled", false)
-		case <-time.After(transferDelay):
 		}
 	}
 
-	return "", core.NewOperationError("push_file", "Failed to push file", cmdErr.Error(), true)
+	return "", core.NewOperationError("push_file", "Failed to push file", transferDiagnostic(result, cmdErr), true)
 }
 
 func (s *Service) PushMultipleFiles(ctx context.Context, localPaths []string, remoteDirectory string) (string, error) {
+	result, err := s.PushMultipleFilesDetailed(ctx, "", localPaths, remoteDirectory)
+	return legacyBatchResult("push", result, err)
+}
+
+func (s *Service) PushMultipleFilesDetailed(ctx context.Context, expectedSerial string, localPaths []string, remoteDirectory string) (TransferBatchResult, error) {
 	if len(localPaths) == 0 {
-		return "", core.NewOperationError("push_multiple_files", "No files were selected", "local path list is empty", false)
+		return TransferBatchResult{}, core.NewOperationError("push_multiple_files", "No files were selected", "local path list is empty", false)
+	}
+	if len(localPaths) > 1000 {
+		return TransferBatchResult{}, core.NewOperationError("push_multiple_files", "Batch exceeds 1000 items", "select a smaller batch or transfer a directory", false)
 	}
 
 	normalizedRemoteDir, err := normalizeRemotePath(remoteDirectory)
 	if err != nil {
-		return "", err
+		return TransferBatchResult{}, err
 	}
 	if err := validateRemoteMutationPath("push_multiple_files", normalizedRemoteDir); err != nil {
-		return "", err
+		return TransferBatchResult{}, err
 	}
 
-	successCount := 0
-	failures := make([]string, 0)
-
-	for _, localPath := range localPaths {
-		if ctx.Err() != nil {
-			return "", core.NewOperationError("push_multiple_files", "Push batch cancelled", "transfer context cancelled", false)
-		}
-		trimmed := strings.TrimSpace(localPath)
-		if trimmed == "" {
-			continue
-		}
-		fileName := filepath.Base(trimmed)
-		remotePath := path.Join(normalizedRemoteDir, fileName)
-		if _, err := s.PushFile(ctx, trimmed, remotePath); err != nil {
-			if isVerificationMismatchError(err) {
-				return "", err
-			}
-			if isCancelledError(err) || ctx.Err() != nil {
-				return "", core.NewOperationError("push_multiple_files", "Push batch cancelled", "transfer context cancelled", false)
-			}
-			failures = append(failures, fmt.Sprintf("%s: %s", fileName, err.Error()))
-			continue
-		}
-		successCount++
+	op, release, err := s.beginTransfer(ctx, expectedSerial, "push")
+	if err != nil {
+		return TransferBatchResult{}, err
 	}
-
-	message := fmt.Sprintf("Pushed %d file(s) to %s", successCount, normalizedRemoteDir)
-	if len(failures) > 0 {
-		message = fmt.Sprintf("%s. Failed: %d. Details: %s", message, len(failures), strings.Join(failures, " | "))
+	defer release()
+	items := make([]TransferItemResult, len(localPaths))
+	for i, localPath := range localPaths {
+		items[i] = TransferItemResult{Source: localPath, Destination: path.Join(normalizedRemoteDir, filepath.Base(strings.TrimSpace(localPath)))}
 	}
-
-	return message, nil
+	return runTransferBatch(op, items, func(item TransferItemResult) (string, error) { return s.pushFile(op, item.Source, item.Destination) }), nil
 }
 
 func isCancelledError(err error) bool {
-	if err == nil || errors.Is(err, context.Canceled) {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return err != nil
 	}
 
@@ -176,14 +164,23 @@ func (s *Service) emitTransferVerification(fileName, direction, status, detail s
 }
 
 func (s *Service) emitTransferProgressState(fileName, direction string, percent int, verification, detail string) {
+	s.emitOperationProgress(nil, fileName, direction, percent, verification, detail)
+}
+
+func (s *Service) emitOperationProgress(op *transferOperation, fileName, direction string, percent int, verification, detail string) {
 	if s.wailsCtx == nil {
 		return
 	}
-	application.Get().Event.Emit(TransferProgressEvent, TransferProgress{
+	progress := TransferProgress{
 		FileName:           fileName,
 		Direction:          direction,
 		Percent:            percent,
 		Verification:       verification,
 		VerificationDetail: detail,
-	})
+	}
+	if op != nil {
+		progress.OperationID = op.id
+		progress.Serial = op.serial
+	}
+	application.Get().Event.Emit(TransferProgressEvent, progress)
 }
