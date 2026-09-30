@@ -84,6 +84,13 @@ export type TVRemoteKey =
   | 'wake'
   | 'sleep'
 
+export type TVTextInputMethod = 'scrcpy-clipboard' | 'android-clipboard' | 'input-text'
+
+export interface TVTextInputResult {
+  method: TVTextInputMethod
+  detail: string
+}
+
 export type DeviceState =
   | 'device'
   | 'offline'

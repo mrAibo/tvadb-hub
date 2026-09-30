@@ -27,6 +27,7 @@ var tvRemoteKeycodes = map[string]string{
 	"power":       "KEYCODE_POWER",
 	"wake":        "KEYCODE_WAKEUP",
 	"sleep":       "KEYCODE_SLEEP",
+	"paste":       "KEYCODE_PASTE",
 }
 
 // SendTVRemoteKey sends one whitelisted Android key event to a connected ADB

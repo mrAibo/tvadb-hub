@@ -15,11 +15,14 @@ import {
   IconVolume3 as Mute,
   IconVolumeOff as VolumeDown,
   IconSun as Wake,
+  IconKeyboard as Keyboard,
+  IconSend as Send,
 } from '@tabler/icons-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { sendTVRemoteKey } from '@/services/deviceService'
+import { sendTVRemoteKey, sendTVText } from '@/services/deviceService'
 import type { TVRemoteKey } from '@/lib/types'
 
 interface TVRemotePanelProps {
@@ -63,6 +66,8 @@ function RemoteButton({
 
 export function TVRemotePanel({ serial }: TVRemotePanelProps) {
   const [busyKey, setBusyKey] = useState<TVRemoteKey | null>(null)
+  const [textDraft, setTextDraft] = useState('')
+  const [sendingText, setSendingText] = useState(false)
 
   async function press(key: TVRemoteKey) {
     setBusyKey(key)
@@ -74,6 +79,25 @@ export function TVRemotePanel({ serial }: TVRemotePanelProps) {
       })
     } finally {
       setBusyKey(null)
+    }
+  }
+
+  async function submitText() {
+    if (textDraft === '' || sendingText) return
+
+    setSendingText(true)
+    try {
+      const result = await sendTVText(textDraft, serial)
+      setTextDraft('')
+      toast.success('Text sent to TV', {
+        description: result.detail,
+      })
+    } catch (error) {
+      toast.error('Text input failed', {
+        description: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setSendingText(false)
     }
   }
 
@@ -132,6 +156,43 @@ export function TVRemotePanel({ serial }: TVRemotePanelProps) {
           <RemoteButton label="Volume down" remoteKey="volume_down" busyKey={busyKey} onPress={press} icon={VolumeDown} />
           <RemoteButton label="Mute" remoteKey="mute" busyKey={busyKey} onPress={press} icon={Mute} />
           <RemoteButton label="Sleep" remoteKey="sleep" busyKey={busyKey} onPress={press} icon={Sleep} />
+        </div>
+
+        <div className="md:col-span-3 border-t border-border/60 pt-3">
+          <div className="flex items-center gap-2">
+            <Keyboard className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="relative flex min-w-0 flex-1 items-center">
+              <Input
+                aria-label="TV text input"
+                value={textDraft}
+                onChange={(event) => setTextDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    void submitText()
+                  }
+                }}
+                placeholder="Type text for the focused TV field..."
+                maxLength={8192}
+                disabled={sendingText}
+                className="h-9 pr-20 text-xs"
+              />
+              <Button
+                type="button"
+                size="sm"
+                className="absolute right-1 h-7 gap-1 px-2.5 text-[10px]"
+                disabled={textDraft === '' || sendingText}
+                onClick={() => void submitText()}
+                aria-label="Send text to TV"
+              >
+                <Send className={sendingText ? 'h-3 w-3 animate-pulse' : 'h-3 w-3'} />
+                Send
+              </Button>
+            </div>
+          </div>
+          <p className="mt-1.5 pl-6 text-[10px] leading-relaxed text-muted-foreground">
+            Uses clipboard paste for Unicode when available; falls back to safe printable ASCII input only.
+          </p>
         </div>
       </CardContent>
     </Card>

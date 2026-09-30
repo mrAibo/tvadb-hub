@@ -38,6 +38,7 @@ import type {
   WirelessReconnectReport,
   ScreenshotResult,
   TVRemoteKey,
+  TVTextInputResult,
 } from '@/lib/types'
 
 export async function getDevices(): Promise<DeviceSummary[]> {
@@ -92,6 +93,18 @@ export async function sendTVRemoteKey(
     key,
   )
   return String(result ?? '')
+}
+
+export async function sendTVText(
+  text: string,
+  serial?: string,
+): Promise<TVTextInputResult> {
+  const result = await WailsCall.ByName(
+    'ADBKit/internal/app.App.SendTVText',
+    serial ?? '',
+    text,
+  )
+  return result as TVTextInputResult
 }
 
 export async function connectWireless(address: string): Promise<string> {

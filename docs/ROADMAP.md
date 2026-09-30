@@ -11,6 +11,7 @@ devices.
 - [x] Remembered devices and reconnect from the Current+ device selector
 - [x] Device dashboard, device details and performance snapshots
 - [x] Android TV remote controls where the selected device is a TV
+- [x] TV text-entry panel with Unicode clipboard paste and safe ASCII fallback
 - [x] APK install/update/downgrade and split APK installation
 - [x] App launch, force-stop, enable/disable, uninstall and APK extraction
 - [x] Safe Tuning profiles with risk levels, snapshots and exact restore

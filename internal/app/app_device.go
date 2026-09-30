@@ -73,6 +73,42 @@ func (a *App) SendTVRemoteKey(serial string, key string) (string, error) {
 	})
 }
 
+func (a *App) SendTVText(serial string, text string) (device.TVTextInputResult, error) {
+	return auditAction(a, "send_tv_text", func() (device.TVTextInputResult, error) {
+		resolved := strings.TrimSpace(serial)
+		if resolved == "" {
+			var err error
+			resolved, err = a.resolveActiveSerial(a.ctx)
+			if err != nil {
+				return device.TVTextInputResult{}, err
+			}
+		}
+
+		if err := device.ValidateTVTextInput(text); err != nil {
+			return device.TVTextInputResult{}, err
+		}
+
+		// An active scrcpy session gets first use of DroidSphere's existing
+		// clipboard bridge, followed by Android's PASTE key event. If that
+		// path is unavailable, the device service applies its clipboard then
+		// printable-ASCII input-text fallback policy.
+		if a.scrSvc != nil {
+			if session := a.scrSvc.GetActiveSession(); session != nil && session.Serial == resolved {
+				if err := a.scrSvc.PushClipboard(resolved, text); err == nil {
+					if _, err := a.devSvc.SendTVRemoteKey(a.ctx, resolved, "paste"); err == nil {
+						return device.TVTextInputResult{
+							Method: device.TVTextMethodScrcpyClipboard,
+							Detail: "Pasted through the active scrcpy clipboard path",
+						}, nil
+					}
+				}
+			}
+		}
+
+		return a.devSvc.SendTVText(a.ctx, resolved, text)
+	})
+}
+
 func (a *App) CaptureScreenshot(serial string, localPath string) (device.ScreenshotResult, error) {
 	return auditAction(a, "capture_screenshot", func() (device.ScreenshotResult, error) {
 		resolved := strings.TrimSpace(serial)

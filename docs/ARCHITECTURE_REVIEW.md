@@ -58,19 +58,23 @@ This is an optimization project, not a prerequisite for correctness.
 
 ### PC keyboard / text input
 
-**Verdict: worth implementing.**
+**Status: implemented.**
 
 **Complexity:** Low to Medium.
 
-DroidSphere already has TV remote controls and scrcpy clipboard support. A TV
-text-entry panel can therefore use:
+The Device Manager TV Remote now includes a text-entry field for the focused
+Android TV/streaming-device input. The backend uses this order:
 
-1. scrcpy clipboard/paste where an active scrcpy session exists;
-2. Android clipboard APIs where available;
-3. `input text` only as a fallback for simple ASCII input.
+1. the existing scrcpy clipboard bridge plus Android PASTE when the selected
+   device has an active scrcpy session;
+2. Android clipboard set + PASTE when available;
+3. `input text` only as a printable-ASCII fallback.
 
-This is preferable to treating `adb shell input text` as a universal UTF-8
-transport, which it is not.
+Unicode is never silently routed through `input text`. Percent-containing or
+non-printable/non-ASCII text therefore fails clearly if clipboard paste is not
+available. Because the ADB client joins `adb shell` arguments without escaping,
+all user-controlled clipboard/text values are explicitly POSIX-shell quoted
+before they enter the remote command string.
 
 ### HDMI-CEC / audio-output shortcuts / System UI restart
 
@@ -279,7 +283,7 @@ than the previous per-line IPC pressure issue.
 | Done | Backend Logcat event batching | Medium | Completed |
 | Done | ADB push/pull compression options | Low | Completed |
 | Done | Transfer SHA-256 verification | Low-Medium | Completed |
-| P2 | TV text-entry panel | Low-Medium | Do |
+| Done | TV text-entry panel | Low-Medium | Completed |
 | P2 | Signed/versioned Safe Tuning metadata feed | Medium-High | Do carefully |
 | P2 | scrcpy audio-source/audio-only UX | Low | Do |
 | P3 | Focused ADB smart-socket client | Medium | Prototype + benchmark |
