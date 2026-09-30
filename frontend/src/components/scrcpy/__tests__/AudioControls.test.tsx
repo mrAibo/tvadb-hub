@@ -37,7 +37,7 @@ describe('AudioControls capabilities', () => {
 
   it('disables audio-only below Android 11', () => {
     render(<AudioControls options={options} sdkVersion="29" onOptionChange={() => {}} />)
-    expect(screen.getByRole('switch', { name: 'Audio-only' })).toBeDisabled()
+    expect(screen.getByRole('switch', { name: 'Audio-only' })).toHaveAttribute('aria-disabled', 'true')
     expect(screen.getByText(/requires Android 11 or newer/i)).toBeInTheDocument()
   })
 
@@ -56,6 +56,6 @@ describe('AudioControls capabilities', () => {
         onOptionChange={() => {}}
       />,
     )
-    expect(screen.getByRole('switch', { name: 'Disable Audio' })).toBeDisabled()
+    expect(screen.getByRole('switch', { name: 'Disable Audio' })).toHaveAttribute('aria-disabled', 'true')
   })
 })
