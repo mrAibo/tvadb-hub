@@ -53,3 +53,15 @@ func TestSettingsBackupFormatsKeepLegacyCompatibility(t *testing.T) {
 		t.Fatalf("legacy backup format=%q", legacySettingsBackupFormat)
 	}
 }
+
+func TestNormalizeImportedConfigClearsInvalidSafeTuningFeedTrust(t *testing.T) {
+	cfg := core.DefaultConfig()
+	cfg.SafeTuningFeedURL = "http://insecure.example/feed.json"
+	cfg.SafeTuningFeedPublicKey = "not-a-key"
+
+	normalizeImportedConfig(cfg)
+
+	if cfg.SafeTuningFeedURL != "" || cfg.SafeTuningFeedPublicKey != "" {
+		t.Fatalf("invalid feed trust must fail closed: url=%q key=%q", cfg.SafeTuningFeedURL, cfg.SafeTuningFeedPublicKey)
+	}
+}

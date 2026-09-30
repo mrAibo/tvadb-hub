@@ -15,11 +15,11 @@ benefit, such as continuous device tracking.
 
 Backend Logcat event batching, ADB CLI transfer compression, optional
 post-transfer SHA-256 verification, safe TV text entry, scrcpy audio-source
-controls and Logcat crash/ANR diagnostics with saved filters are now
-implemented. The next high-value engineering work should instead focus on:
-
-1. A separately versioned, signed Safe Tuning metadata feed with explicit
-   licensing and rollback.
+controls, Logcat crash/ANR diagnostics with saved filters and the opt-in
+signed Safe Tuning metadata feed infrastructure are now implemented. The
+remaining near-term product work is Logcat app/PID filtering and pinned events;
+the architecture-only P3 items should still be benchmarked or guarded before
+adoption.
 
 ## 1. Native ADB Client Protocol
 
@@ -121,7 +121,7 @@ That provides portability without requiring a DroidSphere Android app.
 
 ### Community package metadata / UAD synchronization
 
-**Verdict: high value, but do not silently vendor UAD data.**
+**Status: signed/versioned feed infrastructure implemented; external catalog remains opt-in.**
 
 **Complexity:** Medium technically; Medium/High governance and licensing.
 
@@ -129,15 +129,20 @@ UAD-NG is GPL-3.0 and its separate preinstalled-package-list repository is
 LGPL-3.0. DroidSphere is MIT. Copying a large upstream database directly into
 the MIT application without a clear licensing boundary is not appropriate.
 
-Preferred design:
+Implemented feed boundary:
 
-- a separately versioned metadata repository;
-- explicit data license and attribution;
-- signed release manifests/digests;
-- schema validation;
-- local cache and rollback;
-- no automatic destructive action after a metadata update;
-- profile changes shown to the user before application.
+- separately hosted/versioned metadata supported over HTTPS;
+- explicit feed-level and profile-level source/license attribution;
+- Ed25519-signed envelopes with a pinned public key and visible SHA-256 payload digest;
+- strict schema/profile validation and a non-overridable core-package safety floor;
+- trust-config-namespaced current/previous verified caches with explicit rollback;
+- monotonic revision checks that reject silent downgrade and revision collisions;
+- no automatic metadata download and no destructive action after an update;
+- profile/package changes remain visible in the normal analysis/review flow before application.
+
+DroidSphere intentionally ships no default external catalog or private signing
+key. The maintainer signing tool and feed format are documented in
+`docs/SAFE_TUNING_FEED.md`.
 
 If UAD data is consumed later, keep it as a clearly separated,
 license-compliant external dataset or obtain permission for a compatible data
@@ -291,7 +296,7 @@ Remaining Logcat roadmap work is app/PID filtering and pinned events.
 | Done | Transfer SHA-256 verification | Low-Medium | Completed |
 | Done | TV text-entry panel | Low-Medium | Completed |
 | Done | Logcat crash/ANR filtering + saved filters | Low-Medium | Completed |
-| P2 | Signed/versioned Safe Tuning metadata feed | Medium-High | Do carefully |
+| Done | Signed/versioned Safe Tuning metadata feed infrastructure | Medium-High | Completed, opt-in |
 | Done | scrcpy audio-source/audio-only UX | Low | Completed |
 | P3 | Focused ADB smart-socket client | Medium | Prototype + benchmark |
 | P3 | Custom launcher wizard | Medium-High | TV-specific, guarded |

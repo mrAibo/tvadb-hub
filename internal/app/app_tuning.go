@@ -1,6 +1,7 @@
 package app
 
 import (
+	"ADBKit/internal/core"
 	"ADBKit/internal/device"
 	"ADBKit/internal/tuning"
 )
@@ -75,4 +76,36 @@ func (a *App) currentSafeTuningFeedConfig() tuning.FeedConfig {
 		URL:       a.cfg.SafeTuningFeedURL,
 		PublicKey: a.cfg.SafeTuningFeedPublicKey,
 	}
+}
+
+func (a *App) GetSafeTuningFeedConfig() tuning.FeedConfig {
+	return a.currentSafeTuningFeedConfig()
+}
+
+func (a *App) ConfigureSafeTuningFeed(config tuning.FeedConfig) (tuning.FeedStatus, error) {
+	return auditAction(a, "configure_safe_tuning_feed", func() (tuning.FeedStatus, error) {
+		normalized, err := tuning.NormalizeFeedConfig(config)
+		if err != nil {
+			return tuning.FeedStatus{}, err
+		}
+
+		a.mu.Lock()
+		if a.cfg == nil {
+			a.mu.Unlock()
+			return tuning.FeedStatus{}, core.NewOperationError(
+				"safe_tuning_feed_config",
+				"Application configuration is not available",
+				"",
+				false,
+			)
+		}
+		a.cfg.SafeTuningFeedURL = normalized.URL
+		a.cfg.SafeTuningFeedPublicKey = normalized.PublicKey
+		err = core.SaveConfig(a.dataDir, a.cfg)
+		a.mu.Unlock()
+		if err != nil {
+			return tuning.FeedStatus{}, err
+		}
+		return a.tuneSvc.FeedStatus(), nil
+	})
 }

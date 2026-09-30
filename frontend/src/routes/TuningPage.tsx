@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   IconAlertTriangle as AlertTriangle,
   IconArrowBackUp as ArrowBackUp,
+  IconCloudDownload as CloudDownload,
+  IconDatabase as Database,
   IconExternalLink as ExternalLink,
+  IconKey as Key,
   IconLoader2 as Loader2,
   IconRefresh as RefreshCw,
   IconShieldCheck as ShieldCheck,
@@ -11,18 +14,26 @@ import {
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useDevices } from '@/hooks/useDevices'
 import {
   analyzeSafeTuning,
   applySafeTuning,
+  configureSafeTuningFeed,
+  getSafeTuningFeedConfig,
+  getSafeTuningFeedStatus,
   listTuningSnapshots,
+  refreshSafeTuningFeed,
   restoreTuningSnapshot,
+  rollbackSafeTuningFeed,
 } from '@/services/tuningService'
 import { cn } from '@/lib/utils'
 import type {
   SafeTuningActionMode,
   SafeTuningAnalysis,
+  SafeTuningFeedConfig,
+  SafeTuningFeedStatus,
   SafeTuningPackageMatch,
   TuningRisk,
   TuningSnapshotSummary,
@@ -95,6 +106,9 @@ export default function TuningPage() {
   const [applying, setApplying] = useState(false)
   const [restoring, setRestoring] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [feedConfig, setFeedConfig] = useState<SafeTuningFeedConfig>({ url: '', publicKey: '' })
+  const [feedStatus, setFeedStatus] = useState<SafeTuningFeedStatus | null>(null)
+  const [feedBusy, setFeedBusy] = useState(false)
 
   async function reload(profileId = '') {
     if (!activeSerial) {
@@ -124,6 +138,97 @@ export default function TuningPage() {
   useEffect(() => {
     void reload()
   }, [activeSerial])
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const [config, status] = await Promise.all([
+          getSafeTuningFeedConfig(),
+          getSafeTuningFeedStatus(),
+        ])
+        setFeedConfig(config)
+        setFeedStatus(status)
+      } catch (feedError) {
+        console.error('Failed to load Safe Tuning feed state', feedError)
+      }
+    })()
+  }, [])
+
+  async function handleSaveFeedTrust() {
+    setFeedBusy(true)
+    try {
+      const status = await configureSafeTuningFeed({
+        url: feedConfig.url.trim(),
+        publicKey: feedConfig.publicKey.trim(),
+      })
+      setFeedStatus(status)
+      toast.success(status.configured ? 'Safe Tuning feed trust saved' : 'Signed metadata feed disabled', {
+        description: status.message,
+      })
+      if (activeSerial) await reload()
+    } catch (feedError) {
+      toast.error('Could not save Safe Tuning feed trust', {
+        description: feedError instanceof Error ? feedError.message : String(feedError),
+      })
+    } finally {
+      setFeedBusy(false)
+    }
+  }
+
+  async function handleRefreshFeed() {
+    setFeedBusy(true)
+    try {
+      const status = await refreshSafeTuningFeed()
+      setFeedStatus(status)
+      toast.success('Signed Safe Tuning metadata verified', {
+        description: status.version
+          ? `${status.version} · revision ${status.revision} · ${status.profileCount} profile(s)`
+          : status.message,
+      })
+      if (activeSerial) await reload()
+    } catch (feedError) {
+      toast.error('Signed metadata update rejected', {
+        description: feedError instanceof Error ? feedError.message : String(feedError),
+      })
+    } finally {
+      setFeedBusy(false)
+    }
+  }
+
+  async function handleRollbackFeed() {
+    setFeedBusy(true)
+    try {
+      const status = await rollbackSafeTuningFeed()
+      setFeedStatus(status)
+      toast.success('Safe Tuning metadata rolled back', {
+        description: status.message,
+      })
+      if (activeSerial) await reload()
+    } catch (feedError) {
+      toast.error('Metadata rollback failed', {
+        description: feedError instanceof Error ? feedError.message : String(feedError),
+      })
+    } finally {
+      setFeedBusy(false)
+    }
+  }
+
+  async function handleUseBuiltinsOnly() {
+    setFeedConfig({ url: '', publicKey: '' })
+    setFeedBusy(true)
+    try {
+      const status = await configureSafeTuningFeed({ url: '', publicKey: '' })
+      setFeedStatus(status)
+      toast.success('Using built-in Safe Tuning metadata only')
+      if (activeSerial) await reload()
+    } catch (feedError) {
+      toast.error('Could not disable signed metadata feed', {
+        description: feedError instanceof Error ? feedError.message : String(feedError),
+      })
+    } finally {
+      setFeedBusy(false)
+    }
+  }
 
   const selectedMatches = useMemo(() => {
     if (!analysis) return []
@@ -399,6 +504,113 @@ export default function TuningPage() {
                 <p><strong className="text-foreground">Caution</strong> packages require an explicit confirmation.</p>
                 <p><strong className="text-foreground">Dangerous / blocked</strong> packages cannot be modified from Safe Tuning.</p>
                 <p><strong className="text-foreground">Disable</strong> uses Android's reversible <code>pm disable-user --user 0</code>.</p>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border-border/60 bg-card/60">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Database className="h-4 w-4 text-muted-foreground" />
+                  Signed metadata feed
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="rounded-lg border border-border/50 bg-muted/20 p-2.5 text-[9px] leading-relaxed text-muted-foreground">
+                  <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                    <ShieldCheck className="h-3 w-3 text-primary" />
+                    {feedStatus?.active ? 'Verified external metadata active' : 'Built-in metadata active'}
+                  </div>
+                  <p className="mt-1">{feedStatus?.message ?? 'Loading metadata status…'}</p>
+                  {feedStatus?.active && (
+                    <div className="mt-2 space-y-0.5 font-mono text-[8px]">
+                      <div>Version {feedStatus.version} · rev {feedStatus.revision}</div>
+                      <div>Key {feedStatus.keyId || 'unknown'}</div>
+                      <div className="truncate" title={feedStatus.digest}>SHA-256 {feedStatus.digest}</div>
+                      <div>{feedStatus.profileCount} signed profile(s)</div>
+                    </div>
+                  )}
+                  {feedStatus?.sourceName && (
+                    <a
+                      href={feedStatus.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                    >
+                      {feedStatus.sourceName} · {feedStatus.sourceLicense}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <CloudDownload className="h-3 w-3" />
+                    HTTPS feed URL
+                  </div>
+                  <Input
+                    value={feedConfig.url}
+                    onChange={(event) => setFeedConfig((current) => ({ ...current, url: event.target.value }))}
+                    placeholder="https://…/safe-tuning-feed.json"
+                    className="h-7 text-[10px]"
+                    disabled={feedBusy}
+                  />
+                  <div className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <Key className="h-3 w-3" />
+                    Ed25519 public key · base64
+                  </div>
+                  <Input
+                    value={feedConfig.publicKey}
+                    onChange={(event) => setFeedConfig((current) => ({ ...current, publicKey: event.target.value }))}
+                    placeholder="Pinned public key"
+                    className="h-7 font-mono text-[9px]"
+                    disabled={feedBusy}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[9px]"
+                    disabled={feedBusy}
+                    onClick={() => void handleSaveFeedTrust()}
+                  >
+                    {feedBusy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Key className="mr-1 h-3 w-3" />}
+                    Save trust
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 text-[9px]"
+                    disabled={feedBusy || !feedStatus?.configured}
+                    onClick={() => void handleRefreshFeed()}
+                  >
+                    <CloudDownload className="mr-1 h-3 w-3" />
+                    Check update
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[9px]"
+                    disabled={feedBusy || !feedStatus?.canRollback}
+                    onClick={() => void handleRollbackFeed()}
+                  >
+                    <ArrowBackUp className="mr-1 h-3 w-3" />
+                    Roll back
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-[9px]"
+                    disabled={feedBusy || !feedStatus?.configured}
+                    onClick={() => void handleUseBuiltinsOnly()}
+                  >
+                    Built-ins only
+                  </Button>
+                </div>
+
+                <p className="text-[9px] leading-relaxed text-muted-foreground">
+                  Updating metadata never applies package changes automatically. Every action still requires analysis, selection, confirmation and a restore snapshot.
+                </p>
               </CardContent>
             </Card>
 

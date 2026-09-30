@@ -49,7 +49,8 @@ devices.
 
 - [ ] Quick Share integration for ordinary file exchange without ADB
 - [ ] Optional device macros/automation
-- [ ] Package/profile community catalog with signed metadata
+- [x] Signed/versioned Safe Tuning metadata feed infrastructure with rollback
+- [ ] Curated external community package/profile dataset with an explicit licensing boundary
 - [ ] Linux package publishing (AppImage/DEB/RPM)
 - [ ] Signed and notarized macOS releases
 - [ ] New DroidSphere application icon and full visual-brand pass
