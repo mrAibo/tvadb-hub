@@ -143,6 +143,17 @@ func (a *App) UpdatePreferences(payload core.PreferencesPayload) (core.AppConfig
 	if payload.AuditEnabled != nil {
 		a.cfg.AuditEnabled = *payload.AuditEnabled
 	}
+	if trimmed := strings.TrimSpace(strings.ToLower(payload.FileTransferCompression)); trimmed != "" {
+		if !core.IsValidFileTransferCompression(trimmed) {
+			return core.AppConfigSnapshot{}, core.NewOperationError(
+				"update_preferences",
+				"invalid file transfer compression mode",
+				payload.FileTransferCompression,
+				false,
+			)
+		}
+		a.cfg.FileTransferCompression = trimmed
+	}
 
 	if err := core.SaveConfig(a.dataDir, a.cfg); err != nil {
 		return core.AppConfigSnapshot{}, err
@@ -197,6 +208,7 @@ func (a *App) snapshotConfigLocked() core.AppConfigSnapshot {
 		AutoRefreshDevices:   a.cfg.AutoRefreshDevices,
 		DeviceRefreshSeconds: a.cfg.DeviceRefreshSeconds,
 		AuditEnabled:         a.cfg.AuditEnabled,
+		FileTransferCompression: a.cfg.FileTransferCompression,
 	}
 }
 

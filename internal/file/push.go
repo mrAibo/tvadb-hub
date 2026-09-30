@@ -46,12 +46,17 @@ func (s *Service) PushFile(ctx context.Context, localPath string, remotePath str
 		s.clearCancel()
 	}()
 
+	adbPath := s.getBinPath().Adb
+	compression := s.transferCompressionPreference()
+	capabilities := s.getADBCompressionCapabilities(transferCtx, adbPath)
+	args := buildADBPushArgs(serial, trimmedLocalPath, normalizedRemotePath, compression, capabilities)
+
 	var result *core.ExecResult
 	var cmdErr error
 	for attempt := 1; attempt <= transferRetries; attempt++ {
 		result, cmdErr = core.RunCommandStreaming(transferCtx, core.StreamingExecRequest{
-			Command: s.getBinPath().Adb,
-			Args:    []string{"-s", serial, "push", trimmedLocalPath, normalizedRemotePath},
+			Command: adbPath,
+			Args:    args,
 			OnStderrLine: func(line string) {
 				if m := adbProgressPattern.FindStringSubmatch(line); len(m) > 1 {
 					name := fileName

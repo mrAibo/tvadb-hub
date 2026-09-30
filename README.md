@@ -57,6 +57,7 @@ device, Android version and authorization state.
 - Browse the host filesystem on Windows, Linux and macOS.
 - Browse Android storage with hidden-file support.
 - Transfer multiple files or whole directories with ADB push/pull.
+- Capability-aware ADB transfer compression (Auto, Off, Zstd, LZ4 or Brotli).
 - Progress, cancellation and retry handling.
 - Remote new-folder, rename, move and delete actions.
 - Protected/scoped-storage error guidance.
@@ -86,7 +87,8 @@ DroidSphere can locate or manage its own Android Platform Tools and scrcpy.
 currently used for ADB, Fastboot, scrcpy and managed tool directories.
 
 Settings can export/import a JSON backup containing preferences, binary paths,
-device nicknames, scrcpy presets, remembered wireless devices and window state.
+device nicknames, scrcpy presets, remembered wireless devices, file-transfer
+compression preference and window state.
 Older `tvadb-hub-settings` backups remain import-compatible after the rename.
 
 ## How to install

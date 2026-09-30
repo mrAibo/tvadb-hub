@@ -16,6 +16,7 @@ export interface AppConfigSnapshot {
     "auto_refresh_devices": boolean;
     "device_refresh_seconds": number;
     "audit_enabled": boolean;
+    "file_transfer_compression": string;
 }
 
 /**
@@ -53,6 +54,7 @@ export interface PreferencesPayload {
     "auto_refresh_devices": boolean;
     "device_refresh_seconds": number;
     "audit_enabled"?: boolean | null;
+    "file_transfer_compression": string;
 }
 
 export interface RuntimeDiagnostics {

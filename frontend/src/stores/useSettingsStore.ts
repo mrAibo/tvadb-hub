@@ -24,6 +24,7 @@ const initialPreferencesDraft: PreferencesPayload = {
   auto_refresh_devices: true,
   device_refresh_seconds: 8,
   audit_enabled: false,
+  file_transfer_compression: 'auto',
 }
 
 const initialState: SettingsState = {
@@ -83,6 +84,7 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
         auto_refresh_devices: config?.auto_refresh_devices ?? true,
         device_refresh_seconds: config?.device_refresh_seconds ?? 8,
         audit_enabled: config?.audit_enabled ?? false,
+        file_transfer_compression: config?.file_transfer_compression ?? 'auto',
       },
     }),
   setAuditLogs: (auditLogs) => set({ auditLogs }),

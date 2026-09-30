@@ -31,8 +31,10 @@ type Service struct {
 	resolveActiveSerial func(context.Context) (string, error)
 	getBinPath          func() core.BinaryPaths
 
-	mu         sync.Mutex
-	cancelFunc context.CancelFunc
+	mu                     sync.Mutex
+	cancelFunc             context.CancelFunc
+	getTransferCompression func() string
+	compressionCache       map[string]adbCompressionCapabilities
 }
 
 func NewService(
@@ -44,7 +46,14 @@ func NewService(
 		wailsCtx:            wailsCtx,
 		resolveActiveSerial: resolveActiveSerial,
 		getBinPath:          getBinPath,
+		compressionCache:    make(map[string]adbCompressionCapabilities),
 	}
+}
+
+func (s *Service) SetTransferCompressionResolver(resolve func() string) {
+	s.mu.Lock()
+	s.getTransferCompression = resolve
+	s.mu.Unlock()
 }
 
 func (s *Service) requireActiveSerial(ctx context.Context) (string, error) {

@@ -43,6 +43,14 @@ const TERMINAL_MODES = [
   { value: 'fastboot-host', label: 'Fastboot Host' },
 ]
 
+const TRANSFER_COMPRESSION_MODES = [
+  { value: 'auto', label: 'Auto', description: 'Let ADB negotiate the best available compression' },
+  { value: 'off', label: 'Off', description: 'Disable transfer compression' },
+  { value: 'zstd', label: 'Zstd', description: 'Prefer Zstandard when the installed ADB supports it' },
+  { value: 'lz4', label: 'LZ4', description: 'Prefer LZ4 when the installed ADB supports it' },
+  { value: 'brotli', label: 'Brotli', description: 'Prefer Brotli when the installed ADB supports it' },
+] as const
+
 const WINDOW_STATE_OPTIONS: {
   value: WindowStateOption
   label: string
@@ -193,6 +201,36 @@ export function PreferencesPanel({
                 <SelectContent className="rounded-xl border-[var(--border)] dark:border-[var(--border)]">
                   {TERMINAL_MODES.map(({ value, label }) => (
                     <SelectItem key={value} value={value} className="text-xs cursor-pointer">
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* File Transfers Section */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60">
+              File Transfers
+            </span>
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] dark:border-[var(--border)] bg-[var(--muted)]/30 dark:bg-[var(--muted)]/10 p-3">
+              <div className="flex min-w-0 flex-col">
+                <span className="text-xs font-semibold text-foreground dark:text-foreground">ADB compression</span>
+                <span className="text-[9px] text-muted-foreground/60">
+                  Older ADB versions automatically fall back without unsupported flags
+                </span>
+              </div>
+              <Select
+                value={preferencesDraft.file_transfer_compression || 'auto'}
+                onValueChange={(v) => onDraftChange({ file_transfer_compression: (v ?? 'auto') as PreferencesPayload['file_transfer_compression'] })}
+              >
+                <SelectTrigger className="w-[120px] h-8 rounded-full text-xs bg-card dark:bg-[var(--muted)]/60 border border-[var(--border)] dark:border-[var(--border)]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-[var(--border)] dark:border-[var(--border)]">
+                  {TRANSFER_COMPRESSION_MODES.map(({ value, label, description }) => (
+                    <SelectItem key={value} value={value} className="text-xs cursor-pointer" title={description}>
                       {label}
                     </SelectItem>
                   ))}
