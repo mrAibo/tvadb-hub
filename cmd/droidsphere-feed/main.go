@@ -134,6 +134,11 @@ func writeAtomic(path string, data []byte, mode os.FileMode) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil && dir != "." {
 		return err
 	}
+	if _, err := os.Lstat(path); err == nil {
+		return fmt.Errorf("output file already exists: %s", path)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
 	tmp, err := os.CreateTemp(dir, ".droidsphere-feed-*")
 	if err != nil {
 		return err
