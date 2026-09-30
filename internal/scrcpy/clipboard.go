@@ -3,7 +3,6 @@ package scrcpy
 import (
 	"ADBKit/internal/core"
 	"strings"
-	"time"
 )
 
 func (s *Service) PushClipboard(serial, text string) error {
@@ -39,31 +38,8 @@ func (s *Service) PushClipboard(serial, text string) error {
 		)
 	}
 
-	result, runErr := core.RunCommand(s.ctx, core.ExecRequest{
-		Command: adbPath,
-		Args: []string{
-			"-s", trimmedSerial, "shell",
-			buildClipboardSetCommand(text),
-		},
-		Timeout: 5 * time.Second,
-	})
-	if runErr != nil || result == nil || result.ExitCode != 0 {
-		detail := ""
-		if result != nil {
-			detail = strings.TrimSpace(result.Stderr)
-			if detail == "" {
-				detail = strings.TrimSpace(result.Stdout)
-			}
-		}
-		if detail == "" && runErr != nil {
-			detail = runErr.Error()
-		}
-		return core.NewOperationError(
-			"push_scrcpy_clipboard",
-			"Failed to push clipboard to device",
-			detail,
-			true,
-		)
+	if err := core.SetAndroidClipboard(s.ctx, adbPath, trimmedSerial, text, nil); err != nil {
+		return core.NewOperationError("push_scrcpy_clipboard", "Android clipboard shell access is unavailable", err.Error(), true)
 	}
 
 	s.logAudit("push_scrcpy_clipboard", trimmedSerial, true, "")
@@ -86,31 +62,13 @@ func (s *Service) GetClipboard(serial string) (string, error) {
 		return "", err
 	}
 
-	result, runErr := core.RunCommand(s.ctx, core.ExecRequest{
-		Command: adbPath,
-		Args:    []string{"-s", trimmedSerial, "shell", "cmd clipboard get"},
-		Timeout: 5 * time.Second,
-	})
-	if runErr != nil || result == nil || result.ExitCode != 0 {
-		detail := ""
-		if result != nil {
-			detail = strings.TrimSpace(result.Stderr)
-			if detail == "" {
-				detail = strings.TrimSpace(result.Stdout)
-			}
-		}
-		if detail == "" && runErr != nil {
-			detail = runErr.Error()
-		}
-		return "", core.NewOperationError(
-			"get_scrcpy_clipboard",
-			"Failed to read clipboard from device",
-			detail,
-			true,
-		)
+	text, err := core.ReadAndroidClipboard(s.ctx, adbPath, trimmedSerial, nil)
+	if err != nil {
+		return "", core.NewOperationError("get_scrcpy_clipboard", "Android clipboard shell access is unavailable", err.Error(), true)
 	}
+
 	s.logAudit("get_scrcpy_clipboard", trimmedSerial, true, "")
-	return strings.TrimRight(result.Stdout, "\r\n"), nil
+	return text, nil
 }
 
 func buildClipboardSetCommand(text string) string {
