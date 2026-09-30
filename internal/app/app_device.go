@@ -84,6 +84,10 @@ func (a *App) SendTVText(serial string, text string) (device.TVTextInputResult, 
 			}
 		}
 
+		if err := device.ValidateTVTextInput(text); err != nil {
+			return device.TVTextInputResult{}, err
+		}
+
 		// An active scrcpy session gets first use of DroidSphere's existing
 		// clipboard bridge, followed by Android's PASTE key event. If that
 		// path is unavailable, the device service applies its clipboard then

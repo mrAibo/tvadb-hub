@@ -48,25 +48,6 @@ function RemoteButton({
   variant = 'outline',
   className = '',
 }: RemoteButtonProps) {
-  async function submitText() {
-    if (textDraft === '' || sendingText) return
-
-    setSendingText(true)
-    try {
-      const result = await sendTVText(textDraft, serial)
-      setTextDraft('')
-      toast.success('Text sent to TV', {
-        description: result.detail,
-      })
-    } catch (error) {
-      toast.error('Text input failed', {
-        description: error instanceof Error ? error.message : String(error),
-      })
-    } finally {
-      setSendingText(false)
-    }
-  }
-
   return (
     <Button
       type="button"
@@ -98,6 +79,25 @@ export function TVRemotePanel({ serial }: TVRemotePanelProps) {
       })
     } finally {
       setBusyKey(null)
+    }
+  }
+
+  async function submitText() {
+    if (textDraft === '' || sendingText) return
+
+    setSendingText(true)
+    try {
+      const result = await sendTVText(textDraft, serial)
+      setTextDraft('')
+      toast.success('Text sent to TV', {
+        description: result.detail,
+      })
+    } catch (error) {
+      toast.error('Text input failed', {
+        description: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setSendingText(false)
     }
   }
 

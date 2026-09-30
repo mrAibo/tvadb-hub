@@ -31,6 +31,36 @@ func (s *Service) SendTVText(ctx context.Context, serial string, text string) (T
 	return sendTVText(ctx, s.getBinPath().Adb, serial, text, core.RunCommand)
 }
 
+// ValidateTVTextInput applies the same limits to every TV text path, including
+// the active-scrcpy fast path in the app facade.
+func ValidateTVTextInput(text string) error {
+	if text == "" {
+		return core.NewOperationError(
+			"send_tv_text",
+			"text is required",
+			"text must not be empty",
+			false,
+		)
+	}
+	if len([]byte(text)) > maxTVTextInputBytes {
+		return core.NewOperationError(
+			"send_tv_text",
+			"text is too long",
+			fmt.Sprintf("maximum input size is %d bytes", maxTVTextInputBytes),
+			false,
+		)
+	}
+	if strings.ContainsRune(text, '\x00') {
+		return core.NewOperationError(
+			"send_tv_text",
+			"text contains an unsupported null byte",
+			"null bytes cannot be sent through adb shell",
+			false,
+		)
+	}
+	return nil
+}
+
 func sendTVText(
 	ctx context.Context,
 	adbPath string,
@@ -47,29 +77,8 @@ func sendTVText(
 			false,
 		)
 	}
-	if text == "" {
-		return TVTextInputResult{}, core.NewOperationError(
-			"send_tv_text",
-			"text is required",
-			"text must not be empty",
-			false,
-		)
-	}
-	if len([]byte(text)) > maxTVTextInputBytes {
-		return TVTextInputResult{}, core.NewOperationError(
-			"send_tv_text",
-			"text is too long",
-			fmt.Sprintf("maximum input size is %d bytes", maxTVTextInputBytes),
-			false,
-		)
-	}
-	if strings.ContainsRune(text, '\x00') {
-		return TVTextInputResult{}, core.NewOperationError(
-			"send_tv_text",
-			"text contains an unsupported null byte",
-			"null bytes cannot be sent through adb shell",
-			false,
-		)
+	if err := ValidateTVTextInput(text); err != nil {
+		return TVTextInputResult{}, err
 	}
 
 	clipboardDetail := ""
