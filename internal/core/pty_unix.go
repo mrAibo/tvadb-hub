@@ -4,10 +4,11 @@ package core
 
 import (
 	"bufio"
-	"bytes"
 	"context"
+	"errors"
 	"os/exec"
-	"sync"
+	"syscall"
+	"time"
 
 	"github.com/creack/pty"
 )
@@ -18,6 +19,7 @@ import (
 // and \r) is forwarded to onLine. Returns the captured output after exit.
 func runWithPTY(ctx context.Context, command string, args []string, onLine func(line string)) (*ExecResult, error) {
 	cmd := exec.Command(command, args...)
+	start := time.Now()
 
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
@@ -32,12 +34,12 @@ func runWithPTY(ctx context.Context, command string, args []string, onLine func(
 			if cmd.Process != nil {
 				_ = TerminateProcessTree(cmd)
 			}
+			_ = ptmx.Close()
 		case <-done:
 		}
 	}()
 
-	var buf bytes.Buffer
-	var mu sync.Mutex
+	var buf boundedOutput
 
 	scanner := bufio.NewScanner(ptmx)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
@@ -45,14 +47,16 @@ func runWithPTY(ctx context.Context, command string, args []string, onLine func(
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line != "" {
-			mu.Lock()
-			buf.WriteString(line)
-			buf.WriteByte('\n')
-			mu.Unlock()
+			buf.append(line + "\n")
 		}
 		if onLine != nil {
 			onLine(line)
 		}
+	}
+	readErr := scanner.Err()
+	// Linux PTYs return EIO at normal EOF, not an output-reader failure.
+	if readErr != nil && !errors.Is(readErr, syscall.EIO) {
+		_ = TerminateProcessTree(cmd)
 	}
 
 	waitErr := cmd.Wait()
@@ -74,6 +78,10 @@ func runWithPTY(ctx context.Context, command string, args []string, onLine func(
 	result := &ExecResult{
 		Stdout:   buf.String(),
 		ExitCode: exitCode,
+		Duration: time.Since(start),
+	}
+	if readErr != nil && !errors.Is(readErr, syscall.EIO) {
+		return result, NewOperationError("exec", "failed to read process output", readErr.Error(), true)
 	}
 	return result, waitErr
 }
