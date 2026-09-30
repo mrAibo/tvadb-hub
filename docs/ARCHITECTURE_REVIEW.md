@@ -51,6 +51,12 @@ Recommended future architecture:
   lightweight status queries and possibly long-lived read streams;
 - benchmark before migrating an operation.
 
+A read-only `host:devices-l` smart-socket prototype and benchmark harness now
+exist under `internal/adbproto` and `cmd/droidsphere-adb-bench`. They are
+intentionally not wired into production discovery yet; the benchmark must show
+a repeatable benefit across supported hosts/transports before that boundary is
+changed.
+
 This is an optimization project, not a prerequisite for correctness.
 
 ## 2. Android TV specialization
@@ -298,7 +304,7 @@ Remaining Logcat roadmap work is app/PID filtering and pinned events.
 | Done | Logcat crash/ANR filtering + saved filters | Low-Medium | Completed |
 | Done | Signed/versioned Safe Tuning metadata feed infrastructure | Medium-High | Completed, opt-in |
 | Done | scrcpy audio-source/audio-only UX | Low | Completed |
-| P3 | Focused ADB smart-socket client | Medium | Prototype + benchmark |
+| P3 | Focused ADB smart-socket client | Medium | Prototype added; benchmark before adoption |
 | P3 | Custom launcher wizard | Medium-High | TV-specific, guarded |
 | P3 | Macro engine | Medium | Later |
 | Avoid | Full replacement of official ADB CLI | High | No, unless profiling proves need |
