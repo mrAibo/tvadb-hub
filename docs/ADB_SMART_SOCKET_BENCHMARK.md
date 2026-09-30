@@ -36,20 +36,56 @@ Make sure the same ADB binary DroidSphere uses is available, then run:
 go run ./cmd/droidsphere-adb-bench -adb adb -n 50
 ```
 
-For a custom ADB server address:
+For a custom local ADB server address:
 
 ```bash
 go run ./cmd/droidsphere-adb-bench -adb /path/to/adb -server 127.0.0.1:5037 -n 100
 ```
 
+The tool resolves one explicit loopback TCP endpoint for **both** paths. The CLI
+receives `-H` and `-P`; direct access uses that same numeric address. An explicit
+`-server` overrides server environment variables. Otherwise `ADB_SERVER_SOCKET`
+has precedence over `ANDROID_ADB_SERVER_ADDRESS` / `ANDROID_ADB_SERVER_PORT`.
+Only TCP loopback sockets are comparable; non-TCP sockets, remote addresses,
+unspecified hosts and ambiguous hostnames are refused. `localhost` is explicitly
+normalized to IPv4 loopback. IPv6 loopback is supported via `[::1]:PORT`.
+
 The tool first uses the official CLI to ensure a warm/running ADB server, warms
-both paths, then reports min/median/p95/max latency for:
+both paths in alternating pairs, then alternates CLI-first/socket-first measured
+pairs and reports min/median/p95/max latency for:
 
 - the existing `adb devices -l` subprocess path;
 - direct `host:devices-l` smart-socket queries.
 
-It also compares the two snapshots and warns if the device set changed while
-the measurement was running.
+Each measured pair records both latencies and normalized snapshots. Whitespace,
+CRLF and row order are normalized, but device state/transport/detail fields are
+not discarded. Every pair is compared, and all pairs must agree with the first
+device set. Changed/mismatched snapshots make the run non-comparable and produce
+a non-zero exit code; setup/warmup timings are excluded. A failed operation
+retains completed pairs and a diagnostic, not a fake successful full run.
+
+## JSON evidence
+
+Build a committed source revision and capture one scenario at a time:
+
+```bash
+go build -buildvcs=true -o droidsphere-adb-bench ./cmd/droidsphere-adb-bench
+./droidsphere-adb-bench -adb /path/to/adb -server 127.0.0.1:5037 -n 100 -scenario USB -json > benchmark-usb.json
+```
+
+The schema-versioned JSON includes raw per-pair nanoseconds, summary values,
+snapshots/comparability, timestamp, scenario label, host OS/architecture, Go/ADB
+versions, endpoint/source and build VCS revision/dirty status where available.
+An unstamped build may lack its revision; do not invent one. JSON snapshots
+include device serials and transport details: review/redact them before sharing.
+No collected physical-device measurements are bundled with this change.
+
+The official CLI may start/upgrade its local server during unmeasured setup,
+as ordinary ADB does; avoid mixing binaries against an unrelated active session.
+The prototype itself never controls server lifecycle. Interrupt cancellation
+and per-operation timeouts are shared with centralized process execution.
+
+Endpoint precedence follows [AOSP client/commandline.cpp](https://android.googlesource.com/platform/packages/modules/adb/+/refs/heads/main/client/commandline.cpp): explicit `-H`/`-P` override server environment variables.
 
 ## Adoption gate
 
