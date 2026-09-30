@@ -42,17 +42,21 @@ type FeedConfig struct {
 }
 
 type FeedStatus struct {
-	Configured   bool   `json:"configured"`
-	Active       bool   `json:"active"`
-	Source       string `json:"source"`
-	URL          string `json:"url"`
-	Version      string `json:"version"`
-	Revision     uint64 `json:"revision"`
-	GeneratedAt  string `json:"generatedAt"`
-	KeyID        string `json:"keyId"`
-	ProfileCount int    `json:"profileCount"`
-	CanRollback  bool   `json:"canRollback"`
-	Message      string `json:"message"`
+	Configured    bool   `json:"configured"`
+	Active        bool   `json:"active"`
+	Source        string `json:"source"`
+	URL           string `json:"url"`
+	Version       string `json:"version"`
+	Revision      uint64 `json:"revision"`
+	GeneratedAt   string `json:"generatedAt"`
+	KeyID         string `json:"keyId"`
+	Digest        string `json:"digest"`
+	SourceName    string `json:"sourceName"`
+	SourceURL     string `json:"sourceUrl"`
+	SourceLicense string `json:"sourceLicense"`
+	ProfileCount  int    `json:"profileCount"`
+	CanRollback   bool   `json:"canRollback"`
+	Message       string `json:"message"`
 }
 
 type SignedFeedEnvelope struct {
@@ -68,6 +72,9 @@ type FeedPayload struct {
 	Revision      uint64    `json:"revision"`
 	Version       string    `json:"version"`
 	GeneratedAt   string    `json:"generatedAt"`
+	SourceName    string    `json:"sourceName"`
+	SourceURL     string    `json:"sourceUrl"`
+	SourceLicense string    `json:"sourceLicense"`
 	Profiles      []Profile `json:"profiles"`
 }
 
@@ -271,7 +278,7 @@ func mergeProfiles(base, overlay []Profile) []Profile {
 }
 
 func (m *feedManager) loadCachedLocked() {
-	currentData, currentErr := os.ReadFile(m.currentPath())
+	currentData, currentErr := os.ReadFile(m.currentPathFor(m.config))
 	if currentErr == nil {
 		if verified, err := verifySignedFeed(currentData, m.config.PublicKey); err == nil {
 			m.activateLocked(verified, "cache", "Loaded the verified Safe Tuning metadata cache.")
@@ -280,7 +287,7 @@ func (m *feedManager) loadCachedLocked() {
 		}
 	}
 
-	previousData, previousErr := os.ReadFile(m.previousPath())
+	previousData, previousErr := os.ReadFile(m.previousPathFor(m.config))
 	if previousErr == nil {
 		if verified, err := verifySignedFeed(previousData, m.config.PublicKey); err == nil {
 			m.activateLocked(verified, "rollback-cache", "Current metadata cache was unavailable or invalid; using the verified previous cache.")
@@ -310,9 +317,13 @@ func (m *feedManager) activateLocked(verified verifiedFeed, source, message stri
 		URL:          m.config.URL,
 		Version:      verified.payload.Version,
 		Revision:     verified.payload.Revision,
-		GeneratedAt:  verified.payload.GeneratedAt,
-		KeyID:        verified.keyID,
-		ProfileCount: len(profiles),
+		GeneratedAt:   verified.payload.GeneratedAt,
+		KeyID:         verified.keyID,
+		Digest:        verified.digest,
+		SourceName:    verified.payload.SourceName,
+		SourceURL:     verified.payload.SourceURL,
+		SourceLicense: verified.payload.SourceLicense,
+		ProfileCount:  len(profiles),
 		Message:      message,
 	}
 }
@@ -386,7 +397,7 @@ func (m *feedManager) refresh(ctx context.Context) (FeedStatus, error) {
 		}
 	}
 
-	if err := m.promoteCache(data); err != nil {
+	if err := m.promoteCache(data, config); err != nil {
 		return m.statusSnapshot(), err
 	}
 
@@ -488,8 +499,14 @@ func validateFeedPayload(payload FeedPayload) error {
 	if payload.Revision == 0 {
 		return errors.New("feed revision must be greater than zero")
 	}
-	if strings.TrimSpace(payload.Version) == "" {
-		return errors.New("feed version is required")
+	if strings.TrimSpace(payload.Version) == "" || len(strings.TrimSpace(payload.Version)) > 128 {
+		return errors.New("feed version is required and must be at most 128 characters")
+	}
+	if strings.TrimSpace(payload.SourceName) == "" || strings.TrimSpace(payload.SourceLicense) == "" {
+		return errors.New("feed sourceName and sourceLicense are required")
+	}
+	if err := validateSourceURL(payload.SourceURL); err != nil {
+		return fmt.Errorf("feed sourceUrl: %w", err)
 	}
 	if _, err := time.Parse(time.RFC3339, payload.GeneratedAt); err != nil {
 		return fmt.Errorf("feed generatedAt must be RFC3339: %w", err)
@@ -557,6 +574,9 @@ func validateFeedProfile(profile Profile) error {
 			return fmt.Errorf("rule package %q is duplicated", pkg)
 		}
 		rules[pkg] = struct{}{}
+		if isHardProtectedPackage(pkg) && rule.Risk != RiskBlocked {
+			return fmt.Errorf("hard-protected package %q must remain blocked", pkg)
+		}
 		if strings.TrimSpace(rule.Label) == "" || strings.TrimSpace(rule.Category) == "" || strings.TrimSpace(rule.Reason) == "" {
 			return fmt.Errorf("rule %q requires label, category and reason", pkg)
 		}
@@ -592,17 +612,17 @@ func validPackageName(value string) bool {
 	return len(value) <= 255 && packageNamePattern.MatchString(value)
 }
 
-func (m *feedManager) promoteCache(data []byte) error {
-	dir := m.cacheDir()
+func (m *feedManager) promoteCache(data []byte, config FeedConfig) error {
+	dir := m.cacheDirFor(config)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return core.NewOperationError("safe_tuning_feed_cache", "Failed to create Safe Tuning metadata cache", err.Error(), true)
 	}
-	if current, err := os.ReadFile(m.currentPath()); err == nil {
-		if err := core.WriteFileAtomicWithMode(m.previousPath(), current, 0o600); err != nil {
+	if current, err := os.ReadFile(m.currentPathFor(config)); err == nil {
+		if err := core.WriteFileAtomicWithMode(m.previousPathFor(config), current, 0o600); err != nil {
 			return err
 		}
 	}
-	if err := core.WriteFileAtomicWithMode(m.currentPath(), data, 0o600); err != nil {
+	if err := core.WriteFileAtomicWithMode(m.currentPathFor(config), data, 0o600); err != nil {
 		return err
 	}
 	return nil
@@ -623,7 +643,7 @@ func (m *feedManager) rollback() (FeedStatus, error) {
 		)
 	}
 
-	previousData, err := os.ReadFile(m.previousPath())
+	previousData, err := os.ReadFile(m.previousPathFor(config))
 	if err != nil {
 		return m.statusSnapshot(), core.NewOperationError(
 			"safe_tuning_feed_rollback",
@@ -642,17 +662,17 @@ func (m *feedManager) rollback() (FeedStatus, error) {
 		)
 	}
 
-	currentData, currentErr := os.ReadFile(m.currentPath())
+	currentData, currentErr := os.ReadFile(m.currentPathFor(config))
 	currentValid := false
 	if currentErr == nil {
 		_, currentVerifyErr := verifySignedFeed(currentData, config.PublicKey)
 		currentValid = currentVerifyErr == nil
 	}
-	if err := core.WriteFileAtomicWithMode(m.currentPath(), previousData, 0o600); err != nil {
+	if err := core.WriteFileAtomicWithMode(m.currentPathFor(config), previousData, 0o600); err != nil {
 		return m.statusSnapshot(), err
 	}
 	if currentValid {
-		if err := core.WriteFileAtomicWithMode(m.previousPath(), currentData, 0o600); err != nil {
+		if err := core.WriteFileAtomicWithMode(m.previousPathFor(config), currentData, 0o600); err != nil {
 			return m.statusSnapshot(), err
 		}
 	}
@@ -666,7 +686,7 @@ func (m *feedManager) rollback() (FeedStatus, error) {
 }
 
 func (m *feedManager) validPreviousLocked() bool {
-	data, err := os.ReadFile(m.previousPath())
+	data, err := os.ReadFile(m.previousPathFor(m.config))
 	if err != nil {
 		return false
 	}
@@ -674,14 +694,18 @@ func (m *feedManager) validPreviousLocked() bool {
 	return err == nil
 }
 
-func (m *feedManager) cacheDir() string {
-	return filepath.Join(m.dataDir, "safe-tuning-feed")
+func (m *feedManager) cacheDirFor(config FeedConfig) string {
+	fingerprint := configFingerprint(config)
+	if len(fingerprint) > 16 {
+		fingerprint = fingerprint[:16]
+	}
+	return filepath.Join(m.dataDir, "safe-tuning-feed", fingerprint)
 }
 
-func (m *feedManager) currentPath() string {
-	return filepath.Join(m.cacheDir(), "current.json")
+func (m *feedManager) currentPathFor(config FeedConfig) string {
+	return filepath.Join(m.cacheDirFor(config), "current.json")
 }
 
-func (m *feedManager) previousPath() string {
-	return filepath.Join(m.cacheDir(), "previous.json")
+func (m *feedManager) previousPathFor(config FeedConfig) string {
+	return filepath.Join(m.cacheDirFor(config), "previous.json")
 }

@@ -65,7 +65,10 @@ func (s *Service) Analyze(ctx context.Context, info device.Info, profileID strin
 	for _, pkg := range installed {
 		installedMap[pkg.PackageName] = pkg
 	}
-	protected := make(map[string]struct{}, len(profile.Keep))
+	protected := make(map[string]struct{}, len(profile.Keep)+len(hardProtectedPackages))
+	for packageName := range hardProtectedPackages {
+		protected[packageName] = struct{}{}
+	}
 	for _, pkg := range profile.Keep {
 		protected[pkg] = struct{}{}
 	}
@@ -89,7 +92,7 @@ func (s *Service) Analyze(ctx context.Context, info device.Info, profileID strin
 			defaultSelected = append(defaultSelected, rule.PackageName)
 		}
 	}
-	for _, pkg := range profile.Keep {
+	for pkg := range protected {
 		if _, ok := installedMap[pkg]; ok {
 			protectedInstalled = append(protectedInstalled, pkg)
 		}
@@ -152,7 +155,7 @@ func (s *Service) Apply(ctx context.Context, info device.Info, request ApplyRequ
 		if !exists {
 			return ApplyResult{}, core.NewOperationError("tuning_apply", "selected package is not part of the active profile or is not installed", packageName, false)
 		}
-		if _, protected := keep[packageName]; protected || match.Protected {
+		if _, protected := keep[packageName]; protected || match.Protected || isHardProtectedPackage(packageName) {
 			return ApplyResult{}, core.NewOperationError("tuning_apply", "protected package cannot be changed", packageName, false)
 		}
 		if match.Risk == RiskDangerous || match.Risk == RiskBlocked {

@@ -63,6 +63,9 @@ func validFeedPayloadForTest() FeedPayload {
 		Revision:      1,
 		Version:       "2026.09.30",
 		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
+		SourceName:    "DroidSphere test feed",
+		SourceURL:     "https://example.com/feed-source",
+		SourceLicense: "MIT",
 		Profiles:      []Profile{testFeedProfile()},
 	}
 }
@@ -155,5 +158,45 @@ func TestNormalizeFeedConfigRequiresPairAndHTTPS(t *testing.T) {
 	}
 	if _, err := NormalizeFeedConfig(FeedConfig{URL: "https://example.com/feed.json", PublicKey: key}); err != nil {
 		t.Fatalf("expected valid config: %v", err)
+	}
+}
+
+func TestValidateFeedPayloadRejectsMissingFeedLicense(t *testing.T) {
+	payload := validFeedPayloadForTest()
+	payload.SourceLicense = ""
+	if err := validateFeedPayload(payload); err == nil {
+		t.Fatal("expected missing feed-level source license to be rejected")
+	}
+}
+
+func TestValidateFeedPayloadRejectsHardProtectedActionableRule(t *testing.T) {
+	payload := validFeedPayloadForTest()
+	payload.Profiles[0].Rules[0] = PackageRule{
+		PackageName:     "com.android.systemui",
+		Label:           "System UI",
+		Category:        "Core",
+		Risk:            RiskSafe,
+		Reason:          "A signed feed must not make this actionable.",
+		DefaultSelected: true,
+	}
+	if err := validateFeedPayload(payload); err == nil {
+		t.Fatal("expected hard-protected actionable rule to be rejected")
+	}
+}
+
+func TestFeedCacheNamespaceBindsURLAndPublicKey(t *testing.T) {
+	manager := newFeedManager(t.TempDir())
+	publicKeyA, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicKeyB, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configA := FeedConfig{URL: "https://example.com/a.json", PublicKey: base64.StdEncoding.EncodeToString(publicKeyA)}
+	configB := FeedConfig{URL: "https://example.com/b.json", PublicKey: base64.StdEncoding.EncodeToString(publicKeyB)}
+	if manager.currentPathFor(configA) == manager.currentPathFor(configB) {
+		t.Fatal("different trust configurations must not share a metadata cache")
 	}
 }
