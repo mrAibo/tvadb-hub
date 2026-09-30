@@ -1,5 +1,10 @@
 # DroidSphere handoff — 2026-09-30
 
+> Historical PR #29 checkpoint. Superseded for continuation by
+> [DROIDSPHERE_HANDOFF_2026-09-30_P3.md](DROIDSPHERE_HANDOFF_2026-09-30_P3.md)
+> and [live execution issue #43](https://github.com/mrAibo/tvadb-hub/issues/43).
+> The P1/P2 backlog below is historical, not a request to redo merged work.
+
 This is the canonical handoff for continuing work on **mrAibo/tvadb-hub**
 (product name: **DroidSphere**) in a fresh ChatGPT session.
 
