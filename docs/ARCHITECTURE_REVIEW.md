@@ -14,12 +14,11 @@ introduce direct ADB-server protocol access only where profiling shows a clear
 benefit, such as continuous device tracking.
 
 Backend Logcat event batching, ADB CLI transfer compression, optional
-post-transfer SHA-256 verification, safe TV text entry and scrcpy audio-source
-controls are now implemented. The next high-value engineering work should
-instead focus on:
+post-transfer SHA-256 verification, safe TV text entry, scrcpy audio-source
+controls and Logcat crash/ANR diagnostics with saved filters are now
+implemented. The next high-value engineering work should instead focus on:
 
-1. Richer Logcat crash/ANR filtering and saved filters.
-2. A separately versioned, signed Safe Tuning metadata feed with explicit
+1. A separately versioned, signed Safe Tuning metadata feed with explicit
    licensing and rollback.
 
 ## 1. Native ADB Client Protocol
@@ -279,8 +278,9 @@ Particularly important:
 
 Backend Logcat batching from that audit is now complete: parsed entries are
 emitted in bounded batches on a short interval, with a final flush on stream
-shutdown. Remaining Logcat work is product-level filtering/highlighting rather
-than the previous per-line IPC pressure issue.
+shutdown. Product-level crash/ANR classification, highlighting and locally
+saved filters are also implemented without changing the stream lifecycle.
+Remaining Logcat roadmap work is app/PID filtering and pinned events.
 
 ## Recommended order
 
@@ -290,6 +290,7 @@ than the previous per-line IPC pressure issue.
 | Done | ADB push/pull compression options | Low | Completed |
 | Done | Transfer SHA-256 verification | Low-Medium | Completed |
 | Done | TV text-entry panel | Low-Medium | Completed |
+| Done | Logcat crash/ANR filtering + saved filters | Low-Medium | Completed |
 | P2 | Signed/versioned Safe Tuning metadata feed | Medium-High | Do carefully |
 | Done | scrcpy audio-source/audio-only UX | Low | Completed |
 | P3 | Focused ADB smart-socket client | Medium | Prototype + benchmark |

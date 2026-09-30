@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, type RefObject } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useLogcatStore } from '@/stores/useLogcatStore'
+import { matchesLogcatFilter } from '@/lib/logcatAnalysis'
 import { LogcatEntry } from './LogcatEntry'
 
 const ROW_HEIGHT = 24
@@ -19,29 +20,17 @@ export function LogcatView({ scrollContainerRef }: LogcatViewProps) {
   autoScrollRef.current = autoScroll
 
   const filteredLogs = useMemo(() => {
-    if (filter.levels.length === 6 && filter.tag === '' && filter.text === '') {
+    if (
+      filter.levels.length === 6 &&
+      filter.tag === '' &&
+      filter.text === '' &&
+      filter.issue === 'all'
+    ) {
       return logs
     }
 
-    const tagLower = filter.tag.toLowerCase()
-    const textLower = filter.text.toLowerCase()
-
-    return logs.filter((entry) => {
-      if (!filter.levels.includes(entry.level)) {
-        return false
-      }
-
-      if (tagLower !== '' && !entry.tag.toLowerCase().includes(tagLower)) {
-        return false
-      }
-
-      if (textLower !== '' && !entry.message.toLowerCase().includes(textLower)) {
-        return false
-      }
-
-      return true
-    })
-  }, [logs, filter.levels, filter.tag, filter.text])
+    return logs.filter((entry) => matchesLogcatFilter(entry, filter))
+  }, [logs, filter])
 
   const virtualizer = useVirtualizer({
     count: filteredLogs.length,
