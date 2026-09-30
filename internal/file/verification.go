@@ -196,7 +196,7 @@ func computeRemoteSHA256(
 					detail = trimmed
 				}
 			}
-			if err != nil && strings.TrimSpace(err.Error()) != "" {
+			if detail == "command failed" && err != nil && strings.TrimSpace(err.Error()) != "" {
 				detail = err.Error()
 			}
 			if isRemoteHashCommandUnavailable(detail) {
