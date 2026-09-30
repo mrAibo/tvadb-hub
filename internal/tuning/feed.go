@@ -85,7 +85,8 @@ type verifiedFeed struct {
 }
 
 type feedManager struct {
-	mu sync.RWMutex
+	mu          sync.RWMutex
+	operationMu sync.Mutex // serializes cache promotion, refresh and rollback
 
 	dataDir  string
 	resolver func() FeedConfig
@@ -198,10 +199,9 @@ func configFingerprint(config FeedConfig) string {
 }
 
 func (m *feedManager) ensureConfigured() {
-	m.mu.RLock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	resolver := m.resolver
-	currentFingerprint := m.configFingerprint
-	m.mu.RUnlock()
 	if resolver == nil {
 		return
 	}
@@ -213,12 +213,6 @@ func (m *feedManager) ensureConfigured() {
 	} else {
 		fingerprint = "invalid:" + err.Error()
 	}
-	if fingerprint == currentFingerprint {
-		return
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
 	if fingerprint == m.configFingerprint {
 		return
 	}
@@ -369,12 +363,12 @@ func (m *feedManager) activateLocked(verified verifiedFeed, source, message stri
 	m.profiles = profiles
 	m.activeDigest = verified.digest
 	m.status = FeedStatus{
-		Configured:   true,
-		Active:       true,
-		Source:       source,
-		URL:          m.config.URL,
-		Version:      verified.payload.Version,
-		Revision:     verified.payload.Revision,
+		Configured:    true,
+		Active:        true,
+		Source:        source,
+		URL:           m.config.URL,
+		Version:       verified.payload.Version,
+		Revision:      verified.payload.Revision,
 		GeneratedAt:   verified.payload.GeneratedAt,
 		KeyID:         verified.keyID,
 		Digest:        verified.digest,
@@ -382,7 +376,7 @@ func (m *feedManager) activateLocked(verified verifiedFeed, source, message stri
 		SourceURL:     verified.payload.SourceURL,
 		SourceLicense: verified.payload.SourceLicense,
 		ProfileCount:  len(profiles),
-		Message:      message,
+		Message:       message,
 	}
 }
 
@@ -395,12 +389,12 @@ func configuredKeyID(encoded string) string {
 }
 
 func (m *feedManager) refresh(ctx context.Context) (FeedStatus, error) {
+	m.operationMu.Lock()
+	defer m.operationMu.Unlock()
 	m.ensureConfigured()
 
 	m.mu.RLock()
 	config := m.config
-	activeRevision := m.status.Revision
-	activeDigest := m.activeDigest
 	client := m.client
 	m.mu.RUnlock()
 
@@ -431,9 +425,20 @@ func (m *feedManager) refresh(ctx context.Context) (FeedStatus, error) {
 			false,
 		)
 	}
+	// Configuration may change while network I/O is in progress. Recheck the
+	// live trust resolver under the state lock before touching either cache or
+	// runtime state. Configure's status read linearizes with this transaction.
+	m.ensureConfigured()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.trustMatchesLocked(config) {
+		return m.status, core.NewOperationError("safe_tuning_feed_refresh", "Feed trust changed during download", "download discarded; refresh using the current configuration", false)
+	}
+	activeRevision := m.status.Revision
+	activeDigest := m.activeDigest
 	if activeRevision > 0 {
 		if verified.payload.Revision < activeRevision {
-			return m.statusSnapshot(), core.NewOperationError(
+			return m.status, core.NewOperationError(
 				"safe_tuning_feed_refresh",
 				"Safe Tuning metadata revision is older than the active revision",
 				fmt.Sprintf("received revision %d, active revision %d; use explicit rollback for older cached metadata", verified.payload.Revision, activeRevision),
@@ -441,7 +446,7 @@ func (m *feedManager) refresh(ctx context.Context) (FeedStatus, error) {
 			)
 		}
 		if verified.payload.Revision == activeRevision && activeDigest != "" && verified.digest != activeDigest {
-			return m.statusSnapshot(), core.NewOperationError(
+			return m.status, core.NewOperationError(
 				"safe_tuning_feed_refresh",
 				"Safe Tuning metadata revision collision detected",
 				fmt.Sprintf("revision %d has different signed content", verified.payload.Revision),
@@ -449,22 +454,33 @@ func (m *feedManager) refresh(ctx context.Context) (FeedStatus, error) {
 			)
 		}
 		if verified.payload.Revision == activeRevision && verified.digest == activeDigest {
-			status := m.statusSnapshot()
+			status := m.status
 			status.Message = "The active signed Safe Tuning metadata is already current."
 			return status, nil
 		}
 	}
 
 	if err := m.promoteCache(data, config); err != nil {
-		return m.statusSnapshot(), err
+		return m.status, err
 	}
 
-	m.mu.Lock()
 	m.activateLocked(verified, "remote", "Downloaded and activated verified Safe Tuning metadata.")
 	m.status.CanRollback = m.validPreviousLocked()
 	status := m.status
-	m.mu.Unlock()
 	return status, nil
+}
+
+// Caller holds mu. Reading the resolver again closes the gap between a
+// configuration snapshot and cache/state commit.
+func (m *feedManager) trustMatchesLocked(config FeedConfig) bool {
+	if m.config != config {
+		return false
+	}
+	if m.resolver == nil {
+		return true
+	}
+	current, err := NormalizeFeedConfig(m.resolver())
+	return err == nil && current == config
 }
 
 func fetchFeed(ctx context.Context, client *http.Client, rawURL string) ([]byte, error) {
@@ -693,13 +709,15 @@ func (m *feedManager) promoteCache(data []byte, config FeedConfig) error {
 }
 
 func (m *feedManager) rollback() (FeedStatus, error) {
+	m.operationMu.Lock()
+	defer m.operationMu.Unlock()
 	m.ensureConfigured()
 
-	m.mu.RLock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	config := m.config
-	m.mu.RUnlock()
 	if config.URL == "" {
-		return m.statusSnapshot(), core.NewOperationError(
+		return m.status, core.NewOperationError(
 			"safe_tuning_feed_rollback",
 			"Safe Tuning metadata feed is not configured",
 			"",
@@ -709,7 +727,7 @@ func (m *feedManager) rollback() (FeedStatus, error) {
 
 	previousData, err := os.ReadFile(m.previousPathFor(config))
 	if err != nil {
-		return m.statusSnapshot(), core.NewOperationError(
+		return m.status, core.NewOperationError(
 			"safe_tuning_feed_rollback",
 			"No previous Safe Tuning metadata cache is available",
 			err.Error(),
@@ -718,7 +736,7 @@ func (m *feedManager) rollback() (FeedStatus, error) {
 	}
 	previous, err := verifySignedFeed(previousData, config.PublicKey)
 	if err != nil {
-		return m.statusSnapshot(), core.NewOperationError(
+		return m.status, core.NewOperationError(
 			"safe_tuning_feed_rollback",
 			"Previous Safe Tuning metadata cache is invalid",
 			err.Error(),
@@ -732,13 +750,16 @@ func (m *feedManager) rollback() (FeedStatus, error) {
 		_, currentVerifyErr := verifySignedFeed(currentData, config.PublicKey)
 		currentValid = currentVerifyErr == nil
 	}
+	if !m.trustMatchesLocked(config) {
+		return m.status, core.NewOperationError("safe_tuning_feed_rollback", "Feed trust changed during rollback", "no cache or runtime state was changed", false)
+	}
 
 	// Preserve the current verified revision in the rollback slot before
 	// switching current. If the second write fails, the active on-disk
 	// revision remains unchanged and runtime state stays consistent.
 	if currentValid {
 		if err := core.WriteFileAtomicWithMode(m.previousPathFor(config), currentData, 0o600); err != nil {
-			return m.statusSnapshot(), err
+			return m.status, err
 		}
 	}
 	if err := core.WriteFileAtomicWithMode(m.currentPathFor(config), previousData, 0o600); err != nil {
@@ -748,14 +769,12 @@ func (m *feedManager) rollback() (FeedStatus, error) {
 			// at the original verified revision.
 			_ = core.WriteFileAtomicWithMode(m.previousPathFor(config), previousData, 0o600)
 		}
-		return m.statusSnapshot(), err
+		return m.status, err
 	}
 
-	m.mu.Lock()
 	m.activateLocked(previous, "rollback", "Rolled back to the previous verified Safe Tuning metadata revision.")
 	m.status.CanRollback = currentValid
 	status := m.status
-	m.mu.Unlock()
 	return status, nil
 }
 
