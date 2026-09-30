@@ -23,6 +23,7 @@ type Service struct {
 	feed                *feedManager
 	operationMu         sync.Mutex
 	runCommand          func(context.Context, core.ExecRequest) (*core.ExecResult, error)
+	writeSnapshot       func(Snapshot) error
 }
 
 func NewService(
@@ -42,6 +43,18 @@ func (s *Service) GetProfiles(info device.Info) []ProfileSummary {
 }
 
 func (s *Service) Analyze(ctx context.Context, info device.Info, profileID string) (Analysis, error) {
+	return s.bound().analyze(ctx, info, profileID)
+}
+
+// A fresh operation owns an immutable tool-path snapshot. Do not copy mutexes.
+func (s *Service) bound() *Service {
+	paths := s.getBinPath()
+	return &Service{dataDir: s.dataDir, resolveActiveSerial: s.resolveActiveSerial,
+		getBinPath: func() core.BinaryPaths { return paths }, packages: s.packages, feed: s.feed,
+		runCommand: s.runCommand, writeSnapshot: s.writeSnapshot}
+}
+
+func (s *Service) analyze(ctx context.Context, info device.Info, profileID string) (Analysis, error) {
 	serial := strings.TrimSpace(info.Serial)
 	if serial == "" {
 		return Analysis{}, core.NewOperationError("tuning_analyze", "explicit device target is required", "", false)
@@ -104,7 +117,7 @@ func (s *Service) Analyze(ctx context.Context, info device.Info, profileID strin
 	sort.Strings(protectedInstalled)
 
 	return Analysis{
-		Serial: serial, Model: info.Model, Manufacturer: info.Manufacturer,
+		Serial: serial, HardwareSerial: info.HardwareSerial, Model: info.Model, Manufacturer: info.Manufacturer,
 		AndroidVersion: info.AndroidVersion, IsTV: info.IsTV,
 		SelectedProfile: selectedSummary, AvailableProfiles: allProfiles, Matches: matches,
 		InstalledCount: len(installed), DefaultSelected: defaultSelected,
@@ -121,7 +134,14 @@ func (s *Service) Apply(ctx context.Context, info device.Info, request ApplyRequ
 	if request.Mode != ActionDisable && request.Mode != ActionUninstallUser {
 		return ApplyResult{}, core.NewOperationError("tuning_apply", "unsupported tuning action", string(request.Mode), false)
 	}
-	analysis, err := s.Analyze(ctx, info, request.ProfileID)
+	if info.HardwareSerial != request.ExpectedHardwareSerial {
+		return ApplyResult{}, core.NewOperationError("tuning_apply", "device identity changed; analyze and confirm again", "", false)
+	}
+	return s.bound().apply(ctx, info, request)
+}
+
+func (s *Service) apply(ctx context.Context, info device.Info, request ApplyRequest) (ApplyResult, error) {
+	analysis, err := s.analyze(ctx, info, request.ProfileID)
 	if err != nil {
 		return ApplyResult{}, err
 	}
@@ -169,6 +189,7 @@ func (s *Service) Apply(ctx context.Context, info device.Info, request ApplyRequ
 		items = append(items, SnapshotItem{
 			PackageName: packageName, WasEnabled: match.IsEnabled, IsSystemApp: match.IsSystemApp,
 			Risk: match.Risk, Action: request.Mode,
+			State: JournalPlanned,
 		})
 	}
 	if len(items) == 0 {
@@ -176,37 +197,30 @@ func (s *Service) Apply(ctx context.Context, info device.Info, request ApplyRequ
 	}
 
 	snapshot := Snapshot{
+		Version: 2, UserID: 0, HardwareSerial: info.HardwareSerial,
 		ID: snapshotID(), CreatedAt: time.Now().UTC().Format(time.RFC3339),
 		Serial: analysis.Serial, ProfileID: analysis.SelectedProfile.ID, ProfileName: analysis.SelectedProfile.Name,
 		Mode: request.Mode, Items: items,
 	}
-	if err := s.saveSnapshot(snapshot); err != nil {
+	// Capture every original state before writing the plan or changing anything.
+	for i := range snapshot.Items {
+		state, err := s.readPackageState(ctx, analysis.Serial, snapshot.Items[i].PackageName)
+		if err != nil {
+			return ApplyResult{}, err
+		}
+		if !state.Installed {
+			return ApplyResult{}, core.NewOperationError("tuning_apply", "package is no longer installed", snapshot.Items[i].PackageName, false)
+		}
+		snapshot.Items[i].Before = &state
+	}
+	if err := s.persistSnapshot(snapshot); err != nil {
 		return ApplyResult{}, err
 	}
 
 	result := ApplyResult{
 		SnapshotID: snapshot.ID, Changed: []string{}, Skipped: skipped, Failed: map[string]string{},
 	}
-	for i := range snapshot.Items {
-		item := &snapshot.Items[i]
-		var changeErr error
-		switch request.Mode {
-		case ActionDisable:
-			changeErr = s.runPM(ctx, analysis.Serial, []string{"disable-user", "--user", "0", item.PackageName}, "disable failed")
-		case ActionUninstallUser:
-			changeErr = s.uninstallForUser(ctx, analysis.Serial, item.PackageName)
-		}
-		if changeErr != nil {
-			result.Failed[item.PackageName] = changeErr.Error()
-			continue
-		}
-		item.Applied = true
-		result.Changed = append(result.Changed, item.PackageName)
-		if err := s.saveSnapshot(snapshot); err != nil {
-			result.Failed[item.PackageName] = "change applied but snapshot update failed: " + err.Error()
-		}
-	}
-	return result, nil
+	return s.applyJournal(ctx, &snapshot, result)
 }
 
 func (s *Service) ListSnapshots(ctx context.Context) ([]SnapshotSummary, error) {
@@ -236,12 +250,19 @@ func (s *Service) ListSnapshotsForSerial(serial string) ([]SnapshotSummary, erro
 			continue
 		}
 		applied := 0
+		recoverable, uncertain := 0, 0
 		for _, item := range snapshot.Items {
-			if item.Applied {
-				applied++
+			if needsRecovery(item) {
+				recoverable++
+				if item.Applied {
+					applied++
+				} else {
+					uncertain++
+				}
 			}
 		}
 		out = append(out, SnapshotSummary{
+			Version: snapshot.Version, Recoverable: recoverable, Uncertain: uncertain,
 			ID: snapshot.ID, CreatedAt: snapshot.CreatedAt, Serial: snapshot.Serial,
 			ProfileID: snapshot.ProfileID, ProfileName: snapshot.ProfileName,
 			Mode: snapshot.Mode, Applied: applied,
@@ -262,6 +283,10 @@ func (s *Service) Restore(ctx context.Context, snapshotID string) (RestoreResult
 func (s *Service) RestoreForSerial(ctx context.Context, serial, snapshotID string) (RestoreResult, error) {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
+	return s.bound().restore(ctx, serial, snapshotID)
+}
+
+func (s *Service) restore(ctx context.Context, serial, snapshotID string) (RestoreResult, error) {
 	snapshot, err := s.loadSnapshot(serial, snapshotID)
 	if err != nil {
 		return RestoreResult{}, err
@@ -269,35 +294,22 @@ func (s *Service) RestoreForSerial(ctx context.Context, serial, snapshotID strin
 	if snapshot.Serial != serial {
 		return RestoreResult{}, core.NewOperationError("tuning_restore", "snapshot belongs to a different device", snapshot.Serial, false)
 	}
-	result := RestoreResult{SnapshotID: snapshot.ID, Restored: []string{}, Failed: map[string]string{}}
-	for i := len(snapshot.Items) - 1; i >= 0; i-- {
-		item := &snapshot.Items[i]
-		if !item.Applied {
-			continue
+	if snapshot.HardwareSerial != "" {
+		output, err := s.runADBOutput(ctx, []string{"-s", serial, "shell", "getprop", "ro.serialno"}, "cannot verify snapshot device identity")
+		if err != nil {
+			return RestoreResult{}, err
 		}
-		if item.Action == ActionUninstallUser {
-			if err := s.installExistingForUser(ctx, serial, item.PackageName); err != nil {
-				result.Failed[item.PackageName] = err.Error()
-				continue
+		if strings.TrimSpace(output) == "" || strings.EqualFold(strings.TrimSpace(output), "unknown") {
+			output, err = s.runADBOutput(ctx, []string{"-s", serial, "shell", "getprop", "ro.boot.serialno"}, "cannot verify snapshot device identity")
+			if err != nil {
+				return RestoreResult{}, err
 			}
 		}
-		var stateErr error
-		if item.WasEnabled {
-			stateErr = s.runPM(ctx, serial, []string{"enable", "--user", "0", item.PackageName}, "restore enable failed")
-		} else {
-			stateErr = s.runPM(ctx, serial, []string{"disable-user", "--user", "0", item.PackageName}, "restore disable failed")
+		if strings.TrimSpace(output) != snapshot.HardwareSerial {
+			return RestoreResult{}, core.NewOperationError("tuning_restore", "snapshot device identity does not match", "", false)
 		}
-		if stateErr != nil {
-			result.Failed[item.PackageName] = stateErr.Error()
-			continue
-		}
-		item.Applied = false
-		result.Restored = append(result.Restored, item.PackageName)
 	}
-	if err := s.saveSnapshot(snapshot); err != nil {
-		return result, err
-	}
-	return result, nil
+	return s.restoreJournal(ctx, &snapshot)
 }
 
 func resolveProfileFrom(profiles []Profile, info device.Info, profileID string) (Profile, error) {
@@ -346,6 +358,11 @@ func (s *Service) runShell(ctx context.Context, serial string, args []string, us
 }
 
 func (s *Service) runADB(ctx context.Context, args []string, userMessage string) error {
+	_, err := s.runADBOutput(ctx, args, userMessage)
+	return err
+}
+
+func (s *Service) runADBOutput(ctx context.Context, args []string, userMessage string) (string, error) {
 	run := s.runCommand
 	if run == nil {
 		run = core.RunCommand
@@ -354,16 +371,19 @@ func (s *Service) runADB(ctx context.Context, args []string, userMessage string)
 		Command: s.getBinPath().Adb, Args: args, Timeout: 30 * time.Second,
 	})
 	if err != nil {
-		return core.NewOperationError("safe_tuning", userMessage, err.Error(), true)
+		return "", core.NewOperationError("safe_tuning", userMessage, err.Error(), true)
+	}
+	if result == nil {
+		return "", core.NewOperationError("safe_tuning", userMessage, "no command result", true)
 	}
 	if result.ExitCode != 0 {
 		detail := strings.TrimSpace(result.Stderr)
 		if detail == "" {
 			detail = strings.TrimSpace(result.Stdout)
 		}
-		return core.NewOperationError("safe_tuning", userMessage, detail, true)
+		return "", core.NewOperationError("safe_tuning", userMessage, detail, true)
 	}
-	return nil
+	return result.Stdout, nil
 }
 
 func snapshotID() string {
@@ -399,6 +419,13 @@ func (s *Service) saveSnapshot(snapshot Snapshot) error {
 	return nil
 }
 
+func (s *Service) persistSnapshot(snapshot Snapshot) error {
+	if s.writeSnapshot != nil {
+		return s.writeSnapshot(snapshot)
+	}
+	return s.saveSnapshot(snapshot)
+}
+
 func (s *Service) loadSnapshot(serial, id string) (Snapshot, error) {
 	id = strings.TrimSpace(id)
 	if id == "" || filepath.Base(id) != id || strings.ContainsAny(id, "/\\") {
@@ -415,6 +442,9 @@ func (s *Service) loadSnapshot(serial, id string) (Snapshot, error) {
 	}
 	if snapshot.ID != id {
 		return Snapshot{}, core.NewOperationError("tuning_snapshot", "snapshot id mismatch", fmt.Sprintf("%s != %s", snapshot.ID, id), false)
+	}
+	if err := validateSnapshot(snapshot); err != nil {
+		return Snapshot{}, err
 	}
 	return snapshot, nil
 }
