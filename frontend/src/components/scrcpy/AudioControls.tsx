@@ -30,7 +30,7 @@ const AUDIO_CODECS: AudioChoice[] = [
 ]
 
 const AUDIO_SOURCES: Array<AudioChoice & { value: ScrcpyAudioSource; minSdk: number }> = [
-  { value: 'output', name: 'Device output', description: 'Forward the complete device output', minSdk: 30 },
+  { value: 'output', name: 'Device output', description: 'Forward the whole output; device playback may be suppressed', minSdk: 30 },
   { value: 'playback', name: 'Playback', description: 'Capture app playback where Android permits it', minSdk: 33 },
   { value: 'mic', name: 'Microphone', description: 'Capture the device microphone', minSdk: 30 },
 ]

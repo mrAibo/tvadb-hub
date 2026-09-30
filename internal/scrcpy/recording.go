@@ -13,6 +13,10 @@ import (
 )
 
 func (s *Service) StartRecording(serial, outputPath string, opts Options) error {
+	if err := opts.Validate(); err != nil {
+		return err
+	}
+
 	trimmedSerial := strings.TrimSpace(serial)
 	if trimmedSerial == "" {
 		return core.NewOperationError(
@@ -50,6 +54,13 @@ func (s *Service) StartRecording(serial, outputPath string, opts Options) error 
 	}
 
 	adbPath, _ := s.resolveADBPath()
+	if adbPath != "" && !opts.NoAudio {
+		if sdk, sdkErr := detectAndroidSDK(s.ctx, adbPath, trimmedSerial); sdkErr == nil {
+			if err := validateAudioCompatibility(opts, sdk); err != nil {
+				return err
+			}
+		}
+	}
 
 	args := buildRecordingArgs(trimmedSerial, trimmedPath, opts)
 
