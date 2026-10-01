@@ -58,8 +58,9 @@ export function useScrcpy() {
   const applyStartedEvent = useScrcpyStore((state) => state.applyStartedEvent)
   const applyStoppedEvent = useScrcpyStore((state) => state.applyStoppedEvent)
   const applyErrorEvent = useScrcpyStore((state) => state.applyErrorEvent)
-  const addPreset = useScrcpyStore((state) => state.addPreset)
-  const removePreset = useScrcpyStore((state) => state.removePreset)
+  const savePreset = useScrcpyStore((state) => state.savePreset)
+  const deletePreset = useScrcpyStore((state) => state.deletePreset)
+  const hydratePresets = useScrcpyStore((state) => state.hydratePresets)
 
   const activeSerial = useDeviceStore((state) => state.activeSerial)
 
@@ -109,6 +110,9 @@ export function useScrcpy() {
     let cancelled = false
     optionsHydratedRef.current = false
     optionsDirtyRef.current = false
+    // Read the store synchronously before the first await: a preset added or
+    // removed while the config loads must not be overwritten by this snapshot.
+    const presetsRevisionAtRequest = useScrcpyStore.getState().presetsRevision
 
     getAppConfig()
       .then((config) => {
@@ -120,6 +124,7 @@ export function useScrcpy() {
         if (optionsDirtyRef.current) {
           scheduleOptionsSave(useScrcpyStore.getState().options)
         }
+        hydratePresets(config.scrcpy_presets ?? [], presetsRevisionAtRequest)
       })
       .catch((err) => {
         if (cancelled) return
@@ -130,7 +135,7 @@ export function useScrcpy() {
     return () => {
       cancelled = true
     }
-  }, [scheduleOptionsSave, setOptions])
+  }, [scheduleOptionsSave, setOptions, hydratePresets])
 
   useEffect(() => {
     return () => {
@@ -324,24 +329,32 @@ export function useScrcpy() {
   }, [isRecording, options, setIsRecording, setRecordingStartedAt])
 
   const handleSavePreset = useCallback(
-    (name: string) => {
+    async (name: string) => {
       const trimmed = name.trim()
       if (!trimmed) return
-      addPreset({
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        name: trimmed,
-        options,
-        createdAt: Date.now(),
+      const saved = await savePreset(trimmed, options)
+      if (saved) {
+        toast.success('Preset saved')
+        return
+      }
+      // Never report a failed write as saved.
+      toast.error('Preset was not saved', {
+        description: 'The app configuration could not be updated.',
       })
     },
-    [addPreset, options],
+    [savePreset, options],
   )
 
   const handleDeletePreset = useCallback(
-    (id: string) => {
-      removePreset(id)
+    async (id: string) => {
+      const removed = await deletePreset(id)
+      if (!removed) {
+        toast.error('Preset was not removed', {
+          description: 'The app configuration could not be updated.',
+        })
+      }
     },
-    [removePreset],
+    [deletePreset],
   )
 
   const handlePushClipboard = useCallback(async (text: string) => {

@@ -1,12 +1,16 @@
 import { create } from 'zustand'
 import type {
+  AppConfigSnapshot,
+  PreferencesPayload,
   ScrcpyEncoderSupport,
   ScrcpyOptions,
   ScrcpyPreset,
+  ScrcpyPresetSnapshot,
   ScrcpySession,
   ScrcpySessionEvent,
   ScrcpyState,
 } from '@/lib/types'
+import { getAppConfig, updatePreferences } from '@/services/settingsService'
 
 const DEFAULT_OPTIONS: ScrcpyOptions = {
   max_size: 0,
@@ -44,25 +48,33 @@ interface ScrcpyActions {
   applyStartedEvent: (event: ScrcpySessionEvent) => void
   applyStoppedEvent: (event: ScrcpySessionEvent) => void
   applyErrorEvent: (event: ScrcpySessionEvent) => void
-  addPreset: (preset: ScrcpyPreset) => void
-  removePreset: (id: string) => void
   reset: () => void
 }
 
-type ScrcpyStore = ScrcpyState & ScrcpyActions
+/**
+ * Preset persistence is part of the shared store, not of one hook instance: every
+ * caller adds/removes through these actions, so several mounted useScrcpy hooks
+ * cannot race each other or lose a preset.
+ */
+interface ScrcpyPresetPersistence {
+  presetsRevision: number
+  presetsHydrated: boolean
+  presetsPersistError: string | null
+  hydratePresets: (snapshot: ScrcpyPresetSnapshot[], revisionAtRequest: number) => void
+  savePreset: (name: string, options: ScrcpyOptions) => Promise<boolean>
+  deletePreset: (id: string) => Promise<boolean>
+}
 
-const INITIAL_STATE: ScrcpyState = {
-  session: null,
-  options: DEFAULT_OPTIONS,
-  encoderSupport: null,
+type ScrcpyStore = ScrcpyState & ScrcpyActions & ScrcpyPresetPersistence
+
+const INITIAL_PRESET_STATE: ScrcpyPresetPersistence & { presets: ScrcpyPreset[] } = {
   presets: [],
-  isStarting: false,
-  isStopping: false,
-  isRecording: false,
-  recordingStartedAt: null,
-  isFetchingEncoder: false,
-  error: null,
-  lastEventAt: null,
+  presetsRevision: 0,
+  presetsHydrated: false,
+  presetsPersistError: null,
+  hydratePresets: () => {},
+  savePreset: async () => false,
+  deletePreset: async () => false,
 }
 
 function mergeSessionFromEvent(
@@ -78,9 +90,90 @@ function mergeSessionFromEvent(
   }
 }
 
+function clientPresetId(): string {
+  return `preset-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+/** The persisted DTO is the existing {name, options} snapshot: no backend ID is invented. */
+function toPresetSnapshots(presets: ScrcpyPreset[]): ScrcpyPresetSnapshot[] {
+  return presets.map((preset) => ({ name: preset.name, options: preset.options }))
+}
+
+function optionsEqual(left: ScrcpyOptions, right: ScrcpyOptions): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+/**
+ * Rebuilds the local list from the saved snapshots. IDs are client-side and stay
+ * stable for the life of a session: an entry that is already loaded keeps its ID
+ * instead of being replaced by a new one on every reload.
+ */
+function hydrateFromSnapshots(
+  snapshot: ScrcpyPresetSnapshot[],
+  existing: ScrcpyPreset[],
+): ScrcpyPreset[] {
+  return snapshot.map((entry) => {
+    const match = existing.find(
+      (preset) => preset.name === entry.name && optionsEqual(preset.options, entry.options),
+    )
+    return {
+      id: match?.id ?? clientPresetId(),
+      name: entry.name,
+      options: entry.options,
+      createdAt: match?.createdAt ?? Date.now(),
+    }
+  })
+}
+
+function persistErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Failed to save presets'
+}
+
+/**
+ * Reads the freshly saved configuration and writes only the preset list, so the
+ * unconditionally assigned auto_refresh_devices (and the theme) keep their saved
+ * values. Dirty local preference drafts are never sent from here.
+ */
+async function persistCurrentPresets(): Promise<boolean> {
+  const presets = useScrcpyStore.getState().presets
+  try {
+    const saved: AppConfigSnapshot = await getAppConfig()
+    const payload: PreferencesPayload = {
+      theme: saved.theme === 'light' ? 'light' : 'dark',
+      auto_refresh_devices: saved.auto_refresh_devices,
+      scrcpy_presets: toPresetSnapshots(presets),
+    }
+    await updatePreferences(payload)
+    useScrcpyStore.setState({ presetsPersistError: null })
+    return true
+  } catch (error) {
+    useScrcpyStore.setState({ presetsPersistError: persistErrorMessage(error) })
+    return false
+  }
+}
+
+// One serialized writer per process: a burst of add/remove calls cannot interleave
+// their writes, and every job persists the latest list, so none is dropped.
+let persistQueue: Promise<unknown> = Promise.resolve()
+
+function enqueuePresetPersist(): Promise<boolean> {
+  const job = persistQueue.then(persistCurrentPresets, persistCurrentPresets)
+  persistQueue = job.catch(() => undefined)
+  return job
+}
+
 export const useScrcpyStore = create<ScrcpyStore>()((set) => ({
-  ...INITIAL_STATE,
+  session: null,
   options: { ...DEFAULT_OPTIONS },
+  encoderSupport: null,
+  isStarting: false,
+  isStopping: false,
+  isRecording: false,
+  recordingStartedAt: null,
+  isFetchingEncoder: false,
+  error: null,
+  lastEventAt: null,
+  ...INITIAL_PRESET_STATE,
   setSession: (session) => set({ session }),
   setOptions: (options) => set({ options }),
   setEncoderSupport: (encoderSupport) => set({ encoderSupport }),
@@ -122,9 +215,41 @@ export const useScrcpyStore = create<ScrcpyStore>()((set) => ({
       error: event.message ?? 'Scrcpy session failed unexpectedly',
       lastEventAt: Date.now(),
     })),
-  addPreset: (preset) =>
-    set((state) => ({ presets: [preset, ...state.presets] })),
-  removePreset: (id) =>
-    set((state) => ({ presets: state.presets.filter((p) => p.id !== id) })),
-  reset: () => set({ ...INITIAL_STATE, options: { ...DEFAULT_OPTIONS } }),
+  hydratePresets: (snapshot, revisionAtRequest) =>
+    set((state) => {
+      // A preset was added or removed while the config was loading: that newer
+      // local state wins, and it is persisted by its own queued write.
+      if (state.presetsRevision !== revisionAtRequest) {
+        return state
+      }
+      return {
+        presets: hydrateFromSnapshots(snapshot, state.presets),
+        presetsHydrated: true,
+      }
+    }),
+  savePreset: async (name, options) => {
+    const trimmed = name.trim()
+    if (!trimmed) return false
+    set((state) => ({
+      presets: [
+        { id: clientPresetId(), name: trimmed, options: { ...options }, createdAt: Date.now() },
+        ...state.presets,
+      ],
+      presetsRevision: state.presetsRevision + 1,
+      presetsHydrated: true,
+    }))
+    return enqueuePresetPersist()
+  },
+  deletePreset: async (id) => {
+    let removed = false
+    set((state) => {
+      const presets = state.presets.filter((preset) => preset.id !== id)
+      removed = presets.length !== state.presets.length
+      if (!removed) return state
+      return { presets, presetsRevision: state.presetsRevision + 1, presetsHydrated: true }
+    })
+    if (!removed) return true
+    return enqueuePresetPersist()
+  },
+  reset: () => set({ ...INITIAL_PRESET_STATE, options: { ...DEFAULT_OPTIONS } }),
 }))
