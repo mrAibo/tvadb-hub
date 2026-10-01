@@ -133,29 +133,40 @@ func (s *PlanService) ScanRomFolder(folderPath string) (*Plan, error) {
 	return &Plan{Steps: steps}, nil
 }
 
-func (s *PlanService) FlashRomFolder(ctx context.Context, serial string, folderPath string, plan Plan) (string, error) {
-	if s.fastbootService == nil {
-		return "", core.NewOperationError("flash_rom_folder", "flash plan executor is unavailable", "", false)
-	}
+// ValidateFlashPlan checks a scanned plan against the selected folder. It is shared
+// by the legacy batch path and the confirmed-target batch path so both keep exactly
+// the same validation order and messages, and it is exported so a caller can reject
+// an invalid plan before resolving any binary.
+func ValidateFlashPlan(folderPath string, plan Plan) error {
 	trimmed := strings.TrimSpace(folderPath)
 	if trimmed == "" {
-		return "", core.NewOperationError("flash_rom_folder", "ROM folder path is required", "", false)
+		return core.NewOperationError("flash_rom_folder", "ROM folder path is required", "", false)
 	}
 	if len(plan.Steps) == 0 {
-		return "", core.NewOperationError("flash_rom_folder", "flash plan is empty", "plan must include at least one flash step", false)
+		return core.NewOperationError("flash_rom_folder", "flash plan is empty", "plan must include at least one flash step", false)
 	}
 	for i, step := range plan.Steps {
 		if strings.TrimSpace(step.Partition) == "" || strings.TrimSpace(step.ImageFile) == "" {
-			return "", core.NewOperationError("flash_rom_folder", "flash plan contains an invalid step", fmt.Sprintf("step %d is missing partition or image path", i+1), false)
+			return core.NewOperationError("flash_rom_folder", "flash plan contains an invalid step", fmt.Sprintf("step %d is missing partition or image path", i+1), false)
 		}
 		if _, err := os.Stat(step.ImageFile); err != nil {
-			return "", core.NewOperationError("flash_rom_folder", "flash plan references a missing image", fmt.Sprintf("step %d image does not exist: %s", i+1, step.ImageFile), false)
+			return core.NewOperationError("flash_rom_folder", "flash plan references a missing image", fmt.Sprintf("step %d image does not exist: %s", i+1, step.ImageFile), false)
 		}
 		// filepath.Rel mencegah path traversal yang lolos dari HasPrefix (mis. "/rom" vs "/rom-evil").
 		rel, relErr := filepath.Rel(trimmed, step.ImageFile)
 		if relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return "", core.NewOperationError("flash_rom_folder", "flash plan image is outside the selected folder", fmt.Sprintf("step %d image path is outside ROM folder", i+1), false)
+			return core.NewOperationError("flash_rom_folder", "flash plan image is outside the selected folder", fmt.Sprintf("step %d image path is outside ROM folder", i+1), false)
 		}
+	}
+	return nil
+}
+
+func (s *PlanService) FlashRomFolder(ctx context.Context, serial string, folderPath string, plan Plan) (string, error) {
+	if s.fastbootService == nil {
+		return "", core.NewOperationError("flash_rom_folder", "flash plan executor is unavailable", "", false)
+	}
+	if err := ValidateFlashPlan(folderPath, plan); err != nil {
+		return "", err
 	}
 	for i, step := range plan.Steps {
 		s.emitStepStatus(step.Partition, "flashing", "")
@@ -165,7 +176,29 @@ func (s *PlanService) FlashRomFolder(ctx context.Context, serial string, folderP
 		}
 		s.emitStepStatus(step.Partition, "success", "Flashed successfully")
 	}
-	return fmt.Sprintf("Flashed %d partition(s) from %s", len(plan.Steps), filepath.Base(trimmed)), nil
+	return fmt.Sprintf("Flashed %d partition(s) from %s", len(plan.Steps), filepath.Base(strings.TrimSpace(folderPath))), nil
+}
+
+// FlashRomFolderForTarget executes the same batch against one immutable target: the
+// confirmed serial and the captured fastboot executable are used for every step, so
+// a configuration change or a different device selection cannot retarget the batch
+// midway. Step validation, timeouts, error wrapping and step events are unchanged.
+func (s *PlanService) FlashRomFolderForTarget(ctx context.Context, target Target, folderPath string, plan Plan) (string, error) {
+	if s.fastbootService == nil {
+		return "", core.NewOperationError("flash_rom_folder", "flash plan executor is unavailable", "", false)
+	}
+	if err := ValidateFlashPlan(folderPath, plan); err != nil {
+		return "", err
+	}
+	for i, step := range plan.Steps {
+		s.emitStepStatus(step.Partition, "flashing", "")
+		if _, err := target.FlashPartition(ctx, step.Partition, step.ImageFile); err != nil {
+			s.emitStepStatus(step.Partition, "error", err.Error())
+			return "", core.NewOperationError("flash_rom_folder", "batch flash failed", fmt.Sprintf("step %d failed for partition %s: %s", i+1, step.Partition, err.Error()), true)
+		}
+		s.emitStepStatus(step.Partition, "success", "Flashed successfully")
+	}
+	return fmt.Sprintf("Flashed %d partition(s) from %s", len(plan.Steps), filepath.Base(strings.TrimSpace(folderPath))), nil
 }
 
 func partitionNameFromImage(name string) (string, bool) {

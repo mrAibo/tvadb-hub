@@ -52,6 +52,7 @@ interface FileExplorerState {
   transferProgress: TransferProgress | null
   lastTransferVerification: TransferVerificationSummary | null
   lastTransferBatch: TransferBatchResult | null
+  listingSerial: string
 }
 
 interface FileExplorerActions {
@@ -87,6 +88,11 @@ interface FileExplorerActions {
   setLastTransferVerification: (result: TransferVerificationSummary | null) => void
   setLastTransferBatch: (result: TransferBatchResult | null) => void
   resetFilters: () => void
+  // Drops everything bound to the previous device (listing, cache, dialogs,
+  // selection) while leaving an owned transfer and its verification evidence alone.
+  clearMachineBoundState: () => void
+  // Serial the current listing was captured for; mutations must match it.
+  setListingSerial: (serial: string) => void
   reset: () => void
 }
 
@@ -120,6 +126,7 @@ const initialState: FileExplorerState = {
   transferProgress: null,
   lastTransferVerification: null,
   lastTransferBatch: null,
+  listingSerial: '',
 }
 
 export const useFileExplorerStore = create<FileExplorerStore>()((set) => ({
@@ -127,6 +134,7 @@ export const useFileExplorerStore = create<FileExplorerStore>()((set) => ({
 
   setCurrentPath: (currentPath) => set({ currentPath, selectedFiles: [] }),
   setFiles: (files) => set({ files }),
+  setListingSerial: (listingSerial) => set({ listingSerial }),
   setCachedFiles: (cacheKey, files, lastUpdatedAt) =>
     set((state) => ({
       fileCache: {
@@ -214,6 +222,26 @@ export const useFileExplorerStore = create<FileExplorerStore>()((set) => ({
       sortField: initialState.sortField,
       sortDirection: initialState.sortDirection,
       selectedFiles: [],
+    }),
+  clearMachineBoundState: () =>
+    set({
+      currentPath: initialState.currentPath,
+      files: [],
+      fileCache: {},
+      listingSerial: '',
+      dialogTargetFile: null,
+      isPullDialogOpen: false,
+      isPushDialogOpen: false,
+      isPushFolderDialogOpen: false,
+      isRenameDialogOpen: false,
+      isDeleteDialogOpen: false,
+      isNewFolderDialogOpen: false,
+      isMoveDialogOpen: false,
+      isBatchPullDialogOpen: false,
+      isBatchDeleteDialogOpen: false,
+      selectedFiles: [],
+      error: null,
+      lastUpdatedAt: null,
     }),
   reset: () => set(initialState),
 }))

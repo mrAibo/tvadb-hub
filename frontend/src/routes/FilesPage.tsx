@@ -24,12 +24,13 @@ import { UnblockPathDialog } from '@/components/files/UnblockPathDialog'
 import { useDevices } from '@/hooks/useDevices'
 import { useFileExplorer } from '@/hooks/useFileExplorer'
 import { useFileExplorerStore } from '@/stores/useFileExplorerStore'
+import { useDeviceStore } from '@/stores/useDeviceStore'
 import {
   getHostFileSystemInfo,
   getLocalParentPath,
-  getStorageInfo,
+  getStorageInfoForDevice,
   listLocalFiles,
-  unblockPath,
+  unblockPathForDevice,
 } from '@/services/fileService'
 import type {
   FileEntry,
@@ -151,9 +152,23 @@ export default function FilesPage() {
       setStorageInfo(null)
       return
     }
-    void getStorageInfo()
-      .then(setStorageInfo)
-      .catch(() => setStorageInfo(null))
+    const serial = activeSerial
+    let cancelled = false
+    void getStorageInfoForDevice(serial)
+      .then((info) => {
+        // A reply that belongs to a device the user has already left must not render.
+        if (!cancelled && useDeviceStore.getState().activeSerial === serial) {
+          setStorageInfo(info)
+        }
+      })
+      .catch(() => {
+        if (!cancelled && useDeviceStore.getState().activeSerial === serial) {
+          setStorageInfo(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
   }, [activeSerial, fe.lastUpdatedAt])
 
   useEffect(() => {
@@ -169,11 +184,18 @@ export default function FilesPage() {
     }
     const pathMatch = fe.error.match(/\/[^\s]+/)
     const path = pathMatch ? pathMatch[0] : fe.currentPath
-    void unblockPath(path)
-      .then(setUnblockResult)
+    const serial = activeSerial
+    if (!serial) return
+    void unblockPathForDevice(serial, path)
+      .then((result) => {
+        if (useDeviceStore.getState().activeSerial === serial) setUnblockResult(result)
+      })
       .catch(() => setUnblockResult(null))
-      .finally(() => setIsUnblockDialogOpen(true))
-  }, [fe.error, fe.currentPath])
+      .finally(() => {
+        // Guidance for a device the user left is not shown on the new one.
+        if (useDeviceStore.getState().activeSerial === serial) setIsUnblockDialogOpen(true)
+      })
+  }, [fe.error, fe.currentPath, activeSerial])
 
   const visibleLocalFiles = useMemo(
     () => filterLocal(localFiles, localSearch),

@@ -63,6 +63,27 @@ export function useAppManager() {
     [activeSerial, devices],
   )
 
+  // Every request carries the serial it was captured for plus a generation, so a
+  // late reply can never render for another device.
+  const loadGenerationRef = useRef(0)
+
+  // Every mutation re-reads the live confirmed serial and refuses to act when the
+  // listing in the store was captured for a different device, so a stale selection
+  // or a stale detail sheet can never reach another target.
+  const requireConfirmedSerial = useCallback((operation: string): string | null => {
+    const live = useDeviceStore.getState().activeSerial
+    if (!live) {
+      toast.error(`${operation}: no device is selected`)
+      return null
+    }
+    const snapshotSerial = useAppManagerStore.getState().packagesSerial
+    if (snapshotSerial !== live) {
+      toast.error(`${operation}: the device changed — refresh the package list and try again`)
+      return null
+    }
+    return live
+  }, [])
+
   const processQueue = useCallback(async () => {
     if (isProcessingRef.current || queueRef.current.length === 0) return
     isProcessingRef.current = true
@@ -83,8 +104,10 @@ export function useAppManager() {
       await Promise.allSettled(
         toFetch.map(async (name) => {
           try {
-            const details = await svcGetDetails(name)
-            if (details) {
+            const serial = useDeviceStore.getState().activeSerial
+            if (!serial) return
+            const details = await svcGetDetails(serial, name)
+            if (details && useDeviceStore.getState().activeSerial === serial) {
               updateDetails(name, details)
             }
           } catch {
@@ -118,15 +141,16 @@ export function useAppManager() {
 
   const fetchPackages = useCallback(
     async (isRefresh = false) => {
-      if (!hasReadyAdbDevice || !hasReadyActiveDevice) {
-        store.setPackages([])
-        store.clearSelection()
-        store.setLastUpdatedAt(null)
+      const serial = activeSerial
+      if (!hasReadyAdbDevice || !hasReadyActiveDevice || !serial) {
+        store.clearMachineBoundState()
         store.setError('No ADB device connected')
         store.setLoading(false)
         store.setRefreshing(false)
         return
       }
+
+      const generation = ++loadGenerationRef.current
 
       if (isRefresh) {
         store.setRefreshing(true)
@@ -136,22 +160,31 @@ export function useAppManager() {
       store.setError(null)
 
       try {
-        const packages = await listPackages(store.filter)
-        store.setPackages(packages)
+        const packages = await listPackages(serial, store.filter)
+        // A reply for another serial (or a superseded request) must not render.
+        if (generation !== loadGenerationRef.current) return
+        if (useDeviceStore.getState().activeSerial !== serial) return
+        store.setPackages(serial, packages)
         store.setLastUpdatedAt(Date.now())
       } catch (err) {
-        store.setError(getErrorMessage(err))
+        if (generation === loadGenerationRef.current && useDeviceStore.getState().activeSerial === serial) {
+          store.setError(getErrorMessage(err))
+        }
       } finally {
-        store.setLoading(false)
-        store.setRefreshing(false)
+        if (generation === loadGenerationRef.current) {
+          store.setLoading(false)
+          store.setRefreshing(false)
+        }
       }
     },
-    [store, hasReadyAdbDevice, hasReadyActiveDevice],
+    [store, activeSerial, hasReadyAdbDevice, hasReadyActiveDevice],
   )
 
   useEffect(() => {
+    // A target change drops only the machine-bound listing/selection/details.
+    store.clearMachineBoundState()
     void fetchPackages()
-  }, [store.filter])
+  }, [activeSerial, store.filter])
 
   const filteredPackages = useMemo(() => {
     let result = [...store.packages]
@@ -214,9 +247,11 @@ export function useAppManager() {
     try {
       const filePath = await svcSelectApk()
       if (!filePath) return
+      const serial = requireConfirmedSerial('Install APK')
+      if (!serial) return
 
       store.setInstalling(true)
-      const message = await svcInstallPackage(filePath)
+      const message = await svcInstallPackage(serial, filePath)
       toast.success(message)
       await fetchPackages(true)
     } catch (err) {
@@ -232,8 +267,10 @@ export function useAppManager() {
       mode: PackageInstallMode = 'replace',
     ): Promise<boolean> => {
       try {
+        const serial = requireConfirmedSerial('Install package')
+        if (!serial) return false
         store.setInstalling(true)
-        const message = await svcInstallPackage(filePath, mode)
+        const message = await svcInstallPackage(serial, filePath, mode)
         toast.success(message)
         await fetchPackages(true)
         return true
@@ -253,8 +290,10 @@ export function useAppManager() {
       mode: PackageInstallMode = 'replace',
     ): Promise<boolean> => {
       try {
+        const serial = requireConfirmedSerial('Install split APKs')
+        if (!serial) return false
         store.setInstalling(true)
-        const message = await svcInstallPackages(filePaths, mode)
+        const message = await svcInstallPackages(serial, filePaths, mode)
         toast.success(message)
         await fetchPackages(true)
         return true
@@ -281,9 +320,13 @@ export function useAppManager() {
     async (packageName: string) => {
       store.setBusyPackageName(packageName)
       try {
-        const message = await svcUninstallPackage(packageName)
+        const serial = requireConfirmedSerial('Uninstall package')
+        if (!serial) return
+        const message = await svcUninstallPackage(serial, packageName)
         toast.success(message)
-        store.togglePackageSelection(packageName)
+        // The package is gone: drop it from the selection instead of toggling it in,
+        // which used to leave a phantom entry that enabled single-package actions.
+        store.removePackageFromSelection(packageName)
         await fetchPackages(true)
       } catch (err) {
         toast.error(getErrorMessage(err))
@@ -298,9 +341,12 @@ export function useAppManager() {
     const names = store.selectedPackages
     if (names.length === 0) return
 
+    const serial = requireConfirmedSerial('Uninstall packages')
+    if (!serial) return
+
     store.setBusyBatchAction('uninstall')
     try {
-      const message = await svcUninstallBatch(names)
+      const message = await svcUninstallBatch(serial, names)
       toast.success(message)
       store.clearSelection()
       await fetchPackages(true)
@@ -315,7 +361,9 @@ export function useAppManager() {
     async (packageName: string) => {
       store.setBusyPackageName(packageName)
       try {
-        const message = await svcEnablePackage(packageName)
+        const serial = requireConfirmedSerial('Enable package')
+        if (!serial) return
+        const message = await svcEnablePackage(serial, packageName)
         toast.success(message)
         await fetchPackages(true)
       } catch (err) {
@@ -331,9 +379,12 @@ export function useAppManager() {
     const names = store.selectedPackages
     if (names.length === 0) return
 
+    const serial = requireConfirmedSerial('Enable packages')
+    if (!serial) return
+
     store.setBusyBatchAction('enable')
     try {
-      const message = await svcEnableBatch(names)
+      const message = await svcEnableBatch(serial, names)
       toast.success(message)
       store.clearSelection()
       await fetchPackages(true)
@@ -348,7 +399,9 @@ export function useAppManager() {
     async (packageName: string) => {
       store.setBusyPackageName(packageName)
       try {
-        const message = await svcDisablePackage(packageName)
+        const serial = requireConfirmedSerial('Disable package')
+        if (!serial) return
+        const message = await svcDisablePackage(serial, packageName)
         toast.success(message)
         await fetchPackages(true)
       } catch (err) {
@@ -364,9 +417,12 @@ export function useAppManager() {
     const names = store.selectedPackages
     if (names.length === 0) return
 
+    const serial = requireConfirmedSerial('Disable packages')
+    if (!serial) return
+
     store.setBusyBatchAction('disable')
     try {
-      const message = await svcDisableBatch(names)
+      const message = await svcDisableBatch(serial, names)
       toast.success(message)
       store.clearSelection()
       await fetchPackages(true)
@@ -381,12 +437,19 @@ export function useAppManager() {
     const names = store.selectedPackages
     if (names.length === 0) return
 
+    const serial = requireConfirmedSerial('Force-stop packages')
+    if (!serial) return
+
     store.setBusyBatchAction('force-stop')
     let successCount = 0
     const failures: string[] = []
     for (const name of names) {
+      if (useDeviceStore.getState().activeSerial !== serial) {
+        failures.push(`${name}: the device changed — action skipped`)
+        continue
+      }
       try {
-        await svcForceStop(name)
+        await svcForceStop(serial, name)
         successCount++
       } catch (err) {
         failures.push(`${name}: ${getErrorMessage(err)}`)
@@ -412,12 +475,19 @@ export function useAppManager() {
     const names = store.selectedPackages
     if (names.length === 0) return
 
+    const serial = requireConfirmedSerial('Clear app data')
+    if (!serial) return
+
     store.setBusyBatchAction('clear-data')
     let successCount = 0
     const failures: string[] = []
     for (const name of names) {
+      if (useDeviceStore.getState().activeSerial !== serial) {
+        failures.push(`${name}: the device changed — action skipped`)
+        continue
+      }
       try {
-        await svcClearData(name)
+        await svcClearData(serial, name)
         successCount++
       } catch (err) {
         failures.push(`${name}: ${getErrorMessage(err)}`)
@@ -443,12 +513,19 @@ export function useAppManager() {
     const names = store.selectedPackages
     if (names.length === 0) return
 
+    const serial = requireConfirmedSerial('Export APKs')
+    if (!serial) return
+
     store.setBusyBatchAction('pull-apk')
     let successCount = 0
     const failures: string[] = []
     for (const name of names) {
+      if (useDeviceStore.getState().activeSerial !== serial) {
+        failures.push(`${name}: the device changed — action skipped`)
+        continue
+      }
       try {
-        await svcPullApk(name)
+        await svcPullApk(serial, name)
         successCount++
       } catch (err) {
         failures.push(`${name}: ${getErrorMessage(err)}`)
@@ -474,7 +551,9 @@ export function useAppManager() {
     async (packageName: string) => {
       store.setBusyPackageName(packageName)
       try {
-        const message = await svcClearData(packageName)
+        const serial = requireConfirmedSerial('Clear app data')
+        if (!serial) return
+        const message = await svcClearData(serial, packageName)
         toast.success(message)
         void fetchPackages(true)
       } catch (err) {
@@ -490,7 +569,9 @@ export function useAppManager() {
     async (packageName: string) => {
       store.setBusyPackageName(packageName)
       try {
-        const message = await svcPullApk(packageName)
+        const serial = requireConfirmedSerial('Export APK')
+        if (!serial) return
+        const message = await svcPullApk(serial, packageName)
         toast.success(message)
       } catch (err) {
         toast.error(getErrorMessage(err))
@@ -504,7 +585,9 @@ export function useAppManager() {
   const launch = useCallback(
     async (packageName: string) => {
       try {
-        const message = await svcLaunch(packageName)
+        const serial = requireConfirmedSerial('Launch package')
+        if (!serial) return
+        const message = await svcLaunch(serial, packageName)
         toast.success(message)
       } catch (err) {
         toast.error(getErrorMessage(err))
@@ -517,7 +600,9 @@ export function useAppManager() {
     async (packageName: string) => {
       store.setBusyPackageName(packageName)
       try {
-        const message = await svcForceStop(packageName)
+        const serial = requireConfirmedSerial('Force-stop package')
+        if (!serial) return
+        const message = await svcForceStop(serial, packageName)
         toast.success(message)
       } catch (err) {
         toast.error(getErrorMessage(err))
@@ -532,7 +617,9 @@ export function useAppManager() {
   const getDetails = useCallback(
     async (packageName: string): Promise<PackageDetails | null> => {
       try {
-        return await svcGetDetails(packageName)
+        const serial = requireConfirmedSerial('Package details')
+        if (!serial) return null
+        return await svcGetDetails(serial, packageName)
       } catch (err) {
         toast.error(getErrorMessage(err))
         return null

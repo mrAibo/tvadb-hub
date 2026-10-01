@@ -7,8 +7,11 @@ export {
 
 export type {
     Entry,
+    HostFileSystemInfo,
     SdCard,
     StorageInfo,
+    TransferBatchResult,
+    TransferItemResult,
     TransferProgress,
     UnblockResult
 } from "./models.js";

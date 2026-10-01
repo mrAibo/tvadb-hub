@@ -23,10 +23,14 @@ interface AppManagerState {
   error: string | null
   lastUpdatedAt: number | null
   detailsCache: Map<string, PackageDetails>
+  // Serial the current listing was captured for; every mutation must match it.
+  packagesSerial: string
 }
 
 interface AppManagerActions {
-  setPackages: (packages: PackageInfo[]) => void
+  setPackages: (serial: string, packages: PackageInfo[]) => void
+  clearMachineBoundState: () => void
+  removePackageFromSelection: (packageName: string) => void
   setFilter: (filter: PackageFilter) => void
   setStatusFilter: (statusFilter: PackageStatusFilter) => void
   setSortOrder: (sortOrder: PackageSortOrder) => void
@@ -66,12 +70,26 @@ const initialState: AppManagerState = {
   error: null,
   lastUpdatedAt: null,
   detailsCache: new Map(),
+  packagesSerial: '',
 }
 
 export const useAppManagerStore = create<AppManagerStore>()((set) => ({
   ...initialState,
 
-  setPackages: (packages) => set({ packages }),
+  setPackages: (serial, packages) => set({ packages, packagesSerial: serial }),
+  clearMachineBoundState: () =>
+    set({
+      packages: [],
+      selectedPackages: [],
+      detailsCache: new Map(),
+      lastUpdatedAt: null,
+      packagesSerial: '',
+      error: null,
+    }),
+  removePackageFromSelection: (packageName) =>
+    set((state) => ({
+      selectedPackages: state.selectedPackages.filter((name) => name !== packageName),
+    })),
   setFilter: (filter) => set({ filter, selectedPackages: [] }),
   setStatusFilter: (statusFilter) => set({ statusFilter }),
   setSortOrder: (sortOrder) => set({ sortOrder }),
