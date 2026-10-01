@@ -118,27 +118,43 @@ func (s *LogcatService) StartStream(ctx context.Context, serial string, levels s
 
 	streamCtx, cancel := context.WithCancel(ctx)
 	initialProcessNames, _ := queryLogcatProcessNames(streamCtx, adbPath, trimmedSerial)
-	stream, err := s.startCommand(streamCtx, trimmedSerial, core.NewCommandContext(streamCtx, adbPath, args...), cancel)
+	processNames := newProcessNameCache(initialProcessNames)
+	processCtx, processCancel := context.WithCancel(streamCtx)
+	stream, err := s.startCommand(
+		streamCtx,
+		trimmedSerial,
+		core.NewCommandContext(streamCtx, adbPath, args...),
+		cancel,
+		processNames,
+		processCancel,
+	)
 	if err != nil {
+		processCancel()
 		return err
 	}
-	stream.processNames = newProcessNameCache(initialProcessNames)
-	processCtx, processCancel := context.WithCancel(streamCtx)
-	stream.processCancel = processCancel
-	go refreshLogcatProcessNames(processCtx, stream.processNames, adbPath, trimmedSerial)
+	go refreshLogcatProcessNames(processCtx, processNames, adbPath, trimmedSerial)
 	return nil
 }
 
 // The assigned writers let Wait drain output before closing the batch channel.
-func (s *LogcatService) startCommand(ctx context.Context, serial string, cmd *exec.Cmd, cancel context.CancelFunc) (*logcatStream, error) {
+func (s *LogcatService) startCommand(
+	ctx context.Context,
+	serial string,
+	cmd *exec.Cmd,
+	cancel context.CancelFunc,
+	processNames *processNameCache,
+	processCancel context.CancelFunc,
+) (*logcatStream, error) {
 	stream := &logcatStream{
 		serial:    serial,
 		cmd:       cmd,
 		entries:   make(chan LogcatEntry, logcatBatchChannelSize),
 		batchDone: make(chan struct{}),
 		finished:  make(chan struct{}),
-		cancel:    cancel,
-		ctx:       ctx,
+		cancel:        cancel,
+		ctx:           ctx,
+		processNames:  processNames,
+		processCancel: processCancel,
 	}
 	lineWriter := func(isError bool) *core.ProcessLineWriter {
 		return core.NewProcessLineWriter(func(line string) {
