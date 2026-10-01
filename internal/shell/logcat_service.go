@@ -120,7 +120,7 @@ func (s *LogcatService) StartStream(ctx context.Context, serial string, levels s
 	initialProcessNames, _ := queryLogcatProcessNames(streamCtx, adbPath, trimmedSerial)
 	processNames := newProcessNameCache(initialProcessNames)
 	processCtx, processCancel := context.WithCancel(streamCtx)
-	stream, err := s.startCommand(
+	_, err = s.startCommand(
 		streamCtx,
 		trimmedSerial,
 		core.NewCommandContext(streamCtx, adbPath, args...),
