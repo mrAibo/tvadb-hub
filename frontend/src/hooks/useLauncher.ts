@@ -193,21 +193,30 @@ export function useLauncher() {
   // activity - the same reversibility proof the backend enforces.
   const grantConsent = useCallback(
     (candidateComponent: string): string | null => {
+      // Every refusal is returned to the caller AND stored in the hook error, so the
+      // existing role="alert" line renders the reason instead of the wizard looking
+      // like it silently ignored the confirmation.
+      const refuse = (reason: string): string => {
+        setError(reason)
+        return reason
+      }
       const serial = liveSerial()
-      if (!serial) return 'No confirmed device is selected'
+      if (!serial) return refuse('No confirmed device is selected')
       if (!preflight || !preflight.supported) {
-        return preflight?.reason || 'The read-only check has not confirmed this device'
+        return refuse(preflight?.reason || 'The read-only check has not confirmed this device')
       }
       const current = preflight.currentHome
-      if (!current) return 'The current HOME is unknown'
+      if (!current) return refuse('The current HOME is unknown')
       if (countHomeForPackage(preflight.homeCandidates ?? [], current) !== 1) {
-        return `Refused: ${current.split('/')[0]} declares several HOME activities`
+        return refuse(`Refused: ${current.split('/')[0]} declares several HOME activities`)
       }
       if (countHomeForPackage(preflight.homeCandidates ?? [], candidateComponent) !== 1) {
-        return `Refused: ${candidateComponent.split('/')[0]} declares several HOME activities`
+        return refuse(
+          `Refused: ${candidateComponent.split('/')[0]} declares several HOME activities`,
+        )
       }
       if (!testResult || testResult.component !== candidateComponent || !testResult.launched) {
-        return 'Open the candidate for inspection before confirming it'
+        return refuse('Open the candidate for inspection before confirming it')
       }
       setConsent({
         operationId: newOperationId(),

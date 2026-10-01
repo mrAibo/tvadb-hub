@@ -155,8 +155,9 @@ function LauncherWizard({ onClose }: { onClose: () => void }) {
                   className="h-8 text-xs"
                   disabled={!candidate || launcher.busy !== null}
                   onClick={() => {
-                    const refusal = launcher.grantConsent(candidate)
-                    if (refusal) launcher.loadRecovery()
+                    // The hook stores a refusal in its error state, which the
+                    // role="alert" line below already renders.
+                    launcher.grantConsent(candidate)
                   }}
                 >
                   2. Confirm this target

@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDeviceStore } from '@/stores/useDeviceStore'
 
@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/services/launcherService', () => mocks)
 
 import { useLauncher } from '../useLauncher'
+import { LauncherWizardTrigger } from '@/components/launcher/LauncherWizard'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -136,6 +137,8 @@ describe('useLauncher ownership', () => {
     })
     expect(refusal).toContain('several HOME activities')
     expect(result.current.consent).toBeNull()
+    // The refusal must also reach the hook error so the role="alert" line renders it.
+    expect(result.current.error).toContain('several HOME activities')
   })
 
   it('requires an explicit candidate test and confirmation before applying', async () => {
@@ -151,6 +154,7 @@ describe('useLauncher ownership', () => {
     })
     expect(refusal).toContain('inspection')
     expect(result.current.consent).toBeNull()
+    expect(result.current.error).toContain('inspection')
 
     await act(async () => {
       await result.current.testCandidate(newLauncher.component)
@@ -341,5 +345,56 @@ describe('useLauncher ownership', () => {
     })
     expect(mocks.restoreLauncher).toHaveBeenCalledWith({ recordId: 'r1', expectedSerial: 'A' })
     await waitFor(() => expect(result.current.restoreResult?.state).toBe('restored'))
+  })
+})
+
+describe('LauncherWizard refusal rendering', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useDeviceStore.getState().reset()
+    useDeviceStore.setState({ activeSerial: 'A' })
+    mocks.readLauncherRecovery.mockResolvedValue({ records: [], note: 'local' })
+  })
+
+  it('renders the confirmation refusal in the alert line and keeps Apply disabled', async () => {
+    mocks.preflightLauncher.mockResolvedValue(
+      preflightPayload({
+        homeCandidates: [
+          stock,
+          newLauncher,
+          candidate('com.tcl.launcher/.Second', 'com.tcl.launcher'),
+        ],
+      }),
+    )
+    render(<LauncherWizardTrigger />)
+    fireEvent.click(screen.getByText('Custom launcher (Current+)'))
+
+    // Two candidates share the package, so pick the first button of that package.
+    const candidateButtons = await screen.findAllByText('com.tcl.launcher')
+    fireEvent.click(candidateButtons[0])
+    expect((screen.getByText('3. Apply HOME change') as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.click(screen.getByText('2. Confirm this target'))
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(/several HOME activities/),
+    )
+    expect((screen.getByText('3. Apply HOME change') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('renders the preflight reason and keeps Apply disabled when the device is unsupported', async () => {
+    mocks.preflightLauncher.mockResolvedValue(
+      preflightPayload({
+        supported: false,
+        restorable: false,
+        currentHome: '',
+        homeCandidates: [],
+        reason: 'The supported HOME commands could not be probed: cmd package help probe failed',
+      }),
+    )
+    render(<LauncherWizardTrigger />)
+    fireEvent.click(screen.getByText('Custom launcher (Current+)'))
+
+    await waitFor(() => expect(screen.getByText(/could not be probed/)).toBeInTheDocument())
+    expect((screen.getByText('3. Apply HOME change') as HTMLButtonElement).disabled).toBe(true)
   })
 })
