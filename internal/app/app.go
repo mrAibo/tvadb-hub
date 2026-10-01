@@ -9,6 +9,7 @@ import (
 	"ADBKit/internal/download"
 	"ADBKit/internal/file"
 	"ADBKit/internal/flasher"
+	"ADBKit/internal/launcher"
 	packagemgr "ADBKit/internal/package_mgr"
 	"ADBKit/internal/scrcpy"
 	"ADBKit/internal/shell"
@@ -35,6 +36,7 @@ type App struct {
 	diaSvc   *dialog.Service
 	pkgSvc   *packagemgr.Service
 	tuneSvc  *tuning.Service
+	lauSvc   *launcher.Service
 	fileSvc  *file.Service
 	termSvc  *shell.TerminalService
 	logSvc   *shell.LogcatService
@@ -86,6 +88,9 @@ func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) 
 	a.pkgSvc = packagemgr.NewService(a.resolveActiveSerial, a.diaSvc.SelectSaveFile, getBinPath)
 	a.tuneSvc = tuning.NewService(a.dataDir, a.resolveActiveSerial, getBinPath, a.pkgSvc)
 	a.tuneSvc.SetFeedConfigResolver(a.currentSafeTuningFeedConfig)
+	// The guarded launcher runs on the existing resolved data directory and the
+	// shared tool-path resolver; it keeps its own record directory and mutex.
+	a.lauSvc = launcher.NewService(a.dataDir, getBinPath)
 	a.fileSvc = file.NewService(ctx, a.resolveActiveSerial, getBinPath)
 	a.fileSvc.SetTransferCompressionResolver(a.currentFileTransferCompression)
 	a.fileSvc.SetTransferVerificationResolver(a.currentVerifyAfterTransfer)

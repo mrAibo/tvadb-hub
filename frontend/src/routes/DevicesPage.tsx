@@ -15,6 +15,8 @@ import { RenameDialog } from '@/components/devices/RenameDialog'
 import { DeviceSidebar } from '@/components/devices/DeviceSidebar'
 import { SidebarStatusPanel } from '@/components/devices/SidebarStatusPanel'
 import { TVRemotePanel } from '@/components/tv/TVRemotePanel'
+import { LauncherWizardTrigger } from '@/components/launcher/LauncherWizard'
+import { LauncherRecoveryPanel } from '@/components/launcher/LauncherRecoveryPanel'
 import { useDevices } from '@/hooks/useDevices'
 import { useMonitor } from '@/hooks/useMonitor'
 
@@ -78,13 +80,18 @@ export default function DevicesPage() {
                 : 'Select a device from the sidebar to begin.'}
             </p>
           </div>
-          {activeSerial && (
-            <Button variant="outline" size="sm" className="h-8 text-xs font-medium" onClick={() => setRenameOpen(true)}>
-              <Pencil className="mr-1.5 h-3.5 w-3.5" />
-              Rename Device
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <LauncherWizardTrigger />
+            {activeSerial && (
+              <Button variant="outline" size="sm" className="h-8 text-xs font-medium" onClick={() => setRenameOpen(true)}>
+                <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                Rename Device
+              </Button>
+            )}
+          </div>
         </div>
+
+        <LauncherRecoveryPanel />
 
         {activeSerial ? (
           <motion.div

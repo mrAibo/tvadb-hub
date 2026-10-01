@@ -20,6 +20,7 @@ import {
 } from '@tabler/icons-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { LauncherWizardTrigger } from '@/components/launcher/LauncherWizard'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { sendTVRemoteKey, sendTVText } from '@/services/deviceService'
@@ -122,6 +123,7 @@ export function TVRemotePanel({ serial }: TVRemotePanelProps) {
             icon={Power}
             variant="destructive"
           />
+          <LauncherWizardTrigger />
         </div>
       </CardHeader>
 
