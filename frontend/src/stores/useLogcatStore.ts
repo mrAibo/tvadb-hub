@@ -31,6 +31,9 @@ interface LogcatActions {
   setError: (error: string | null) => void
   setLastUpdatedAt: (timestamp: number | null) => void
   setBufferLimit: (limit: number) => void
+  setPinnedOnly: (pinnedOnly: boolean) => void
+  togglePinned: (entry: LogcatEntry) => void
+  clearPinned: () => void
   clearLogs: () => void
   appendLogs: (entries: LogcatEntry[]) => void
   applyLineEvent: (entry: LogcatEntry) => void
@@ -43,6 +46,8 @@ interface LogcatExtraState {
   bufferLimit: number
   bufferFull: boolean
   savedFilters: SavedLogcatFilter[]
+  pinnedEntries: LogcatEntry[]
+  pinnedOnly: boolean
 }
 
 type LogcatStore = LogcatState & LogcatExtraState & LogcatActions
@@ -127,6 +132,8 @@ function normalizeStoredFilter(value: unknown): SavedLogcatFilter | null {
       levels,
       tag: typeof value.filter.tag === 'string' ? value.filter.tag : '',
       text: typeof value.filter.text === 'string' ? value.filter.text : '',
+      pid: typeof value.filter.pid === 'string' ? value.filter.pid : '',
+      process: typeof value.filter.process === 'string' ? value.filter.process : '',
       issue,
     },
   }
@@ -178,6 +185,8 @@ const initialState: LogcatState & LogcatExtraState = {
     levels: ['V', 'D', 'I', 'W', 'E', 'F'],
     tag: '',
     text: '',
+    pid: '',
+    process: '',
     issue: 'all',
   },
   error: null,
@@ -185,6 +194,8 @@ const initialState: LogcatState & LogcatExtraState = {
   bufferLimit: currentBufferLimit,
   bufferFull: false,
   savedFilters: loadSavedFilters(),
+  pinnedEntries: [],
+  pinnedOnly: false,
 }
 
 export const useLogcatStore = create<LogcatStore>()((set) => ({
@@ -248,6 +259,17 @@ export const useLogcatStore = create<LogcatStore>()((set) => ({
       bufferFull: state.logs.length >= bounded,
     }))
   },
+  setPinnedOnly: (pinnedOnly) => set({ pinnedOnly }),
+  togglePinned: (entry) =>
+    set((state) => {
+      const exists = state.pinnedEntries.some((pinned) => pinned.id === entry.id)
+      return {
+        pinnedEntries: exists
+          ? state.pinnedEntries.filter((pinned) => pinned.id !== entry.id)
+          : [...state.pinnedEntries, entry].slice(-100),
+      }
+    }),
+  clearPinned: () => set({ pinnedEntries: [], pinnedOnly: false }),
   clearLogs: () => {
     queuedEntries = []
     if (flushTimer !== null && typeof window !== 'undefined') {
