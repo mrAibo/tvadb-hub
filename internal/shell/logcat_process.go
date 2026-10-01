@@ -17,6 +17,7 @@ func queryLogcatProcessNames(ctx context.Context, adbPath, serial string) (map[s
 	commands := [][]string{
 		{"-s", serial, "shell", "ps", "-A", "-o", "PID,NAME"},
 		{"-s", serial, "shell", "ps", "-A"},
+		{"-s", serial, "shell", "ps"},
 	}
 
 	var lastErr error
