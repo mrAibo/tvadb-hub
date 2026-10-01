@@ -23,6 +23,8 @@ const baseFilter: LogcatFilter = {
   levels: ['V', 'D', 'I', 'W', 'E', 'F'],
   tag: '',
   text: '',
+  pid: '',
+  process: '',
   issue: 'all',
 }
 
@@ -55,6 +57,29 @@ describe('logcat issue analysis', () => {
     })
 
     expect(classifyLogcatIssue(entry)).toBeNull()
+  })
+
+  it('filters by exact PID and case-insensitive process name', () => {
+    const entry = makeEntry({
+      pid: '4242',
+      processName: 'com.example.Player:remote',
+    })
+
+    expect(matchesLogcatFilter(entry, {
+      ...baseFilter,
+      pid: '4242',
+      process: 'player',
+    })).toBe(true)
+
+    expect(matchesLogcatFilter(entry, {
+      ...baseFilter,
+      pid: '42',
+    })).toBe(false)
+
+    expect(matchesLogcatFilter(entry, {
+      ...baseFilter,
+      process: 'missing.app',
+    })).toBe(false)
   })
 
   it('combines issue filtering with level, tag and message filters', () => {

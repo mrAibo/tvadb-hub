@@ -48,7 +48,7 @@ below are the wider product backlog, not a competing immediate priority list.
 
 - [x] Read-only ADB smart-socket `host:devices-l` prototype + benchmark harness; production discovery remains CLI-backed
 - [x] Logcat 2.0 phase 1: crash/ANR filtering, highlighting and saved filters
-- [ ] Logcat 2.0 phase 2: app/PID filtering and pinned events
+- [x] Logcat 2.0 phase 2: app/PID filtering and pinned events
 - [ ] Permission/AppOps inspector with a read-only default mode
 - [ ] Device report export for support/debugging
 - [ ] Device-side screen recording workflow independent of scrcpy

@@ -8,6 +8,7 @@ export interface LogcatEntry {
     "time": string;
     "pid": string;
     "tid": string;
+    "processName"?: string;
     "level": string;
     "tag": string;
     "message": string;

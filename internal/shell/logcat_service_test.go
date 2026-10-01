@@ -227,3 +227,37 @@ func TestCloseStreamFlushesPendingBatchOnCancellation(t *testing.T) {
 		t.Fatal("cancelled stream was not removed from active streams")
 	}
 }
+
+
+func TestParseLogcatProcessNamesModernPS(t *testing.T) {
+	output := "PID NAME\n1 init\n123 com.example.player\n456 com.example.player:remote\n"
+	got := parseLogcatProcessNames(output)
+	if got["123"] != "com.example.player" {
+		t.Fatalf("unexpected process name for 123: %q", got["123"])
+	}
+	if got["456"] != "com.example.player:remote" {
+		t.Fatalf("unexpected process name for 456: %q", got["456"])
+	}
+}
+
+func TestParseLogcatProcessNamesLegacyPS(t *testing.T) {
+	output := "USER PID PPID VSZ RSS WCHAN ADDR S NAME\nu0_a123 321 1 0 0 0 0 S com.example.legacy\n"
+	got := parseLogcatProcessNames(output)
+	if got["321"] != "com.example.legacy" {
+		t.Fatalf("unexpected legacy process name: %q", got["321"])
+	}
+}
+
+func TestProcessNameCacheReplacesSnapshot(t *testing.T) {
+	cache := newProcessNameCache(map[string]string{"1": "old", "2": "gone"})
+	if got := cache.get("1"); got != "old" {
+		t.Fatalf("unexpected initial process: %q", got)
+	}
+	cache.replace(map[string]string{"1": "new"})
+	if got := cache.get("1"); got != "new" {
+		t.Fatalf("process snapshot was not replaced: %q", got)
+	}
+	if got := cache.get("2"); got != "" {
+		t.Fatalf("stale process survived replacement: %q", got)
+	}
+}

@@ -31,6 +31,8 @@ describe('LogcatFilters', () => {
       levels: ['E', 'F'],
       tag: '',
       text: '',
+      pid: '',
+      process: '',
       issue: 'crash',
     })
 
@@ -39,6 +41,8 @@ describe('LogcatFilters', () => {
       levels: ['V', 'D', 'I', 'W', 'E', 'F'],
       tag: '',
       text: '',
+      pid: '',
+      process: '',
       issue: 'all',
     })
   })
@@ -59,6 +63,12 @@ describe('LogcatFilters', () => {
     fireEvent.change(screen.getByPlaceholderText('Filter by tag...'), {
       target: { value: 'AndroidRuntime' },
     })
+    fireEvent.change(screen.getByPlaceholderText('PID...'), {
+      target: { value: '4242' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('App / process...'), {
+      target: { value: 'com.example.app' },
+    })
 
     fireEvent.click(screen.getByRole('button', { name: 'Save filter' }))
     fireEvent.change(screen.getByPlaceholderText('Filter name'), {
@@ -75,6 +85,8 @@ describe('LogcatFilters', () => {
       levels: ['E', 'F'],
       tag: 'AndroidRuntime',
       text: '',
+      pid: '4242',
+      process: 'com.example.app',
       issue: 'crash',
     })
 

@@ -391,6 +391,7 @@ export interface LogcatEntry {
   time: string
   pid: string
   tid: string
+  processName?: string
   level: LogcatLevel
   tag: string
   message: string
@@ -411,6 +412,8 @@ export interface LogcatFilter {
   levels: LogcatLevel[]
   tag: string
   text: string
+  pid: string
+  process: string
   issue: LogcatIssueFilter
 }
 

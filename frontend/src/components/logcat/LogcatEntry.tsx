@@ -23,9 +23,15 @@ const LEVEL_BG: Record<string, string> = {
 
 interface LogcatEntryProps {
   entry: LogcatEntryType
+  pinned?: boolean
+  onTogglePin?: (entry: LogcatEntryType) => void
 }
 
-export const LogcatEntry = memo(function LogcatEntry({ entry }: LogcatEntryProps) {
+export const LogcatEntry = memo(function LogcatEntry({
+  entry,
+  pinned = false,
+  onTogglePin,
+}: LogcatEntryProps) {
   const levelColor = LEVEL_COLORS[entry.level] ?? LEVEL_COLORS.V
   const levelBg = LEVEL_BG[entry.level] ?? LEVEL_BG.V
   const issue = classifyLogcatIssue(entry)
@@ -47,6 +53,14 @@ export const LogcatEntry = memo(function LogcatEntry({ entry }: LogcatEntryProps
       <span className="shrink-0 text-muted-foreground tabular-nums w-16 text-right select-none">
         {entry.pid}/{entry.tid}
       </span>
+      {entry.processName && (
+        <span
+          className="shrink-0 max-w-[180px] truncate text-violet-300/80"
+          title={entry.processName}
+        >
+          {entry.processName}
+        </span>
+      )}
       <span className="shrink-0 text-cyan-400/80 truncate max-w-[180px]">
         {entry.tag}
       </span>
@@ -65,6 +79,20 @@ export const LogcatEntry = memo(function LogcatEntry({ entry }: LogcatEntryProps
       <span className={cn('flex-1 truncate', levelColor)}>
         {entry.message}
       </span>
+      {onTogglePin && (
+        <button
+          type="button"
+          className={cn(
+            'shrink-0 rounded px-1.5 py-0.5 text-[9px] text-muted-foreground hover:bg-muted hover:text-foreground',
+            pinned && 'bg-primary/10 text-primary',
+          )}
+          aria-label={pinned ? 'Unpin log entry' : 'Pin log entry'}
+          title={pinned ? 'Unpin event' : 'Pin event'}
+          onClick={() => onTogglePin(entry)}
+        >
+          {pinned ? 'Pinned' : 'Pin'}
+        </button>
+      )}
     </div>
   )
 })
