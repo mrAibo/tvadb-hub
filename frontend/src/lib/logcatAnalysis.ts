@@ -59,6 +59,17 @@ export function matchesLogcatFilter(entry: LogcatEntry, filter: LogcatFilter): b
     return false
   }
 
+  if (filter.pid !== '' && entry.pid !== filter.pid.trim()) {
+    return false
+  }
+
+  if (
+    filter.process !== '' &&
+    !(entry.processName ?? '').toLowerCase().includes(filter.process.toLowerCase())
+  ) {
+    return false
+  }
+
   if (filter.issue !== 'all' && classifyLogcatIssue(entry) !== filter.issue) {
     return false
   }
