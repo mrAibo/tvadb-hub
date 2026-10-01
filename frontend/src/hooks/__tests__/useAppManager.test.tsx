@@ -40,6 +40,9 @@ describe('uninstallBatch', () => {
     vi.clearAllMocks()
     useDeviceStore.getState().reset()
     useAppManagerStore.getState().reset()
+    useDeviceStore.getState().setActiveSerial('test-device')
+    // A mutation is only legitimate for a list captured for the confirmed device.
+    useAppManagerStore.getState().setPackages('test-device', [])
     mocks.listPackages.mockResolvedValue([pkgA, pkgB])
     mocks.uninstallMultiplePackages.mockResolvedValue('Uninstalled 2 packages')
   })
@@ -64,7 +67,7 @@ describe('uninstallBatch', () => {
       await result.current.uninstallBatch()
     })
     expect(mocks.uninstallMultiplePackages).toHaveBeenCalledOnce()
-    expect(mocks.uninstallMultiplePackages).toHaveBeenCalledWith([
+    expect(mocks.uninstallMultiplePackages).toHaveBeenCalledWith('test-device', [
       'com.example.appA',
       'com.example.appB',
     ])
@@ -111,6 +114,9 @@ describe('uninstallSingle', () => {
     vi.clearAllMocks()
     useDeviceStore.getState().reset()
     useAppManagerStore.getState().reset()
+    useDeviceStore.getState().setActiveSerial('test-device')
+    // A mutation is only legitimate for a list captured for the confirmed device.
+    useAppManagerStore.getState().setPackages('test-device', [])
     mocks.uninstallPackage.mockResolvedValue('Uninstalled com.example.appA')
   })
 
@@ -128,6 +134,6 @@ describe('uninstallSingle', () => {
       await result.current.uninstallSingle('com.example.appA')
     })
     expect(mocks.uninstallPackage).toHaveBeenCalledOnce()
-    expect(mocks.uninstallPackage).toHaveBeenCalledWith('com.example.appA')
+    expect(mocks.uninstallPackage).toHaveBeenCalledWith('test-device', 'com.example.appA')
   })
 })

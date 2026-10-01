@@ -35,9 +35,55 @@ import * as scrcpy$0 from "../scrcpy/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as shell$0 from "../shell/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as tuning$0 from "../tuning/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as updater$0 from "../updater/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
+export function AnalyzeSafeTuning(profileID: string): $CancellablePromise<tuning$0.Analysis> {
+    return $Call.ByID(3542972997, profileID);
+}
+
+export function AnalyzeSafeTuningForDevice(serial: string, profileID: string): $CancellablePromise<tuning$0.Analysis> {
+    return $Call.ByID(1910898522, serial, profileID);
+}
+
+export function ApplySafeTuning(request: tuning$0.ApplyRequest): $CancellablePromise<tuning$0.ApplyResult> {
+    return $Call.ByID(2851340301, request);
+}
+
+export function AutoConnectWireless(selector: string): $CancellablePromise<device$0.WirelessConnectResult> {
+    return $Call.ByID(2589474954, selector);
+}
+
+/**
+ * AutoReconnectRememberedWireless discovers the current dynamic ADB endpoints
+ * once and reconnects remembered TVs that are not already ready in adb devices.
+ */
+export function AutoReconnectRememberedWireless(): $CancellablePromise<$models.WirelessReconnectReport> {
+    return $Call.ByID(1362127067);
+}
 
 export function CancelFileTransfer(): $CancellablePromise<void> {
     return $Call.ByID(3540445436);
+}
+
+export function CancelFileTransferFor(operationID: string): $CancellablePromise<void> {
+    return $Call.ByID(2859205779, operationID);
+}
+
+export function CaptureScreenshot(serial: string, localPath: string): $CancellablePromise<device$0.ScreenshotResult> {
+    return $Call.ByID(3411385027, serial, localPath);
+}
+
+export function CheckForUpdates(): $CancellablePromise<updater$0.ReleaseInfo> {
+    return $Call.ByID(3155932570);
 }
 
 export function ClearAuditLogs(): $CancellablePromise<void> {
@@ -56,6 +102,10 @@ export function ClearPackageData(packageName: string): $CancellablePromise<strin
     return $Call.ByID(875953584, packageName);
 }
 
+export function ClearPackageDataForDevice(expectedSerial: string, packageName: string): $CancellablePromise<string> {
+    return $Call.ByID(2026764277, expectedSerial, packageName);
+}
+
 export function CloseTerminal(sessionID: string): $CancellablePromise<void> {
     return $Call.ByID(4124276905, sessionID);
 }
@@ -64,8 +114,56 @@ export function CompleteSetup(): $CancellablePromise<binary$0.SetupState | null>
     return $Call.ByID(455247985);
 }
 
+export function ConfigureSafeTuningFeed(config: tuning$0.FeedConfig): $CancellablePromise<tuning$0.FeedStatus> {
+    return $Call.ByID(207582333, config);
+}
+
 export function ConnectWireless(address: string): $CancellablePromise<string> {
     return $Call.ByID(1774714983, address);
+}
+
+export function CreateDirectory(remotePath: string): $CancellablePromise<string> {
+    return $Call.ByID(2415799174, remotePath);
+}
+
+export function CreateDirectoryForDevice(expectedSerial: string, remotePath: string): $CancellablePromise<string> {
+    return $Call.ByID(3217079483, expectedSerial, remotePath);
+}
+
+export function DeleteFile(remotePath: string): $CancellablePromise<string> {
+    return $Call.ByID(1355371458, remotePath);
+}
+
+export function DeleteFileForDevice(expectedSerial: string, remotePath: string): $CancellablePromise<string> {
+    return $Call.ByID(3109305791, expectedSerial, remotePath);
+}
+
+export function DeleteMultipleFiles(remotePaths: string[] | null): $CancellablePromise<string> {
+    return $Call.ByID(3099217239, remotePaths);
+}
+
+export function DeleteMultipleFilesForDevice(expectedSerial: string, remotePaths: string[] | null): $CancellablePromise<string> {
+    return $Call.ByID(3022224996, expectedSerial, remotePaths);
+}
+
+export function DisableMultiplePackages(packageNames: string[] | null): $CancellablePromise<string> {
+    return $Call.ByID(2373593656, packageNames);
+}
+
+export function DisableMultiplePackagesForDevice(expectedSerial: string, packageNames: string[] | null): $CancellablePromise<string> {
+    return $Call.ByID(654293101, expectedSerial, packageNames);
+}
+
+export function DisablePackage(packageName: string): $CancellablePromise<string> {
+    return $Call.ByID(2834719751, packageName);
+}
+
+export function DisablePackageForDevice(expectedSerial: string, packageName: string): $CancellablePromise<string> {
+    return $Call.ByID(3207318068, expectedSerial, packageName);
+}
+
+export function DisconnectWireless(address: string): $CancellablePromise<string> {
+    return $Call.ByID(2658892249, address);
 }
 
 export function DiscoverWireless(): $CancellablePromise<device$0.MDNSService[] | null> {
@@ -74,46 +172,6 @@ export function DiscoverWireless(): $CancellablePromise<device$0.MDNSService[] |
 
 export function DiscoverWirelessDevices(): $CancellablePromise<device$0.DiscoveredWirelessDevice[] | null> {
     return $Call.ByID(3651711663);
-}
-
-export function AutoConnectWireless(selector: string): $CancellablePromise<device$0.WirelessConnectResult> {
-    return $Call.ByID(2589474954, selector);
-}
-
-export function AutoReconnectRememberedWireless(): $CancellablePromise<unknown> {
-    return $Call.ByID(1362127067);
-}
-
-export function PairDiscoveredWireless(selector: string, code: string): $CancellablePromise<device$0.WirelessPairResult> {
-    return $Call.ByID(3221402705, selector, code);
-}
-
-export function PairAndConnectWireless(selector: string, code: string): $CancellablePromise<device$0.WirelessPairAndConnectResult> {
-    return $Call.ByID(962886, selector, code);
-}
-
-export function CreateDirectory(remotePath: string): $CancellablePromise<string> {
-    return $Call.ByID(2415799174, remotePath);
-}
-
-export function DeleteFile(remotePath: string): $CancellablePromise<string> {
-    return $Call.ByID(1355371458, remotePath);
-}
-
-export function DeleteMultipleFiles(remotePaths: string[] | null): $CancellablePromise<string> {
-    return $Call.ByID(3099217239, remotePaths);
-}
-
-export function DisableMultiplePackages(packageNames: string[] | null): $CancellablePromise<string> {
-    return $Call.ByID(2373593656, packageNames);
-}
-
-export function DisablePackage(packageName: string): $CancellablePromise<string> {
-    return $Call.ByID(2834719751, packageName);
-}
-
-export function DisconnectWireless(address: string): $CancellablePromise<string> {
-    return $Call.ByID(2658892249, address);
 }
 
 export function DownloadPlatformTools(): $CancellablePromise<void> {
@@ -128,8 +186,16 @@ export function EnableMultiplePackages(packageNames: string[] | null): $Cancella
     return $Call.ByID(2259882189, packageNames);
 }
 
+export function EnableMultiplePackagesForDevice(expectedSerial: string, packageNames: string[] | null): $CancellablePromise<string> {
+    return $Call.ByID(499505170, expectedSerial, packageNames);
+}
+
 export function EnablePackage(packageName: string): $CancellablePromise<string> {
     return $Call.ByID(1723531040, packageName);
+}
+
+export function EnablePackageForDevice(expectedSerial: string, packageName: string): $CancellablePromise<string> {
+    return $Call.ByID(1482858629, expectedSerial, packageName);
 }
 
 export function EnableWirelessTCPIP(port: string, serial: string): $CancellablePromise<string> {
@@ -138,6 +204,10 @@ export function EnableWirelessTCPIP(port: string, serial: string): $CancellableP
 
 export function ExportAuditLogs(path: string): $CancellablePromise<void> {
     return $Call.ByID(1133489211, path);
+}
+
+export function ExportSettings(path: string): $CancellablePromise<void> {
+    return $Call.ByID(1954015320, path);
 }
 
 /**
@@ -160,6 +230,14 @@ export function ForceStopPackage(packageName: string): $CancellablePromise<strin
     return $Call.ByID(3751963970, packageName);
 }
 
+export function ForceStopPackageForDevice(expectedSerial: string, packageName: string): $CancellablePromise<string> {
+    return $Call.ByID(3498537535, expectedSerial, packageName);
+}
+
+export function ForgetRememberedWirelessDevice(key: string): $CancellablePromise<void> {
+    return $Call.ByID(230291066, key);
+}
+
 export function GetActiveScrcpySession(): $CancellablePromise<scrcpy$0.Session | null> {
     return $Call.ByID(489230595);
 }
@@ -176,6 +254,10 @@ export function GetAppConfig(): $CancellablePromise<core$0.AppConfigSnapshot> {
     return $Call.ByID(3154339166);
 }
 
+export function GetAppInfo(): $CancellablePromise<$models.AppInfo> {
+    return $Call.ByID(4157445708);
+}
+
 export function GetAuditLogs(limit: number): $CancellablePromise<audit$0.Entry[] | null> {
     return $Call.ByID(229985055, limit);
 }
@@ -186,6 +268,10 @@ export function GetBinaryStatus(): $CancellablePromise<binary$0.BinarySetupResul
 
 export function GetCapabilities(): $CancellablePromise<{ [_ in string]?: boolean } | null> {
     return $Call.ByID(1642500355);
+}
+
+export function GetConnectionDoctorReport(): $CancellablePromise<$models.ConnectionDoctorReport> {
+    return $Call.ByID(1300105696);
 }
 
 export function GetDeviceInfo(serial: string): $CancellablePromise<device$0.Info | null> {
@@ -208,8 +294,20 @@ export function GetDirectorySize(remotePath: string): $CancellablePromise<string
     return $Call.ByID(1427428581, remotePath);
 }
 
+export function GetDirectorySizeForDevice(expectedSerial: string, remotePath: string): $CancellablePromise<string> {
+    return $Call.ByID(3001868666, expectedSerial, remotePath);
+}
+
 export function GetFastbootDevices(): $CancellablePromise<flasher$0.FastbootDeviceInfo[] | null> {
     return $Call.ByID(957713130);
+}
+
+export function GetHostFileSystemInfo(): $CancellablePromise<file$0.HostFileSystemInfo> {
+    return $Call.ByID(1799163616);
+}
+
+export function GetLocalParentPath(localPath: string): $CancellablePromise<string> {
+    return $Call.ByID(3067990763, localPath);
 }
 
 export function GetManagedBinaryDir(): $CancellablePromise<string> {
@@ -220,16 +318,28 @@ export function GetPackageDetails(packageName: string): $CancellablePromise<pack
     return $Call.ByID(2421988071, packageName);
 }
 
+export function GetPackageDetailsForDevice(expectedSerial: string, packageName: string): $CancellablePromise<packagemgr$0.Details> {
+    return $Call.ByID(1401391252, expectedSerial, packageName);
+}
+
 export function GetPerformanceSnapshot(serial: string): $CancellablePromise<device$0.PerformanceSnapshot> {
     return $Call.ByID(981742441, serial);
+}
+
+export function GetRememberedWirelessDevices(): $CancellablePromise<core$0.RememberedWirelessDevice[] | null> {
+    return $Call.ByID(1445682174);
 }
 
 export function GetRuntimeDiagnostics(): $CancellablePromise<core$0.RuntimeDiagnostics> {
     return $Call.ByID(1841691581);
 }
 
-export function GetWirelessDiagnostics(selector: string): $CancellablePromise<unknown> {
-    return $Call.ByID(3649810751, selector);
+export function GetSafeTuningFeedConfig(): $CancellablePromise<tuning$0.FeedConfig> {
+    return $Call.ByID(85208519);
+}
+
+export function GetSafeTuningFeedStatus(): $CancellablePromise<tuning$0.FeedStatus> {
+    return $Call.ByID(2606776047);
 }
 
 export function GetScrcpyClipboard(serial: string): $CancellablePromise<string> {
@@ -255,6 +365,10 @@ export function GetStorageInfo(): $CancellablePromise<file$0.StorageInfo> {
     return $Call.ByID(671426754);
 }
 
+export function GetStorageInfoForDevice(expectedSerial: string): $CancellablePromise<file$0.StorageInfo> {
+    return $Call.ByID(3470748863, expectedSerial);
+}
+
 /**
  * GetWindowState returns the user's preferred window state ("maximised",
  * "normal", or "fullscreen"). The state is read from a small window.json
@@ -265,24 +379,45 @@ export function GetWindowState(): $CancellablePromise<string> {
     return $Call.ByID(3341756802);
 }
 
+/**
+ * GetWirelessDiagnostics performs non-destructive checks for the TV Wireless
+ * ADB workflow. selector may be a discovered host/IP, mDNS instance or endpoint.
+ * An empty selector is accepted when exactly one device host is discovered.
+ */
+export function GetWirelessDiagnostics(selector: string): $CancellablePromise<$models.WirelessDiagnosticsReport> {
+    return $Call.ByID(3649810751, selector);
+}
+
 export function GetWirelessHistory(): $CancellablePromise<core$0.WirelessHistoryEntry[] | null> {
     return $Call.ByID(2096684807);
-}
-
-export function GetRememberedWirelessDevices(): $CancellablePromise<unknown> {
-    return $Call.ByID(1445682174);
-}
-
-export function ForgetRememberedWirelessDevice(key: string): $CancellablePromise<void> {
-    return $Call.ByID(230291066, key);
 }
 
 export function ImportAuditLogs(path: string): $CancellablePromise<number> {
     return $Call.ByID(3429852810, path);
 }
 
+export function ImportSettings(path: string): $CancellablePromise<core$0.AppConfigSnapshot> {
+    return $Call.ByID(1808926483, path);
+}
+
 export function InstallPackage(filePath: string): $CancellablePromise<string> {
     return $Call.ByID(3740894366, filePath);
+}
+
+export function InstallPackageWithMode(filePath: string, mode: string): $CancellablePromise<string> {
+    return $Call.ByID(677021697, filePath, mode);
+}
+
+export function InstallPackageWithModeForDevice(expectedSerial: string, filePath: string, mode: string): $CancellablePromise<string> {
+    return $Call.ByID(3267609358, expectedSerial, filePath, mode);
+}
+
+export function InstallPackagesWithMode(filePaths: string[] | null, mode: string): $CancellablePromise<string> {
+    return $Call.ByID(336036536, filePaths, mode);
+}
+
+export function InstallPackagesWithModeForDevice(expectedSerial: string, filePaths: string[] | null, mode: string): $CancellablePromise<string> {
+    return $Call.ByID(1166719469, expectedSerial, filePaths, mode);
 }
 
 export function IsUserspaceFastboot(serial: string): $CancellablePromise<boolean> {
@@ -293,8 +428,20 @@ export function LaunchPackage(packageName: string): $CancellablePromise<string> 
     return $Call.ByID(3595758248, packageName);
 }
 
+export function LaunchPackageForDevice(expectedSerial: string, packageName: string): $CancellablePromise<string> {
+    return $Call.ByID(2026625981, expectedSerial, packageName);
+}
+
 export function ListFiles(remotePath: string, showHidden: boolean): $CancellablePromise<file$0.Entry[] | null> {
     return $Call.ByID(251904534, remotePath, showHidden);
+}
+
+export function ListFilesForDevice(expectedSerial: string, remotePath: string, showHidden: boolean): $CancellablePromise<file$0.Entry[] | null> {
+    return $Call.ByID(223609835, expectedSerial, remotePath, showHidden);
+}
+
+export function ListLocalFiles(localPath: string, showHidden: boolean): $CancellablePromise<file$0.Entry[] | null> {
+    return $Call.ByID(1598426753, localPath, showHidden);
 }
 
 export function ListManagedBinaries(): $CancellablePromise<string[] | null> {
@@ -305,8 +452,41 @@ export function ListPackages(filterType: string): $CancellablePromise<packagemgr
     return $Call.ByID(3630353506, filterType);
 }
 
+export function ListPackagesForDevice(expectedSerial: string, filterType: string): $CancellablePromise<packagemgr$0.Info[] | null> {
+    return $Call.ByID(2816869855, expectedSerial, filterType);
+}
+
 export function ListSdCards(): $CancellablePromise<file$0.SdCard[] | null> {
     return $Call.ByID(1531114407);
+}
+
+export function ListSdCardsForDevice(expectedSerial: string): $CancellablePromise<file$0.SdCard[] | null> {
+    return $Call.ByID(2903613268, expectedSerial);
+}
+
+export function ListTuningSnapshots(): $CancellablePromise<tuning$0.SnapshotSummary[] | null> {
+    return $Call.ByID(2377680159);
+}
+
+export function ListTuningSnapshotsForDevice(serial: string): $CancellablePromise<tuning$0.SnapshotSummary[] | null> {
+    return $Call.ByID(2648452860, serial);
+}
+
+/**
+ * OpenPathLocation opens a configured binary or directory in the host file
+ * manager. For files, platforms that support it highlight the file; Linux
+ * falls back to opening the containing directory.
+ */
+export function OpenPathLocation(path: string): $CancellablePromise<void> {
+    return $Call.ByID(1728850843, path);
+}
+
+export function PairAndConnectWireless(selector: string, code: string): $CancellablePromise<device$0.WirelessPairAndConnectResult> {
+    return $Call.ByID(962886, selector, code);
+}
+
+export function PairDiscoveredWireless(selector: string, code: string): $CancellablePromise<device$0.WirelessPairResult> {
+    return $Call.ByID(3221402705, selector, code);
 }
 
 export function PairWireless(address: string, code: string): $CancellablePromise<string> {
@@ -317,20 +497,40 @@ export function PullFile(remotePath: string, localPath: string): $CancellablePro
     return $Call.ByID(2408197358, remotePath, localPath);
 }
 
+export function PullFileForDevice(serial: string, remotePath: string, localPath: string): $CancellablePromise<string> {
+    return $Call.ByID(2740325907, serial, remotePath, localPath);
+}
+
 export function PullMultipleFiles(remotePaths: string[] | null, localDirectory: string): $CancellablePromise<string> {
     return $Call.ByID(3212602523, remotePaths, localDirectory);
+}
+
+export function PullMultipleFilesDetailed(expectedSerial: string, remotePaths: string[] | null, localDirectory: string): $CancellablePromise<file$0.TransferBatchResult> {
+    return $Call.ByID(3115446523, expectedSerial, remotePaths, localDirectory);
 }
 
 export function PullPackageApk(packageName: string): $CancellablePromise<string> {
     return $Call.ByID(3682822686, packageName);
 }
 
+export function PullPackageApkForDevice(expectedSerial: string, packageName: string): $CancellablePromise<string> {
+    return $Call.ByID(3681769827, expectedSerial, packageName);
+}
+
 export function PushFile(localPath: string, remotePath: string): $CancellablePromise<string> {
     return $Call.ByID(2731830669, localPath, remotePath);
 }
 
+export function PushFileForDevice(serial: string, localPath: string, remotePath: string): $CancellablePromise<string> {
+    return $Call.ByID(1309369554, serial, localPath, remotePath);
+}
+
 export function PushMultipleFiles(localPaths: string[] | null, remoteDirectory: string): $CancellablePromise<string> {
     return $Call.ByID(1562821958, localPaths, remoteDirectory);
+}
+
+export function PushMultipleFilesDetailed(expectedSerial: string, localPaths: string[] | null, remoteDirectory: string): $CancellablePromise<file$0.TransferBatchResult> {
+    return $Call.ByID(3069213382, expectedSerial, localPaths, remoteDirectory);
 }
 
 export function PushScrcpyClipboard(serial: string, text: string): $CancellablePromise<void> {
@@ -341,12 +541,36 @@ export function RebootDevice(serial: string, mode: string): $CancellablePromise<
     return $Call.ByID(1236422188, serial, mode);
 }
 
+export function RefreshSafeTuningFeed(): $CancellablePromise<tuning$0.FeedStatus> {
+    return $Call.ByID(2078803722);
+}
+
 export function RenameFile(oldRemotePath: string, newRemotePath: string): $CancellablePromise<string> {
     return $Call.ByID(1724962491, oldRemotePath, newRemotePath);
 }
 
+export function RenameFileForDevice(expectedSerial: string, oldRemotePath: string, newRemotePath: string): $CancellablePromise<string> {
+    return $Call.ByID(998904000, expectedSerial, oldRemotePath, newRemotePath);
+}
+
+export function RestartADBServer(): $CancellablePromise<string> {
+    return $Call.ByID(4093082264);
+}
+
+export function RestoreTuningSnapshot(snapshotID: string): $CancellablePromise<tuning$0.RestoreResult> {
+    return $Call.ByID(303356022, snapshotID);
+}
+
+export function RestoreTuningSnapshotForDevice(serial: string, snapshotID: string): $CancellablePromise<tuning$0.RestoreResult> {
+    return $Call.ByID(3743555787, serial, snapshotID);
+}
+
 export function RetryBinaryDetection(): $CancellablePromise<binary$0.BinarySetupResult | null> {
     return $Call.ByID(2288452565);
+}
+
+export function RollbackSafeTuningFeed(): $CancellablePromise<tuning$0.FeedStatus> {
+    return $Call.ByID(3309233295);
 }
 
 export function RunCustomFastbootCommand(serial: string, args: string): $CancellablePromise<string> {
@@ -367,6 +591,10 @@ export function ScanRomFolder(folderPath: string): $CancellablePromise<flasher$0
 
 export function SelectApkFile(): $CancellablePromise<string> {
     return $Call.ByID(2092370249);
+}
+
+export function SelectApkFiles(): $CancellablePromise<string[] | null> {
+    return $Call.ByID(2384692814);
 }
 
 export function SelectBinaryFile(name: string): $CancellablePromise<string> {
@@ -403,6 +631,14 @@ export function SelectScrcpyDirectory(): $CancellablePromise<dialog$0.ScrcpyDire
 
 export function SelectSideloadFile(): $CancellablePromise<string> {
     return $Call.ByID(1641148886);
+}
+
+export function SendTVRemoteKey(serial: string, key: string): $CancellablePromise<string> {
+    return $Call.ByID(3400772984, serial, key);
+}
+
+export function SendTVText(serial: string, text: string): $CancellablePromise<device$0.TVTextInputResult> {
+    return $Call.ByID(539502524, serial, text);
 }
 
 export function SendTerminalInput(sessionID: string, input: string): $CancellablePromise<void> {
@@ -487,12 +723,24 @@ export function UnblockPath(remotePath: string): $CancellablePromise<file$0.Unbl
     return $Call.ByID(1740768098, remotePath);
 }
 
+export function UnblockPathForDevice(expectedSerial: string, remotePath: string): $CancellablePromise<file$0.UnblockResult> {
+    return $Call.ByID(2693216991, expectedSerial, remotePath);
+}
+
 export function UninstallMultiplePackages(packageNames: string[] | null): $CancellablePromise<string> {
     return $Call.ByID(3120719178, packageNames);
 }
 
+export function UninstallMultiplePackagesForDevice(expectedSerial: string, packageNames: string[] | null): $CancellablePromise<string> {
+    return $Call.ByID(1436129591, expectedSerial, packageNames);
+}
+
 export function UninstallPackage(packageName: string): $CancellablePromise<string> {
     return $Call.ByID(4260212121, packageName);
+}
+
+export function UninstallPackageForDevice(expectedSerial: string, packageName: string): $CancellablePromise<string> {
+    return $Call.ByID(907690966, expectedSerial, packageName);
 }
 
 export function UpdatePreferences(payload: core$0.PreferencesPayload): $CancellablePromise<core$0.AppConfigSnapshot> {

@@ -1,21 +1,19 @@
 import { Call as WailsCall } from '@wailsio/runtime'
 import {
-  ListFiles,
-  GetDirectorySize,
-  GetStorageInfo,
-  PullFile,
-  PullMultipleFiles,
-  PushFile,
-  PushMultipleFiles,
-  DeleteFile,
-  DeleteMultipleFiles,
-  CreateDirectory,
-  RenameFile,
+  ListFilesForDevice,
+  GetDirectorySizeForDevice,
+  PullFileForDevice,
+  PushFileForDevice,
+  DeleteFileForDevice,
+  DeleteMultipleFilesForDevice,
+  CreateDirectoryForDevice,
+  RenameFileForDevice,
   SelectFile,
   SelectSavePath,
   SelectDirectory,
   SelectMultipleFiles,
   CancelFileTransfer,
+  GetStorageInfo,
   ListSdCards,
   UnblockPath,
 } from '../../bindings/ADBKit/internal/app/app'
@@ -42,15 +40,35 @@ export function onFileTransferProgress(
   })
 }
 
-export async function listFiles(remotePath: string, showHidden: boolean): Promise<FileEntry[]> {
-  const raw = await ListFiles(remotePath, showHidden)
+// Listing, sizing and every destructive file action are bound to a caller-confirmed
+// serial. The frontend never falls back to the mutable global selection: an empty
+// target is refused here, and the approved Go twins refuse it again before running
+// any command. Transfers keep running on the root service (see the *Detailed and
+// *ForDevice helpers below) so one owned transfer is never retargeted.
+function confirmedSerial(operation: string, serial: string): string {
+  const trimmed = serial.trim()
+  if (!trimmed) {
+    throw new Error(`${operation}: no confirmed device target is selected`)
+  }
+  return trimmed
+}
+
+export async function listFiles(
+  serial: string,
+  remotePath: string,
+  showHidden: boolean,
+): Promise<FileEntry[]> {
+  const raw = await ListFilesForDevice(confirmedSerial('list_files', serial), remotePath, showHidden)
   return raw as unknown as FileEntry[]
 }
 
-export async function getDirectorySize(remotePath: string): Promise<string> {
-  return GetDirectorySize(remotePath)
+export async function getDirectorySize(serial: string, remotePath: string): Promise<string> {
+  return GetDirectorySizeForDevice(confirmedSerial('get_directory_size', serial), remotePath)
 }
 
+// Storage info, SD-card listing and unblock guidance are still served by the legacy
+// serial-less bindings because their only callers (FilesPage, SdCardPicker) are
+// outside this change's scope; see the review note in the pull request.
 export async function getStorageInfo(): Promise<StorageInfo> {
   const raw = await GetStorageInfo()
   return raw as unknown as StorageInfo
@@ -73,48 +91,59 @@ export async function selectDirectory(): Promise<string> {
   return SelectDirectory()
 }
 
-export async function pullFile(remotePath: string, localPath: string, expectedSerial?: string): Promise<string> {
-  if (expectedSerial !== undefined) return WailsCall.ByName('ADBKit/internal/app.App.PullFileForDevice', expectedSerial, remotePath, localPath) as Promise<string>
-  return PullFile(remotePath, localPath)
+export async function pullFile(
+  serial: string,
+  remotePath: string,
+  localPath: string,
+): Promise<string> {
+  return PullFileForDevice(confirmedSerial('pull_file', serial), remotePath, localPath)
 }
 
-export async function pullMultipleFiles(remotePaths: string[], localDirectory: string): Promise<string> {
-  return PullMultipleFiles(remotePaths, localDirectory)
-}
-
-export async function pushFile(localPath: string, remotePath: string, expectedSerial?: string): Promise<string> {
-  if (expectedSerial !== undefined) return WailsCall.ByName('ADBKit/internal/app.App.PushFileForDevice', expectedSerial, localPath, remotePath) as Promise<string>
-  return PushFile(localPath, remotePath)
-}
-
-export async function pushMultipleFiles(localPaths: string[], remoteDirectory: string): Promise<string> {
-  return PushMultipleFiles(localPaths, remoteDirectory)
+export async function pushFile(
+  serial: string,
+  localPath: string,
+  remotePath: string,
+): Promise<string> {
+  return PushFileForDevice(confirmedSerial('push_file', serial), localPath, remotePath)
 }
 
 export async function pushMultipleFilesDetailed(serial: string, paths: string[], destination: string): Promise<TransferBatchResult> {
-  return WailsCall.ByName('ADBKit/internal/app.App.PushMultipleFilesDetailed', serial, paths, destination) as Promise<TransferBatchResult>
+  return WailsCall.ByName('ADBKit/internal/app.App.PushMultipleFilesDetailed', confirmedSerial('push_multiple_files', serial), paths, destination) as Promise<TransferBatchResult>
 }
 
 export async function pullMultipleFilesDetailed(serial: string, paths: string[], destination: string): Promise<TransferBatchResult> {
-  return WailsCall.ByName('ADBKit/internal/app.App.PullMultipleFilesDetailed', serial, paths, destination) as Promise<TransferBatchResult>
+  return WailsCall.ByName('ADBKit/internal/app.App.PullMultipleFilesDetailed', confirmedSerial('pull_multiple_files', serial), paths, destination) as Promise<TransferBatchResult>
 }
 
-export async function deleteFile(remotePath: string): Promise<string> {
-  return DeleteFile(remotePath)
+export async function deleteFile(serial: string, remotePath: string): Promise<string> {
+  return DeleteFileForDevice(confirmedSerial('delete_file', serial), remotePath)
 }
 
-export async function deleteMultipleFiles(remotePaths: string[]): Promise<string> {
-  return DeleteMultipleFiles(remotePaths)
+export async function deleteMultipleFiles(serial: string, remotePaths: string[]): Promise<string> {
+  return DeleteMultipleFilesForDevice(
+    confirmedSerial('delete_multiple_files', serial),
+    remotePaths,
+  )
 }
 
-export async function createDirectory(remotePath: string): Promise<string> {
-  return CreateDirectory(remotePath)
+export async function createDirectory(serial: string, remotePath: string): Promise<string> {
+  return CreateDirectoryForDevice(confirmedSerial('create_directory', serial), remotePath)
 }
 
-export async function renameFile(oldRemotePath: string, newRemotePath: string): Promise<string> {
-  return RenameFile(oldRemotePath, newRemotePath)
+export async function renameFile(
+  serial: string,
+  oldRemotePath: string,
+  newRemotePath: string,
+): Promise<string> {
+  return RenameFileForDevice(
+    confirmedSerial('rename_file', serial),
+    oldRemotePath,
+    newRemotePath,
+  )
 }
 
+// Cancelling is deliberately not device-bound: it addresses the single root-owned
+// transfer by its operation id, so a device switch cannot cancel another target.
 export function cancelFileTransfer(operationId?: string): void {
   if (operationId) void WailsCall.ByName('ADBKit/internal/app.App.CancelFileTransferFor', operationId)
   else CancelFileTransfer()

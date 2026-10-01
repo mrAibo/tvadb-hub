@@ -1,14 +1,5 @@
-import {
-  setActiveSerial as persistActiveSerial,
-  getDeviceInfo,
-  getDeviceMode,
-} from '@/services/deviceService'
-import { useDeviceStore } from '@/stores/useDeviceStore'
+import { useDeviceStore, requestDeviceSelection } from '@/stores/useDeviceStore'
 import { refreshDeviceState } from '@/hooks/useDeviceSync'
-
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Failed to sync devices'
-}
 
 export function useDevices() {
   const {
@@ -21,35 +12,18 @@ export function useDevices() {
     refreshing,
     error,
     lastUpdatedAt,
-    setActiveSerial,
-    setDeviceInfo,
-    setDeviceMode,
     setNickname,
-    setRefreshing,
-    setError,
   } = useDeviceStore()
 
   async function refreshDevices() {
     await refreshDeviceState(true)
   }
 
-  async function selectDevice(serial: string) {
-    setRefreshing(true)
-    try {
-      await persistActiveSerial(serial)
-      const [nextDeviceInfo, nextDeviceMode] = await Promise.all([
-        getDeviceInfo(serial),
-        getDeviceMode(serial),
-      ])
-      setActiveSerial(serial)
-      setDeviceInfo(nextDeviceInfo)
-      setDeviceMode(nextDeviceMode)
-      setError(null)
-    } catch (selectionError) {
-      setError(getErrorMessage(selectionError))
-    } finally {
-      setRefreshing(false)
-    }
+  // Selection is owned by the shared queue in the device store: several mounted
+  // hook instances (top bar, sidebar, devices page) share one serialized worker,
+  // so the last user intent always wins instead of the last RPC to return.
+  function selectDevice(serial: string): Promise<void> {
+    return requestDeviceSelection(serial, 'user')
   }
 
   return {

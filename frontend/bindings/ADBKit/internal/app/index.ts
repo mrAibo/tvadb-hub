@@ -5,3 +5,17 @@ import * as App from "./app.js";
 export {
     App
 };
+
+export {
+    ConnectionDoctorStatus,
+    WirelessDiagnosticStatus
+} from "./models.js";
+
+export type {
+    AppInfo,
+    ConnectionDoctorCheck,
+    ConnectionDoctorReport,
+    WirelessDiagnosticCheck,
+    WirelessDiagnosticsReport,
+    WirelessReconnectReport
+} from "./models.js";
