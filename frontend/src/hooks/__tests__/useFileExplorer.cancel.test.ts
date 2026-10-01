@@ -133,6 +133,6 @@ describe('useFileExplorer transfer cancellation', () => {
     await act(() => { useDeviceStore.getState().setActiveSerial('new-device'); useFileExplorerStore.getState().setError('new-device error') })
     await act(async () => { reject(new Error('old transfer failed')); await pending })
     expect(useFileExplorerStore.getState().error).toBe('new-device error')
-    expect(mocks.pushFile).toHaveBeenCalledWith('/tmp/file', '/sdcard/file', 'test-device')
+    expect(mocks.pushFile).toHaveBeenCalledWith('test-device', '/tmp/file', '/sdcard/file')
   })
 })

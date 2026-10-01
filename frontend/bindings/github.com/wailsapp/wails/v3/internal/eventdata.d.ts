@@ -28,7 +28,7 @@ declare module "@wailsio/runtime" {
             "file_transfer_progress": file$0.TransferProgress;
             "files-dropped": string[] | null;
             "flash_step_status": flasher$0.StepStatus;
-            "logcat_line": shell$0.LogcatEntry;
+            "logcat_batch": shell$0.LogcatEntry[] | null;
             "logcat_status": shell$0.LogcatStatusEvent;
             "scrcpy_error": scrcpy$0.SessionEvent;
             "scrcpy_session_started": scrcpy$0.SessionEvent;

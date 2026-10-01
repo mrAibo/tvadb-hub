@@ -52,8 +52,11 @@ function normalizePath(value: string): string {
   return trimmed.replace(/\/+$/, '') || '/sdcard'
 }
 
-function cacheKey(path: string, showHidden: boolean): string {
-  return `${normalizePath(path)}::hidden=${showHidden}`
+// The cache key is a collision-safe tuple of everything that identifies the
+// response: the confirmed serial, the normalized path and the hidden flag. A
+// response captured on one device can therefore never be served for another.
+function cacheKey(serial: string, path: string, showHidden: boolean): string {
+  return JSON.stringify([serial, normalizePath(path), showHidden])
 }
 
 function compareNames(a: FileEntry, b: FileEntry) {
@@ -125,6 +128,23 @@ export function useFileExplorer() {
     [activeSerial, devices],
   )
 
+  // Mutations re-read the live confirmed serial and refuse to act when the listing
+  // was captured for a different device, so a stale row or dialog cannot reach
+  // another target.
+  const requireConfirmedSerial = useCallback((operation: string): string | null => {
+    const live = useDeviceStore.getState().activeSerial
+    if (!live) {
+      toast.error(`${operation}: no device is selected`)
+      return null
+    }
+    const listing = useFileExplorerStore.getState().listingSerial
+    if (listing !== live) {
+      toast.error(`${operation}: the device changed — refresh the file list and try again`)
+      return null
+    }
+    return live
+  }, [])
+
   useEffect(() => {
     const unsub = onFileTransferProgress((progress) => {
       const current = useFileExplorerStore.getState().transferProgress
@@ -158,10 +178,9 @@ export function useFileExplorer() {
 
   const loadFiles = useCallback(
     async (nextPath: string, opts: { background?: boolean; force?: boolean } = {}) => {
-      if (!hasReadyAdb || !hasReadyActive) {
-        store.setFiles([])
-        store.clearSelection()
-        store.setLastUpdatedAt(null)
+      const serial = activeSerial
+      if (!hasReadyAdb || !hasReadyActive || !serial) {
+        store.clearMachineBoundState()
         store.setError('No ADB device connected')
         store.setLoading(false)
         store.setRefreshing(false)
@@ -169,7 +188,7 @@ export function useFileExplorer() {
       }
 
       const normalized = normalizePath(nextPath)
-      const key = cacheKey(normalized, store.showHidden)
+      const key = cacheKey(serial, normalized, store.showHidden)
       const cached = useFileExplorerStore.getState().fileCache[key]
       const useCache = Boolean(cached) && !opts.force
       const reqId = requestIdRef.current + 1
@@ -190,16 +209,20 @@ export function useFileExplorer() {
       store.setError(null)
 
       try {
-        const nextFiles = await listFiles(normalized, store.showHidden)
+        const nextFiles = await listFiles(serial, normalized, store.showHidden)
         if (requestIdRef.current !== reqId) return
+        // A reply for another serial (including A-B-A) must never render.
+        if (useDeviceStore.getState().activeSerial !== serial) return
         const now = Date.now()
         store.setFiles(nextFiles)
         store.setCachedFiles(key, nextFiles, now)
+        store.setListingSerial(serial)
         store.clearSelection()
         store.setLastUpdatedAt(now)
 
       } catch (err) {
         if (requestIdRef.current !== reqId) return
+        if (useDeviceStore.getState().activeSerial !== serial) return
         store.setError(getErrorMessage(err, 'Failed to load files'))
         store.setFiles([])
         store.clearSelection()
@@ -211,16 +234,21 @@ export function useFileExplorer() {
         }
       }
     },
-    [hasReadyAdb, hasReadyActive, store.showHidden],
+    [hasReadyAdb, hasReadyActive, activeSerial, store.showHidden],
   )
 
+  // Switching the confirmed device drops only the machine-bound listing, cache,
+  // dialogs and selection. An owned transfer (progress, verification evidence and
+  // its operation id) is deliberately preserved, and nothing is cancelled here.
   useEffect(() => {
-    void loadFiles(store.currentPath, { force: true })
-  }, [store.showHidden])
+    store.clearMachineBoundState()
+  }, [activeSerial])
 
+  // One listing request per (serial, path, hidden) commit: the previous pair of
+  // effects could fire two loads for the same path.
   useEffect(() => {
-    void loadFiles(store.currentPath)
-  }, [store.currentPath])
+    void loadFiles(useFileExplorerStore.getState().currentPath)
+  }, [activeSerial, store.currentPath, store.showHidden, loadFiles])
 
   const visibleFiles = useMemo(() => {
     const term = store.searchTerm.trim().toLowerCase()
@@ -287,7 +315,7 @@ export function useFileExplorer() {
     store.setError(null)
     store.setTransferProgress({ serial: targetSerial, fileName: name, direction: 'pull', percent: 0, active: true })
     try {
-      const message = await pullFile(remotePath, localPath, targetSerial)
+      const message = await pullFile(targetSerial, remotePath, localPath)
       toast.success(`${targetSerial}: ${message}`)
       return true
     } catch (err) {
@@ -315,7 +343,7 @@ export function useFileExplorer() {
     store.setError(null)
     store.setTransferProgress({ serial: targetSerial, fileName: name, direction: 'push', percent: 0, active: true })
     try {
-      const message = await pushFile(localPath, remotePath, targetSerial)
+      const message = await pushFile(targetSerial, localPath, remotePath)
       toast.success(`${targetSerial}: ${message}`)
       if (useDeviceStore.getState().activeSerial === targetSerial) await loadFiles(store.currentPath, { background: true, force: true })
       return true
@@ -338,8 +366,10 @@ export function useFileExplorer() {
     const name = remotePath.split('/').pop() ?? remotePath
     store.setBusyFilePath(remotePath)
     store.setError(null)
+    const serial = requireConfirmedSerial('Delete file')
+    if (!serial) return false
     try {
-      await toast.promise(deleteMultipleFiles([remotePath]), {
+      await toast.promise(deleteMultipleFiles(serial, [remotePath]), {
         loading: `Deleting ${name}...`,
         success: (msg) => msg,
         error: (err) => getErrorMessage(err, 'Failed to delete file'),
@@ -360,7 +390,9 @@ export function useFileExplorer() {
     store.setBusyFilePath(store.currentPath)
     store.setError(null)
     try {
-      const msg = await createDirectory(`${normalizePath(store.currentPath)}/${trimmed}`)
+      const serial = requireConfirmedSerial('Create folder')
+      if (!serial) return false
+      const msg = await createDirectory(serial, `${normalizePath(store.currentPath)}/${trimmed}`)
       toast.success(msg)
       await loadFiles(store.currentPath, { background: true, force: true })
       return true
@@ -380,7 +412,9 @@ export function useFileExplorer() {
     store.setBusyFilePath(oldPath)
     store.setError(null)
     try {
-      const msg = await renameFile(oldPath, trimmed)
+      const serial = requireConfirmedSerial('Rename file')
+      if (!serial) return false
+      const msg = await renameFile(serial, oldPath, trimmed)
       toast.success(msg)
       await loadFiles(store.currentPath, { background: true, force: true })
       return true
@@ -402,7 +436,9 @@ export function useFileExplorer() {
     store.setBusyFilePath(sourcePath)
     store.setError(null)
     try {
-      await toast.promise(renameFile(sourcePath, newPath), {
+      const serial = requireConfirmedSerial('Move file')
+      if (!serial) return false
+      await toast.promise(renameFile(serial, sourcePath, newPath), {
         loading: `Moving ${name}...`,
         success: (msg) => msg,
         error: (err) => getErrorMessage(err, 'Failed to move file'),
@@ -459,7 +495,9 @@ export function useFileExplorer() {
     store.setBusyBatchAction('delete')
     store.setError(null)
     try {
-      await toast.promise(deleteMultipleFiles(store.selectedFiles), {
+      const serial = requireConfirmedSerial('Delete files')
+      if (!serial) return false
+      await toast.promise(deleteMultipleFiles(serial, store.selectedFiles), {
         loading: `Deleting ${store.selectedFiles.length} file(s)...`,
         success: (msg) => msg,
         error: (err) => getErrorMessage(err, 'Failed to delete files'),
@@ -553,12 +591,14 @@ export function useFileExplorer() {
 
   async function getSizeForFile(file: FileEntry) {
     if (file.type !== 'directory') return
-    const key = cacheKey(store.currentPath, store.showHidden)
+    const serial = requireConfirmedSerial('Directory size')
+    if (!serial) return
+    const key = cacheKey(serial, store.currentPath, store.showHidden)
     try {
-      const size = await getDirectorySize(file.path)
-      store.updateFileSize(file.path, size, key)
+      const size = await getDirectorySize(serial, file.path)
+      if (useDeviceStore.getState().activeSerial === serial) store.updateFileSize(file.path, size, key)
     } catch {
-      store.updateFileSize(file.path, '--', key)
+      if (useDeviceStore.getState().activeSerial === serial) store.updateFileSize(file.path, '--', key)
     }
   }
 

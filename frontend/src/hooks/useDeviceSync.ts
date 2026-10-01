@@ -2,21 +2,33 @@ import { useEffect } from 'react'
 import {
   getDevices,
   getActiveSerial,
-  setActiveSerial as persistActiveSerial,
   getDeviceInfo,
   getDeviceMode,
   getDeviceNicknames,
   autoReconnectRememberedWireless,
 } from '@/services/deviceService'
-import { useDeviceStore } from '@/stores/useDeviceStore'
+import { useDeviceStore, requestDeviceSelection } from '@/stores/useDeviceStore'
+import { useSettingsStore } from '@/stores/useSettingsStore'
 
-const DEVICE_POLL_INTERVAL = 8000
+const DEFAULT_DEVICE_POLL_SECONDS = 8
 const WIRELESS_RECONNECT_INTERVAL = 20000
 
 let syncPromise: Promise<void> | null = null
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Failed to sync devices'
+}
+
+// Read-only view of the persisted preferences. Polling must never hydrate or
+// rewrite the settings draft, so it reads the published snapshot directly.
+function devicePollIntervalMs(): number {
+  const config = useSettingsStore.getState().appConfig
+  if (!config || config.auto_refresh_devices === false) {
+    return 0
+  }
+  const seconds = config.device_refresh_seconds
+  const bounded = Number.isFinite(seconds) && seconds > 0 ? seconds : DEFAULT_DEVICE_POLL_SECONDS
+  return bounded * 1000
 }
 
 async function syncDeviceState(isBackgroundRefresh: boolean) {
@@ -38,34 +50,36 @@ async function syncDeviceState(isBackgroundRefresh: boolean) {
     store.setDevices(nextDevices)
     store.setNicknames(persistedNicknames)
 
-    let nextActiveSerial = persistedActiveSerial
     const firstDevice = nextDevices[0]
+    const persistedExists = nextDevices.some(
+      (device) => device.serial === persistedActiveSerial,
+    )
+    const currentSerial = useDeviceStore.getState().activeSerial
 
-    if (!nextActiveSerial && firstDevice) {
-      nextActiveSerial = firstDevice.serial
-      await persistActiveSerial(nextActiveSerial)
-    }
-
-    const serialExists = nextDevices.some((device) => device.serial === nextActiveSerial)
-    if (!serialExists) {
-      nextActiveSerial = firstDevice?.serial ?? ''
-      if (nextActiveSerial) {
-        await persistActiveSerial(nextActiveSerial)
+    if (!persistedActiveSerial && firstDevice) {
+      // First run: adopt the first device through the shared queue.
+      await requestDeviceSelection(firstDevice.serial, 'restore')
+    } else if (!persistedExists) {
+      // The confirmed serial disappeared: re-anchor once, through the same queue.
+      if (firstDevice) {
+        await requestDeviceSelection(firstDevice.serial, 'restore')
+      } else {
+        store.setActiveSerial('')
+        store.setDeviceInfo(null)
+        store.setDeviceMode('unknown')
       }
-    }
-
-    store.setActiveSerial(nextActiveSerial)
-
-    if (nextActiveSerial) {
-      const [nextDeviceInfo, nextDeviceMode] = await Promise.all([
-        getDeviceInfo(nextActiveSerial),
-        getDeviceMode(nextActiveSerial),
-      ])
-      store.setDeviceInfo(nextDeviceInfo)
-      store.setDeviceMode(nextDeviceMode)
     } else {
-      store.setDeviceInfo(null)
-      store.setDeviceMode('unknown')
+      // The poll never re-elects the persisted serial: the user's selection (or the
+      // queue's latest intent) stays authoritative; only the facts are refreshed.
+      const target = currentSerial || persistedActiveSerial
+      const [nextDeviceInfo, nextDeviceMode] = await Promise.all([
+        getDeviceInfo(target),
+        getDeviceMode(target),
+      ])
+      if (useDeviceStore.getState().activeSerial === target) {
+        store.setDeviceInfo(nextDeviceInfo)
+        store.setDeviceMode(nextDeviceMode)
+      }
     }
 
     store.setLastUpdatedAt(Date.now())
@@ -111,10 +125,29 @@ export function useDeviceSync() {
     void refreshDeviceState(false)
     void reconnectRememberedWireless()
 
-    const deviceIntervalId = window.setInterval(() => {
-      if (document.hidden) return
-      void refreshDeviceState(true)
-    }, DEVICE_POLL_INTERVAL)
+    // The interval is re-read from the persisted config whenever it may have
+    // changed, so a saved change applies without re-mounting and without ever
+    // touching an unsaved settings draft.
+    let deviceIntervalId = 0
+    let currentIntervalMs = -1
+
+    function applyPollInterval() {
+      const interval = devicePollIntervalMs()
+      if (interval === currentIntervalMs) return
+      currentIntervalMs = interval
+      if (deviceIntervalId) {
+        window.clearInterval(deviceIntervalId)
+        deviceIntervalId = 0
+      }
+      if (interval > 0) {
+        deviceIntervalId = window.setInterval(() => {
+          if (document.hidden) return
+          applyPollInterval()
+          void refreshDeviceState(true)
+        }, interval)
+      }
+    }
+    applyPollInterval()
 
     const reconnectIntervalId = window.setInterval(() => {
       void reconnectRememberedWireless()
@@ -122,6 +155,7 @@ export function useDeviceSync() {
 
     function handleVisibilityChange() {
       if (!document.hidden) {
+        applyPollInterval()
         void refreshDeviceState(true)
         void reconnectRememberedWireless()
       }
@@ -130,7 +164,7 @@ export function useDeviceSync() {
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
-      window.clearInterval(deviceIntervalId)
+      if (deviceIntervalId) window.clearInterval(deviceIntervalId)
       window.clearInterval(reconnectIntervalId)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }

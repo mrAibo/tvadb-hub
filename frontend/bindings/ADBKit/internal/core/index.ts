@@ -9,6 +9,7 @@ export type {
     AppConfigSnapshot,
     BinaryInfo,
     PreferencesPayload,
+    RememberedWirelessDevice,
     RuntimeDiagnostics,
     ScrcpyOptions,
     ScrcpyPreset,

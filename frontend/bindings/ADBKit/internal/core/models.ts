@@ -18,6 +18,8 @@ export interface AppConfigSnapshot {
     "audit_enabled": boolean;
     "file_transfer_compression": string;
     "verify_after_transfer": boolean;
+    "safe_tuning_feed_url": string;
+    "safe_tuning_feed_public_key": string;
 }
 
 /**
@@ -57,6 +59,22 @@ export interface PreferencesPayload {
     "audit_enabled"?: boolean | null;
     "file_transfer_compression": string;
     "verify_after_transfer"?: boolean | null;
+    "safe_tuning_feed_url"?: string | null;
+    "safe_tuning_feed_public_key"?: string | null;
+}
+
+export interface RememberedWirelessDevice {
+    "key": string;
+    "instance_name"?: string;
+    "host": string;
+    "last_address"?: string;
+    "name"?: string;
+    "hardware_serial"?: string;
+    "model"?: string;
+    "manufacturer"?: string;
+    "android_version"?: string;
+    "last_seen_at"?: string;
+    "auto_connect": boolean;
 }
 
 export interface RuntimeDiagnostics {
