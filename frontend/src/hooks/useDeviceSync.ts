@@ -68,10 +68,14 @@ async function syncDeviceState(isBackgroundRefresh: boolean) {
         store.setDeviceInfo(null)
         store.setDeviceMode('unknown')
       }
+    } else if (currentSerial === '') {
+      // First observation after a reload: adopt the persisted selection through the
+      // shared queue, so it is serialized against any user intent.
+      await requestDeviceSelection(persistedActiveSerial, 'restore')
     } else {
       // The poll never re-elects the persisted serial: the user's selection (or the
       // queue's latest intent) stays authoritative; only the facts are refreshed.
-      const target = currentSerial || persistedActiveSerial
+      const target = currentSerial
       const [nextDeviceInfo, nextDeviceMode] = await Promise.all([
         getDeviceInfo(target),
         getDeviceMode(target),

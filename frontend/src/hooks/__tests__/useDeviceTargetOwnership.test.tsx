@@ -92,15 +92,19 @@ describe('device-bound file listing', () => {
   it('never serves one device cached listing for another device', async () => {
     renderHook(() => useFileExplorer())
     await waitFor(() => expect(useFileExplorerStore.getState().listingSerial).toBe('A'))
+    const firstCache = useFileExplorerStore.getState().fileCache
+    expect(Object.keys(firstCache)).toEqual([JSON.stringify(['A', '/sdcard', false])])
 
     act(() => {
       useDeviceStore.setState({ devices: [readyDevice('B')], activeSerial: 'B' })
     })
-    await waitFor(() => expect(fileMocks.listFiles).toHaveBeenCalledWith('B', '/sdcard', false))
+    await waitFor(() => expect(useFileExplorerStore.getState().listingSerial).toBe('B'))
 
-    const keys = Object.keys(useFileExplorerStore.getState().fileCache)
-    expect(keys).toContain(JSON.stringify(['A', '/sdcard', false]))
-    expect(keys).toContain(JSON.stringify(['B', '/sdcard', false]))
+    // The switch drops the machine-bound cache instead of reusing A's entry, and the
+    // new listing is stored under B's own tuple.
+    const secondCache = useFileExplorerStore.getState().fileCache
+    expect(Object.keys(secondCache)).toEqual([JSON.stringify(['B', '/sdcard', false])])
+    expect(secondCache[JSON.stringify(['A', '/sdcard', false])]).toBeUndefined()
   })
 })
 

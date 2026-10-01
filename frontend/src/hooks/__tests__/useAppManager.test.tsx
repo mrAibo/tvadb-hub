@@ -41,6 +41,9 @@ describe('uninstallBatch', () => {
     useDeviceStore.getState().reset()
     useAppManagerStore.getState().reset()
     useDeviceStore.getState().setActiveSerial('test-device')
+    useDeviceStore.setState({
+      devices: [{ serial: 'test-device', mode: 'adb', state: 'device' }],
+    })
     // A mutation is only legitimate for a list captured for the confirmed device.
     useAppManagerStore.getState().setPackages('test-device', [])
     mocks.listPackages.mockResolvedValue([pkgA, pkgB])
@@ -115,6 +118,9 @@ describe('uninstallSingle', () => {
     useDeviceStore.getState().reset()
     useAppManagerStore.getState().reset()
     useDeviceStore.getState().setActiveSerial('test-device')
+    useDeviceStore.setState({
+      devices: [{ serial: 'test-device', mode: 'adb', state: 'device' }],
+    })
     // A mutation is only legitimate for a list captured for the confirmed device.
     useAppManagerStore.getState().setPackages('test-device', [])
     mocks.uninstallPackage.mockResolvedValue('Uninstalled com.example.appA')
