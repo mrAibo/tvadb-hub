@@ -91,7 +91,7 @@ func TestStopRecordingSingleWaitOwnerManualStop(t *testing.T) {
 	svc, auditLog := newRecordingTestService(t)
 	rec, _ := startFakeRecording(t, svc, "payload", false)
 
-	waitForRecordingOutput(t, rec.path)
+	waitForRecordingPayload(t, rec.path, "payload")
 
 	outputPath, err := svc.StopRecording()
 	if err != nil {
@@ -158,7 +158,9 @@ func TestStopRecordingReportsEmptyOutput(t *testing.T) {
 	svc, auditLog := newRecordingTestService(t)
 	rec, _ := startFakeRecording(t, svc, "", false)
 
-	waitForRecordingOutput(t, rec.path)
+	// The empty output is the intended input of this test, not a readiness
+	// artifact: wait until the file exists with exactly 0 bytes.
+	waitForRecordingEmptyOutput(t, rec.path)
 
 	if _, err := svc.StopRecording(); err == nil || !strings.Contains(err.Error(), "Recording file is empty") {
 		t.Fatalf("empty recording was not reported truthfully: %v", err)
@@ -187,7 +189,7 @@ func TestStopRecordingUnconfirmedCompletionFailsClosed(t *testing.T) {
 	// No Wait owner is started for this cmd, so completion cannot be confirmed here.
 	t.Cleanup(func() { reapRecordingProcess(t, rec.cmd) })
 
-	waitForRecordingOutput(t, rec.path)
+	waitForRecordingPayload(t, rec.path, "payload")
 
 	_, err := svc.StopRecording()
 	if err == nil {
@@ -330,16 +332,49 @@ func reapRecordingProcess(t *testing.T, cmd *exec.Cmd) {
 	}
 }
 
-func waitForRecordingOutput(t *testing.T, path string) {
+// waitForRecordingPayload waits until the owned fake recorder has written exactly
+// len(payload) bytes before a test drives a stop. The helper writes its payload
+// with os.WriteFile, which creates the file before writing it, so a bare
+// existence check can observe the zero-length file and make the product's correct
+// fail-closed empty-output path look like a regression (t65 triage). The wait is
+// bounded and reports the observed size, so it can never mask a stuck helper or
+// weaken a product assertion.
+func waitForRecordingPayload(t *testing.T, path, payload string) {
+	t.Helper()
+	waitForRecordingSize(t, path, int64(len(payload)))
+}
+
+// waitForRecordingEmptyOutput keeps the intentional empty-output case explicit:
+// the file must exist and be exactly 0 bytes, so
+// TestStopRecordingReportsEmptyOutput exercises the product's fail-closed empty
+// check instead of racing the helper's own write.
+func waitForRecordingEmptyOutput(t *testing.T, path string) {
+	t.Helper()
+	waitForRecordingSize(t, path, 0)
+}
+
+// waitForRecordingSize polls with a bounded deadline until path exists with
+// exactly wantSize bytes, then fails the test with the last observation.
+func waitForRecordingSize(t *testing.T, path string, wantSize int64) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
+	var lastErr error
+	var lastSize int64
 	for time.Now().Before(deadline) {
-		if _, err := os.Stat(path); err == nil {
-			return
+		if info, err := os.Stat(path); err == nil {
+			if info.Size() == wantSize {
+				return
+			}
+			lastErr, lastSize = nil, info.Size()
+		} else {
+			lastErr = err
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Fatalf("the fake recorder never created %s", path)
+	if lastErr != nil {
+		t.Fatalf("the fake recorder never created %s: %v", path, lastErr)
+	}
+	t.Fatalf("the fake recorder wrote %d bytes to %s, want %d", lastSize, path, wantSize)
 }
 
 func hasAuditEntry(log *audit.Log, operation string) bool {

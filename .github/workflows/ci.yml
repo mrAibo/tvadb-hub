@@ -75,6 +75,8 @@ jobs:
       - name: Run race detector on concurrent backend packages
         run: |
           go test -race             ./internal/core             ./internal/device             ./internal/file             ./internal/package_mgr             ./internal/shell             ./internal/scrcpy             ./internal/tuning             ./internal/app
+      - name: Repeat the scrcpy race suite to catch recording-helper readiness flakiness
+        run: go test -race ./internal/scrcpy -count=20
 
   windows-internal-tests:
     runs-on: windows-latest
