@@ -28,7 +28,9 @@ const deviceMocks = vi.hoisted(() => ({
 }))
 
 // The generated bindings, so the real service wrappers can be exercised directly
-// instead of through the hook-level module mock.
+// instead of through the hook-level module mock. Path resolves to frontend/bindings,
+// the same module the service imports; without it the real bindings would call the
+// Wails runtime and try to reach a dev server.
 const bindingMocks = vi.hoisted(() => ({
   ListFilesForDevice: vi.fn(),
   GetDirectorySizeForDevice: vi.fn(),
@@ -48,7 +50,7 @@ const bindingMocks = vi.hoisted(() => ({
   UnblockPathForDevice: vi.fn(),
 }))
 
-vi.mock('../../../../bindings/ADBKit/internal/app/app', () => bindingMocks)
+vi.mock('../../../bindings/ADBKit/internal/app/app', () => bindingMocks)
 
 vi.mock('@/services/fileService', () => fileMocks)
 vi.mock('@/services/deviceService', () => deviceMocks)
