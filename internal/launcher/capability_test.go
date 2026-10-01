@@ -80,6 +80,35 @@ func TestProbeCapabilityReportsSupportedUnsupportedAndUnknown(t *testing.T) {
 	}
 }
 
+// TestCapabilityWordingNamesPackageRoleSelection pins the updated wording: the probe
+// can only prove that the commands exist, and it must say that the setter is
+// package/role-backed instead of implying an exact-component guarantee.
+func TestCapabilityWordingNamesPackageRoleSelection(t *testing.T) {
+	device := newFakeDevice()
+	service := newTestService(t, device)
+
+	capability := service.bind(testSerial).probeCapability(context.Background())
+	if capability.Status != CapabilitySupported {
+		t.Fatalf("status = %s, want supported", capability.Status)
+	}
+	for _, want := range []string{"PACKAGE/role-backed", "reduced to its package name", "several HOME activities is refused"} {
+		if !strings.Contains(capability.Detail, want) {
+			t.Fatalf("capability detail must state %q: %q", want, capability.Detail)
+		}
+	}
+	// The probe stays token based: a help text without the package-only disclaimer is
+	// still supported, because the single-HOME guard - not this probe - carries the
+	// reversibility proof.
+	device.capability = "Package manager (package) commands:\n  set-home-activity [--user USER_ID] TARGET-COMPONENT\n  resolve-activity [--user USER_ID] INTENT\n"
+	capability = service.bind(testSerial).probeCapability(context.Background())
+	if capability.Status != CapabilitySupported {
+		t.Fatalf("a token-only help text must stay supported: %+v", capability)
+	}
+	if strings.Contains(capability.Detail, "exact component") {
+		t.Fatalf("the detail must not promise exact-component semantics: %q", capability.Detail)
+	}
+}
+
 func TestLaunchInterpretationRequiresMeaningfulOutput(t *testing.T) {
 	cases := []struct {
 		name     string

@@ -807,3 +807,264 @@ func TestHomeCommandAndRecordUseOnlySupportedWritePath(t *testing.T) {
 		}
 	}
 }
+
+const (
+	stockAltHome     = "com.stock.launcher/com.stock.launcher.AltHomeActivity"
+	candidateMain    = "com.custom.launcher/.MainActivity"
+	candidateAltHome = "com.custom.launcher/.AltActivity"
+)
+
+// TestApplyRefusesSeveralHomeActivitiesPerPackage covers the package/role-backed
+// semantics of the supported setter: a package with more than one HOME activity can
+// never prove which exact component HOME will resolve to, so the apply must be
+// refused before the durable record and before any device change.
+func TestApplyRefusesSeveralHomeActivitiesPerPackage(t *testing.T) {
+	cases := []struct {
+		name       string
+		components []string
+		current    string
+		expected   string
+		candidate  string
+		wantDetail string
+		// currentAmbiguous marks a device whose OWN current HOME package is ambiguous:
+		// such a device must be reported unsupported. When only a candidate package is
+		// ambiguous the device stays supported and the ambiguity is reported read-only.
+		currentAmbiguous bool
+		ambiguousPkg     string
+	}{
+		{
+			name:             "original package declares two HOME activities",
+			components:       []string{testOriginal, stockAltHome, candidateMain},
+			current:          testOriginal,
+			expected:         testOriginal,
+			candidate:        candidateMain,
+			wantDetail:       "current HOME package declares several HOME activities",
+			currentAmbiguous: true,
+			ambiguousPkg:     testOriginalPkg,
+		},
+		{
+			name:         "candidate package declares two HOME activities",
+			components:   []string{testOriginal, candidateMain, candidateAltHome},
+			current:      testOriginal,
+			expected:     testOriginal,
+			candidate:    candidateMain,
+			wantDetail:   "requested launcher package declares several HOME activities",
+			ambiguousPkg: testCandidatePkg,
+		},
+		{
+			name:             "original and candidate share one multi-HOME package",
+			components:       []string{candidateMain, candidateAltHome},
+			current:          candidateMain,
+			expected:         candidateMain,
+			candidate:        candidateAltHome,
+			wantDetail:       "declares 2 HOME activities",
+			currentAmbiguous: true,
+			ambiguousPkg:     testCandidatePkg,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			device := newFakeDevice()
+			device.components = tc.components
+			device.current = mustNormalize(tc.current)
+			service := newTestService(t, device)
+
+			result, err := service.Apply(context.Background(), ApplyRequest{
+				OperationID:        "op-multihome1",
+				ExpectedSerial:     testSerial,
+				ExpectedComponent:  tc.expected,
+				CandidateComponent: tc.candidate,
+			})
+			if err == nil {
+				t.Fatal("a multi-HOME package must not be changed")
+			}
+			if !strings.Contains(err.Error(), tc.wantDetail) {
+				t.Fatalf("error = %v, want %q", err, tc.wantDetail)
+			}
+			if !strings.Contains(err.Error(), "HOME activities") {
+				t.Fatalf("the refusal must name the ambiguity: %v", err)
+			}
+			if result.State != "" || result.Verified {
+				t.Fatalf("a refused apply must not report an outcome: %+v", result)
+			}
+			if device.sawCommand("set-home-activity") {
+				t.Fatalf("no device change may happen: %v", device.commands())
+			}
+			if device.sawCommand("am start") {
+				t.Fatalf("a refused apply must not launch anything: %v", device.commands())
+			}
+			if _, statErr := os.Stat(filepath.Join(service.dataDir, "launcher", "op-multihome1.json")); statErr == nil {
+				t.Fatal("a refused apply must not leave a durable record")
+			}
+
+			// The preflight must report the same ambiguity instead of claiming support.
+			report, preflightErr := service.Preflight(context.Background(), testSerial, testIdentity())
+			if preflightErr != nil {
+				t.Fatal(preflightErr)
+			}
+			if !strings.Contains(report.ProbeDetail, "refused as targets") || !strings.Contains(report.ProbeDetail, tc.ambiguousPkg) {
+				t.Fatalf("preflight detail must name the ambiguous package: %q", report.ProbeDetail)
+			}
+			if tc.currentAmbiguous {
+				if report.Supported || report.Restorable {
+					t.Fatalf("an ambiguous current HOME must not be supported: %+v", report)
+				}
+				if !strings.Contains(report.Reason, "HOME activities") {
+					t.Fatalf("preflight reason = %q", report.Reason)
+				}
+			} else if !report.Supported || !report.Restorable {
+				t.Fatalf("a device with an unambiguous current HOME stays supported: %+v", report)
+			}
+			if device.sawCommand("set-home-activity") {
+				t.Fatalf("preflight must stay read-only: %v", device.commands())
+			}
+		})
+	}
+}
+
+// TestRestoreRefusesSeveralHomeActivitiesBeforeAnyChange covers the restore side:
+// the guard must run before the first write command and must leave the record as it
+// was, while still offering the serial-pinned manual path.
+func TestRestoreRefusesSeveralHomeActivitiesBeforeAnyChange(t *testing.T) {
+	device := newFakeDevice()
+	device.components = []string{testOriginal, stockAltHome, candidateMain}
+	device.current = mustNormalize(candidateMain)
+	service := newTestService(t, device)
+
+	record := validRecord("op-restmulti", StateApplied)
+	if err := service.store().persist(record); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := service.Restore(context.Background(), RestoreRequest{ExpectedSerial: testSerial, RecordID: "op-restmulti"})
+	if err == nil {
+		t.Fatal("a multi-HOME original package must not be restored")
+	}
+	if !strings.Contains(err.Error(), "several HOME activities") {
+		t.Fatalf("error = %v", err)
+	}
+	if !strings.Contains(err.Error(), "exact restoration cannot be proven") {
+		t.Fatalf("the refusal must state why: %v", err)
+	}
+	if device.sawCommand("set-home-activity") {
+		t.Fatalf("no device change may happen before the guard: %v", device.commands())
+	}
+	if !strings.Contains(result.ManualCommand, testSerial) || !strings.Contains(result.ManualCommand, testOriginal) {
+		t.Fatalf("the refusal must offer the serial-pinned manual path: %q", result.ManualCommand)
+	}
+	loaded, loadErr := service.store().load("op-restmulti")
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if loaded.State != StateApplied {
+		t.Fatalf("a refusal must not rewrite the record: %+v", loaded)
+	}
+}
+
+// TestSingleHomePerPackagePathIsUnchanged is the guard's negative control: with one
+// HOME activity per package the proven path still applies, verifies and restores the
+// exact components, and the canonical argument keeps --user before the component.
+func TestSingleHomePerPackagePathIsUnchanged(t *testing.T) {
+	device := newFakeDevice()
+	service := newTestService(t, device)
+
+	report, err := service.Preflight(context.Background(), testSerial, testIdentity())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Supported || !report.Restorable || report.CurrentHome != testOriginal {
+		t.Fatalf("single-HOME preflight must stay supported: %+v", report)
+	}
+
+	applied, err := service.Apply(context.Background(), ApplyRequest{
+		OperationID: "op-singlehome", ExpectedSerial: testSerial,
+		ExpectedComponent: testOriginal, CandidateComponent: testCandidate,
+	})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if !applied.Verified || applied.State != StateApplied || applied.CurrentComponent != mustNormalize(testCandidate) {
+		t.Fatalf("unexpected apply result: %+v", applied)
+	}
+
+	// The canonical argument order is preserved: --user 0 precedes the component.
+	wantArgs := []string{"-s", testSerial, "shell", "cmd", "package", "set-home-activity", "--user", "0", "'" + mustNormalize(testCandidate) + "'"}
+	found := false
+	for _, req := range device.recorded() {
+		if strings.Contains(strings.Join(req.Args, " "), "set-home-activity") {
+			found = true
+			if strings.Join(req.Args, "\x00") != strings.Join(wantArgs, "\x00") {
+				t.Fatalf("set-home argv = %#v, want %#v", req.Args, wantArgs)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no HOME command was recorded")
+	}
+
+	restored, err := service.Restore(context.Background(), RestoreRequest{ExpectedSerial: testSerial, RecordID: "op-singlehome"})
+	if err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	if !restored.Verified || restored.State != StateRestored || restored.CurrentComponent != testOriginal {
+		t.Fatalf("unexpected restore result: %+v", restored)
+	}
+}
+
+// TestPreflightSurfacesRecoveryReadFailure keeps a recovery-read failure visible:
+// supported=false plus a reason, never a silently empty list.
+func TestPreflightSurfacesRecoveryReadFailure(t *testing.T) {
+	t.Run("unreadable launcher directory", func(t *testing.T) {
+		device := newFakeDevice()
+		service := newTestService(t, device)
+		// A regular file where the record directory belongs makes the local read fail
+		// deterministically, without touching the device.
+		if err := os.WriteFile(filepath.Join(service.dataDir, "launcher"), []byte("not a directory"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		report, err := service.Preflight(context.Background(), testSerial, testIdentity())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if report.Supported {
+			t.Fatalf("a recovery read failure must not be reported as supported: %+v", report)
+		}
+		if !strings.Contains(report.Reason, "recovery state is not trustworthy") || !strings.Contains(report.Reason, "could not be read") {
+			t.Fatalf("reason = %q", report.Reason)
+		}
+		if !strings.Contains(report.ProbeDetail, "recovery records could not be read") {
+			t.Fatalf("probe detail = %q", report.ProbeDetail)
+		}
+		if device.sawCommand("set-home-activity") {
+			t.Fatalf("preflight must stay read-only: %v", device.commands())
+		}
+	})
+
+	t.Run("unreadable record file is still listed", func(t *testing.T) {
+		device := newFakeDevice()
+		service := newTestService(t, device)
+		dir := filepath.Join(service.dataDir, "launcher")
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "op-broken001.json"), []byte("{not json"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		report, err := service.Preflight(context.Background(), testSerial, testIdentity())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if report.Supported {
+			t.Fatalf("an unreadable record must not be reported as supported: %+v", report)
+		}
+		if !strings.Contains(report.Reason, "unreadable file") || !strings.Contains(report.ProbeDetail, "op-broken001.json") {
+			t.Fatalf("reason = %q, detail = %q", report.Reason, report.ProbeDetail)
+		}
+		if len(report.Recovery) != 1 || !report.Recovery[0].Unreadable || report.Recovery[0].File != "op-broken001.json" {
+			t.Fatalf("the unreadable record must stay listed: %+v", report.Recovery)
+		}
+	})
+}

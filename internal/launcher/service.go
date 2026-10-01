@@ -4,6 +4,7 @@ import (
 	"ADBKit/internal/core"
 	"context"
 	"fmt"
+	"os"
 	"runtime"
 	"sort"
 	"strings"
@@ -321,11 +322,40 @@ func (ins inspection) candidateViews() []HomeCandidate {
 	return views
 }
 
+// countHomeForPackage reports how many of the listed HOME components belong to the
+// package of the given component.
+//
+// The supported HOME setter selects HOME for a PACKAGE: since Android 10
+// `cmd package set-home-activity` reduces its TARGET-COMPONENT argument to the
+// package name and assigns the HOME role to that package, so the component that
+// actually becomes HOME is chosen by the platform. Several HOME activities inside
+// one package therefore make both the exact component and its restoration
+// unprovable, and every such package is refused instead of being guessed.
+func countHomeForPackage(components []string, component string) int {
+	pkg := packageOf(component)
+	count := 0
+	for _, listed := range components {
+		if packageOf(listed) == pkg {
+			count++
+		}
+	}
+	return count
+}
+
+// homeCount reports how many distinct normalized HOME components the package of the
+// given component declares.
+func (ins inspection) homeCount(component string) int {
+	return countHomeForPackage(ins.components, component)
+}
+
 // restorable reports whether the current HOME can be restored by the supported
-// command: exactly known, listed as a HOME activity, installed and enabled, and not
-// a platform resolver.
+// command: exactly known, the only HOME activity of its package, listed as a HOME
+// activity, installed and enabled, and not a platform resolver.
 func (ins inspection) restorable() bool {
 	if ins.current == "" || isChooserOrResolver(ins.current) {
+		return false
+	}
+	if ins.homeCount(ins.current) != 1 {
 		return false
 	}
 	found := false
@@ -356,6 +386,10 @@ func (ins inspection) candidateFor(component string) error {
 	}
 	if !found {
 		return core.NewOperationError("launcher_candidate", "The requested component is not a resolvable HOME activity", component, false)
+	}
+	if count := ins.homeCount(component); count != 1 {
+		return core.NewOperationError("launcher_candidate", "The requested launcher package declares several HOME activities",
+			fmt.Sprintf("%s declares %d HOME activities; the supported command selects HOME per package, so the exact component cannot be proven", packageOf(component), count), false)
 	}
 	state := ins.states[packageOf(component)]
 	if !state.installed {
@@ -388,17 +422,55 @@ func (s *Service) Preflight(ctx context.Context, serial string, identity Identit
 		UserID:         androidUserID,
 		Capability:     ins.capability,
 		HomeCandidates: ins.candidateViews(),
-		ProbeDetail:    strings.Join(ins.problems, "; "),
 	}
 	if ins.current != "" {
 		report.CurrentHome = ins.current
 		report.ManualCommand = ManualSetHomeCommand(s.toolName(), pinned, androidUserID, ins.current, runtime.GOOS)
 	}
-	if recovery, err := s.ReadRecovery(pinned); err == nil {
+	// Recovery browsing is local and read-only. A failure must never be rendered as
+	// "nothing to recover": keep it visible, keep TestCandidate/Apply blocked, and
+	// report the reason instead of an empty list.
+	recoveryProblem := ""
+	if recovery, recoveryErr := s.ReadRecovery(pinned); recoveryErr != nil {
+		recoveryProblem = "recovery records could not be read: " + recoveryErr.Error()
+	} else {
 		report.Recovery = recovery.Records
+		for _, entry := range recovery.Records {
+			if entry.Unreadable {
+				recoveryProblem = "recovery records include an unreadable file (" + entry.File + ")"
+				break
+			}
+		}
+	}
+	// A candidate package with several HOME activities cannot be used as an exact
+	// target. It does not block a device whose current HOME is unambiguous, so it is
+	// reported read-only and refused by Apply/TestCandidate when actually chosen.
+	ambiguousCandidates := make([]string, 0)
+	reportedPackages := make(map[string]bool, len(ins.components))
+	for _, component := range ins.components {
+		pkg := packageOf(component)
+		if reportedPackages[pkg] {
+			continue
+		}
+		reportedPackages[pkg] = true
+		if count := ins.homeCount(component); count > 1 {
+			ambiguousCandidates = append(ambiguousCandidates, fmt.Sprintf("%s (%d HOME activities)", pkg, count))
+		}
 	}
 
+	probeNotes := make([]string, 0, len(ins.problems)+2)
+	probeNotes = append(probeNotes, ins.problems...)
+	if recoveryProblem != "" {
+		probeNotes = append(probeNotes, recoveryProblem)
+	}
+	if len(ambiguousCandidates) > 0 {
+		probeNotes = append(probeNotes, "packages with several HOME activities are refused as targets: "+strings.Join(ambiguousCandidates, ", "))
+	}
+	report.ProbeDetail = strings.Join(probeNotes, "; ")
+
 	switch {
+	case recoveryProblem != "":
+		report.Reason = "Launcher recovery state is not trustworthy: " + recoveryProblem + "; review the launcher directory before changing HOME"
 	case ins.capability.Status == CapabilityUnknown:
 		report.Reason = "The supported HOME commands could not be probed: " + ins.capability.Detail
 	case ins.capability.Status != CapabilitySupported:
@@ -409,6 +481,9 @@ func (s *Service) Preflight(ctx context.Context, serial string, identity Identit
 		report.Reason = "The current HOME component is unknown or ambiguous"
 	case isChooserOrResolver(ins.current):
 		report.Reason = "The current HOME is a platform resolver/chooser, not a reversible launcher"
+	case ins.homeCount(ins.current) > 1:
+		report.Reason = fmt.Sprintf("The current HOME package %s declares %d HOME activities: the supported command selects HOME per package, so exact restoration cannot be proven",
+			packageOf(ins.current), ins.homeCount(ins.current))
 	default:
 		report.Restorable = ins.restorable()
 		if report.Restorable {
@@ -591,10 +666,18 @@ func (s *Service) ReadRecovery(expectedSerial string) (Recovery, error) {
 		}
 	}
 
+	// A regular file where the record directory belongs cannot hold records. Report
+	// that state instead of degrading into "no records" (some platforms map the
+	// resulting read error to "not exist", which would look like an empty recovery).
+	if info, statErr := os.Stat(s.store().dir); statErr == nil && !info.IsDir() {
+		return Recovery{}, core.NewOperationError("launcher_record", "Launcher record path is not a directory", s.store().dir, false)
+	}
+
 	records, unreadable, err := s.store().list()
 	if err != nil {
 		return Recovery{}, err
 	}
+
 	tool := s.toolName()
 	summaries := make([]RecordSummary, 0, len(records)+len(unreadable))
 	for _, record := range sortedRecords(records) {
@@ -827,6 +910,10 @@ func applyPreconditions(ins inspection, expected, candidate string) error {
 	if isChooserOrResolver(ins.current) {
 		return core.NewOperationError("launcher_apply", "The current HOME is a platform resolver/chooser", ins.current, false)
 	}
+	if count := ins.homeCount(ins.current); count != 1 {
+		return core.NewOperationError("launcher_apply", "The current HOME package declares several HOME activities",
+			fmt.Sprintf("%s declares %d HOME activities; the supported command selects HOME per package, so exact restoration cannot be proven and no change was made", packageOf(ins.current), count), false)
+	}
 	if !ins.restorable() {
 		return core.NewOperationError("launcher_apply", "The current HOME is not restorable by the supported command", ins.current, false)
 	}
@@ -959,6 +1046,38 @@ func (s *Service) Restore(ctx context.Context, request RestoreRequest) (RestoreR
 			ManualCommand:     manual,
 			Detail:            "this record needs no recovery",
 		}, nil
+	}
+
+	// The restore path must prove exact restoration before it touches the device:
+	// the supported command acts on a PACKAGE, so a package with several HOME
+	// activities cannot be restored to one exact component.
+	components, err := tgt.homeComponents(ctx)
+	if err != nil {
+		return RestoreResult{}, core.NewOperationError("launcher_restore", "The HOME activity list could not be read", err.Error(), true)
+	}
+	if count := countHomeForPackage(components, record.OriginalComponent); count != 1 {
+		return RestoreResult{
+				RecordID:          record.ID,
+				Serial:            serial,
+				State:             record.State,
+				RestoredComponent: record.OriginalComponent,
+				CurrentComponent:  record.CurrentComponent,
+				ManualCommand:     manual,
+				Detail:            "the original HOME package declares several HOME activities; no device change was made",
+			}, core.NewOperationError("launcher_restore", "The original HOME package declares several HOME activities",
+				fmt.Sprintf("%s declares %d HOME activities; the supported command selects HOME per package, so exact restoration cannot be proven and no device change was made; manual recovery: %s", packageOf(record.OriginalComponent), count, manual), false)
+	}
+	if count := countHomeForPackage(components, record.CandidateComponent); count != 1 {
+		return RestoreResult{
+				RecordID:          record.ID,
+				Serial:            serial,
+				State:             record.State,
+				RestoredComponent: record.OriginalComponent,
+				CurrentComponent:  record.CurrentComponent,
+				ManualCommand:     manual,
+				Detail:            "the recorded candidate package declares several HOME activities; no device change was made",
+			}, core.NewOperationError("launcher_restore", "The recorded candidate package declares several HOME activities",
+				fmt.Sprintf("%s declares %d HOME activities; this record predates the single-HOME guard, so its candidate identity is not proven; no device change was made; manual recovery: %s", packageOf(record.CandidateComponent), count, manual), false)
 	}
 
 	current, err := tgt.currentHome(ctx)
