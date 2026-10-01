@@ -156,11 +156,13 @@ describe('useScrcpy preset persistence', () => {
   })
 
   it('keeps a preset added while the initial config is still loading', async () => {
-    const pendingConfigs: Array<(config: AppConfigSnapshot) => void> = []
-    mocks.getAppConfig.mockImplementation(
+    // Only the startup hydration read is held open; the write's own read of the
+    // saved configuration resolves immediately.
+    let releaseHydration: (config: AppConfigSnapshot) => void = () => {}
+    mocks.getAppConfig.mockImplementationOnce(
       () =>
         new Promise<AppConfigSnapshot>((resolve) => {
-          pendingConfigs.push(resolve)
+          releaseHydration = resolve
         }),
     )
 
@@ -170,14 +172,13 @@ describe('useScrcpy preset persistence', () => {
     act(() => {
       savePromise = result.current.handleSavePreset('Added early')
     })
-
-    // Release both the hydration read and the queued write read.
-    await act(async () => {
-      pendingConfigs.forEach((resolve) => resolve(savedConfig()))
-      await Promise.resolve()
-    })
     await act(async () => {
       await savePromise
+    })
+
+    await act(async () => {
+      releaseHydration(savedConfig())
+      await Promise.resolve()
     })
 
     const names = useScrcpyStore.getState().presets.map((preset) => preset.name)
