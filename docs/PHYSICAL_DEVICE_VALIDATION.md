@@ -55,3 +55,14 @@ For Android TV targets, additionally test D-pad, Home, Back, media and volume co
 
 Publish only after at least one real Android device has completed the core validation
 and the intended release workflows without unresolved blocking failures.
+
+## Recording a successful release gate
+
+After all blocking checks and the intended Windows package smoke test pass for a specific release candidate:
+
+1. Retain the validation JSON and test notes with the release evidence. Avoid committing device-identifying data to the public repository.
+2. Set the repository Actions variable `PHYSICAL_DEVICE_VALIDATED_VERSION` to the exact version that was tested, for example `0.1.0`.
+3. Publish only that version. A later version requires a new physical validation and a new variable value.
+
+The release workflow enforces this value for both manual publication and tag-triggered publication. Building an unpublished release candidate remains possible without it.
+
