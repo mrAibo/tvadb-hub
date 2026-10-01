@@ -69,22 +69,29 @@ export function LogcatView({ scrollContainerRef }: LogcatViewProps) {
     return () => clearTimeout(timer)
   }, [filteredLogs.length, virtualizer])
 
-  if (filteredLogs.length === 0 && logs.length === 0) {
+  if (filteredLogs.length === 0 && pinnedOnly && pinnedEntries.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground">
         <div className="text-center">
-          <p className="text-sm font-medium">{pinnedOnly ? 'No pinned events' : 'No logcat output'}</p>
-          <p className="text-xs mt-1">
-            {pinnedOnly
-              ? 'Pin an event from the live log to keep it here'
-              : 'Start a logcat stream to see device logs here'}
-          </p>
+          <p className="text-sm font-medium">No pinned events</p>
+          <p className="text-xs mt-1">Pin an event from the live log to keep it here</p>
         </div>
       </div>
     )
   }
 
-  if (filteredLogs.length === 0 && logs.length > 0) {
+  if (filteredLogs.length === 0 && logs.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        <div className="text-center">
+          <p className="text-sm font-medium">No logcat output</p>
+          <p className="text-xs mt-1">Start a logcat stream to see device logs here</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (filteredLogs.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground">
         <div className="text-center">
