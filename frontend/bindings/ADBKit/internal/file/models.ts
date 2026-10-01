@@ -12,6 +12,13 @@ export interface Entry {
     "isHidden": boolean;
 }
 
+export interface HostFileSystemInfo {
+    "home": string;
+    "roots": string[] | null;
+    "separator": string;
+    "os": string;
+}
+
 /**
  * SdCard describes a removable storage volume reported by the device, either
  * the emulated internal SD card (`/sdcard`) or a physical external SD card
@@ -48,7 +55,26 @@ export interface StorageInfo {
     "usedPct": number;
 }
 
+export interface TransferBatchResult {
+    "operationId": string;
+    "serial": string;
+    "items": TransferItemResult[] | null;
+    "completed": number;
+    "failed": number;
+    "cancelled": number;
+    "skipped": number;
+}
+
+export interface TransferItemResult {
+    "source": string;
+    "destination": string;
+    "status": string;
+    "message": string;
+}
+
 export interface TransferProgress {
+    "operationId"?: string;
+    "serial"?: string;
     "fileName": string;
     "direction": string;
     "percent": number;

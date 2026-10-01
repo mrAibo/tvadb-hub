@@ -118,7 +118,15 @@ describe('useFileExplorer transfer cancellation', () => {
     await act(() => useFileExplorerStore.getState().setSelectedFiles(['/sdcard/old']))
     let pending!: Promise<boolean>
     await act(() => { pending = result.current.pullSelectedFiles('/tmp') })
-    await act(() => { useDeviceStore.getState().setActiveSerial('new-device'); useFileExplorerStore.getState().setSelectedFiles(['/sdcard/new']) })
+    await act(() => {
+      useDeviceStore.setState({
+        devices: [{ serial: 'new-device', mode: 'adb', state: 'device' }],
+        activeSerial: 'new-device',
+      })
+    })
+    // The new device's selection is made after the switch, and the old transfer's
+    // completion must leave it untouched.
+    await act(() => useFileExplorerStore.getState().setSelectedFiles(['/sdcard/new']))
     await act(async () => { resolve({ operationId: 'old', serial: 'test-device', completed: 1, failed: 0, cancelled: 0, skipped: 0, items: [{ source: '/sdcard/old', destination: '/tmp/old', status: 'success', message: 'OK' }] }); await pending })
     expect(useFileExplorerStore.getState().selectedFiles).toEqual(['/sdcard/new'])
     expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('test-device: 1 completed'))
@@ -130,9 +138,15 @@ describe('useFileExplorer transfer cancellation', () => {
     const { result } = renderHook(() => useFileExplorer())
     let pending!: Promise<boolean>
     await act(() => { pending = result.current.pushSingleFile('/tmp/file', '/sdcard/file') })
-    await act(() => { useDeviceStore.getState().setActiveSerial('new-device'); useFileExplorerStore.getState().setError('new-device error') })
+    await act(() => {
+      useDeviceStore.setState({
+        devices: [{ serial: 'new-device', mode: 'adb', state: 'device' }],
+        activeSerial: 'new-device',
+      })
+    })
+    await act(async () => { useFileExplorerStore.getState().setError('new-device error') })
     await act(async () => { reject(new Error('old transfer failed')); await pending })
     expect(useFileExplorerStore.getState().error).toBe('new-device error')
-    expect(mocks.pushFile).toHaveBeenCalledWith('/tmp/file', '/sdcard/file', 'test-device')
+    expect(mocks.pushFile).toHaveBeenCalledWith('test-device', '/tmp/file', '/sdcard/file')
   })
 })

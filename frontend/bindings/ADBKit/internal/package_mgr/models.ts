@@ -8,6 +8,9 @@ export interface Details {
     "apkSizeBytes": number;
     "dataSizeBytes": number;
     "totalSizeBytes": number;
+    "tvLauncher": boolean;
+    "standardLauncher": boolean;
+    "launcherHint": string;
 }
 
 export interface Info {

@@ -1,17 +1,19 @@
 import { Call as WailsCall } from '@wailsio/runtime'
 import {
-  ListPackages,
-  UninstallPackage,
-  UninstallMultiplePackages,
-  EnablePackage,
-  EnableMultiplePackages,
-  DisablePackage,
-  DisableMultiplePackages,
-  ClearPackageData,
-  PullPackageApk,
-  LaunchPackage,
-  ForceStopPackage,
-  GetPackageDetails,
+  ListPackagesForDevice,
+  InstallPackageWithModeForDevice,
+  InstallPackagesWithModeForDevice,
+  UninstallPackageForDevice,
+  UninstallMultiplePackagesForDevice,
+  EnablePackageForDevice,
+  EnableMultiplePackagesForDevice,
+  DisablePackageForDevice,
+  DisableMultiplePackagesForDevice,
+  ClearPackageDataForDevice,
+  PullPackageApkForDevice,
+  LaunchPackageForDevice,
+  ForceStopPackageForDevice,
+  GetPackageDetailsForDevice,
   SelectApkFile,
 } from '../../bindings/ADBKit/internal/app/app'
 import type {
@@ -21,17 +23,32 @@ import type {
   PackageInstallMode,
 } from '@/lib/types'
 
-export async function listPackages(filter: PackageFilter): Promise<PackageInfo[]> {
-  const raw = await ListPackages(filter)
+// Every package operation is bound to a caller-confirmed serial. The frontend never
+// falls back to the mutable global selection: an empty target is refused here, and
+// the approved Go twins refuse it again before running any command.
+function confirmedSerial(operation: string, serial: string): string {
+  const trimmed = serial.trim()
+  if (!trimmed) {
+    throw new Error(`${operation}: no confirmed device target is selected`)
+  }
+  return trimmed
+}
+
+export async function listPackages(
+  serial: string,
+  filter: PackageFilter,
+): Promise<PackageInfo[]> {
+  const raw = await ListPackagesForDevice(confirmedSerial('list_packages', serial), filter)
   return raw as unknown as PackageInfo[]
 }
 
 export async function installPackage(
+  serial: string,
   filePath: string,
   mode: PackageInstallMode = 'replace',
 ): Promise<string> {
-  const result = await WailsCall.ByName(
-    'ADBKit/internal/app.App.InstallPackageWithMode',
+  const result = await InstallPackageWithModeForDevice(
+    confirmedSerial('install_package', serial),
     filePath,
     mode,
   )
@@ -39,66 +56,90 @@ export async function installPackage(
 }
 
 export async function installPackages(
+  serial: string,
   filePaths: string[],
   mode: PackageInstallMode = 'replace',
 ): Promise<string> {
-  const result = await WailsCall.ByName(
-    'ADBKit/internal/app.App.InstallPackagesWithMode',
+  const result = await InstallPackagesWithModeForDevice(
+    confirmedSerial('install_multiple_packages', serial),
     filePaths,
     mode,
   )
   return String(result ?? '')
 }
 
-export async function uninstallPackage(packageName: string): Promise<string> {
-  return UninstallPackage(packageName)
+export async function uninstallPackage(serial: string, packageName: string): Promise<string> {
+  return UninstallPackageForDevice(confirmedSerial('uninstall_package', serial), packageName)
 }
 
-export async function uninstallMultiplePackages(packageNames: string[]): Promise<string> {
-  return UninstallMultiplePackages(packageNames)
+export async function uninstallMultiplePackages(
+  serial: string,
+  packageNames: string[],
+): Promise<string> {
+  return UninstallMultiplePackagesForDevice(
+    confirmedSerial('uninstall_packages', serial),
+    packageNames,
+  )
 }
 
-export async function enablePackage(packageName: string): Promise<string> {
-  return EnablePackage(packageName)
+export async function enablePackage(serial: string, packageName: string): Promise<string> {
+  return EnablePackageForDevice(confirmedSerial('enable_package', serial), packageName)
 }
 
-export async function enableMultiplePackages(packageNames: string[]): Promise<string> {
-  return EnableMultiplePackages(packageNames)
+export async function enableMultiplePackages(
+  serial: string,
+  packageNames: string[],
+): Promise<string> {
+  return EnableMultiplePackagesForDevice(
+    confirmedSerial('enable_packages', serial),
+    packageNames,
+  )
 }
 
-export async function disablePackage(packageName: string): Promise<string> {
-  return DisablePackage(packageName)
+export async function disablePackage(serial: string, packageName: string): Promise<string> {
+  return DisablePackageForDevice(confirmedSerial('disable_package', serial), packageName)
 }
 
-export async function disableMultiplePackages(packageNames: string[]): Promise<string> {
-  return DisableMultiplePackages(packageNames)
+export async function disableMultiplePackages(
+  serial: string,
+  packageNames: string[],
+): Promise<string> {
+  return DisableMultiplePackagesForDevice(
+    confirmedSerial('disable_packages', serial),
+    packageNames,
+  )
 }
 
-export async function clearPackageData(packageName: string): Promise<string> {
-  return ClearPackageData(packageName)
+export async function clearPackageData(serial: string, packageName: string): Promise<string> {
+  return ClearPackageDataForDevice(confirmedSerial('clear_package_data', serial), packageName)
 }
 
-export async function pullPackageApk(packageName: string): Promise<string> {
-  return PullPackageApk(packageName)
+export async function pullPackageApk(serial: string, packageName: string): Promise<string> {
+  return PullPackageApkForDevice(confirmedSerial('pull_package_apk', serial), packageName)
 }
 
-export async function launchPackage(packageName: string): Promise<string> {
-  return LaunchPackage(packageName)
+export async function launchPackage(serial: string, packageName: string): Promise<string> {
+  return LaunchPackageForDevice(confirmedSerial('launch_package', serial), packageName)
 }
 
-export async function forceStopPackage(packageName: string): Promise<string> {
-  return ForceStopPackage(packageName)
+export async function forceStopPackage(serial: string, packageName: string): Promise<string> {
+  return ForceStopPackageForDevice(confirmedSerial('force_stop_package', serial), packageName)
 }
 
-export async function getPackageDetails(packageName: string): Promise<PackageDetails> {
-  const raw = await GetPackageDetails(packageName)
+export async function getPackageDetails(
+  serial: string,
+  packageName: string,
+): Promise<PackageDetails> {
+  const raw = await GetPackageDetailsForDevice(
+    confirmedSerial('get_package_details', serial),
+    packageName,
+  )
   return raw as unknown as PackageDetails
 }
 
 export async function selectApkFile(): Promise<string> {
   return SelectApkFile()
 }
-
 
 export async function selectApkFiles(): Promise<string[]> {
   const result = await WailsCall.ByName('ADBKit/internal/app.App.SelectApkFiles')
