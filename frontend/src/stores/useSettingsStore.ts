@@ -28,9 +28,17 @@ const initialPreferencesDraft: PreferencesPayload = {
   verify_after_transfer: false,
 }
 
-const initialState: SettingsState = {
+// Dirty-tracking for the editable preferences draft. A draft edit marks it dirty;
+// hydration (first load, explicit discard, successful save) clears it again. This
+// mirrors the store defaults above instead of introducing a form framework.
+interface SettingsDraftState {
+  preferencesDirty: boolean
+}
+
+const initialState: SettingsState & SettingsDraftState = {
   appConfig: null,
   preferencesDraft: initialPreferencesDraft,
+  preferencesDirty: false,
   auditLogs: [],
   auditLogLimit: 200,
   auditLogFilters: initialFilters,
@@ -62,7 +70,7 @@ interface SettingsActions {
   reset: () => void
 }
 
-type SettingsStore = SettingsState & SettingsActions
+type SettingsStore = SettingsState & SettingsActions & SettingsDraftState
 
 export const useSettingsStore = create<SettingsStore>()((set) => ({
   ...initialState,
@@ -73,6 +81,7 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
         ...state.preferencesDraft,
         ...draft,
       },
+      preferencesDirty: true,
     })),
   hydratePreferencesDraft: (config) =>
     set({
@@ -88,6 +97,7 @@ export const useSettingsStore = create<SettingsStore>()((set) => ({
         file_transfer_compression: config?.file_transfer_compression ?? 'auto',
         verify_after_transfer: config?.verify_after_transfer ?? false,
       },
+      preferencesDirty: false,
     }),
   setAuditLogs: (auditLogs) => set({ auditLogs }),
   setAuditLogLimit: (auditLogLimit) => set({ auditLogLimit }),
