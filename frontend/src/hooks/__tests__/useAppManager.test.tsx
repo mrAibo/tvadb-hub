@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDeviceStore } from '@/stores/useDeviceStore'
 import { useAppManagerStore } from '@/stores/useAppManagerStore'
@@ -52,6 +52,10 @@ describe('uninstallBatch', () => {
 
   it('sets busyBatchAction then clears it after success', async () => {
     const { result } = renderHook(() => useAppManager())
+    // Mutations are only legitimate once a listing for the confirmed device exists.
+    await waitFor(() =>
+      expect(useAppManagerStore.getState().packagesSerial).toBe('test-device'),
+    )
     act(() => {
       useAppManagerStore.getState().setSelectedPackages(['com.example.appA', 'com.example.appB'])
     })
@@ -63,6 +67,10 @@ describe('uninstallBatch', () => {
 
   it('calls uninstallMultiplePackages with selected package names', async () => {
     const { result } = renderHook(() => useAppManager())
+    // Mutations are only legitimate once a listing for the confirmed device exists.
+    await waitFor(() =>
+      expect(useAppManagerStore.getState().packagesSerial).toBe('test-device'),
+    )
     act(() => {
       useAppManagerStore.getState().setSelectedPackages(['com.example.appA', 'com.example.appB'])
     })
@@ -78,6 +86,10 @@ describe('uninstallBatch', () => {
 
   it('clears selection after success', async () => {
     const { result } = renderHook(() => useAppManager())
+    // Mutations are only legitimate once a listing for the confirmed device exists.
+    await waitFor(() =>
+      expect(useAppManagerStore.getState().packagesSerial).toBe('test-device'),
+    )
     act(() => {
       useAppManagerStore.getState().setSelectedPackages(['com.example.appA'])
     })
@@ -89,6 +101,10 @@ describe('uninstallBatch', () => {
 
   it('does nothing when no packages are selected', async () => {
     const { result } = renderHook(() => useAppManager())
+    // Mutations are only legitimate once a listing for the confirmed device exists.
+    await waitFor(() =>
+      expect(useAppManagerStore.getState().packagesSerial).toBe('test-device'),
+    )
     act(() => {
       useAppManagerStore.getState().setSelectedPackages([])
     })
@@ -101,6 +117,10 @@ describe('uninstallBatch', () => {
 
   it('clears busyBatchAction on failure', async () => {
     const { result } = renderHook(() => useAppManager())
+    // Mutations are only legitimate once a listing for the confirmed device exists.
+    await waitFor(() =>
+      expect(useAppManagerStore.getState().packagesSerial).toBe('test-device'),
+    )
     act(() => {
       useAppManagerStore.getState().setSelectedPackages(['com.example.appA'])
     })
@@ -128,6 +148,10 @@ describe('uninstallSingle', () => {
 
   it('clears busyPackageName after uninstall completes', async () => {
     const { result } = renderHook(() => useAppManager())
+    // Mutations are only legitimate once a listing for the confirmed device exists.
+    await waitFor(() =>
+      expect(useAppManagerStore.getState().packagesSerial).toBe('test-device'),
+    )
     await act(async () => {
       await result.current.uninstallSingle('com.example.appA')
     })
@@ -136,6 +160,10 @@ describe('uninstallSingle', () => {
 
   it('calls uninstallPackage with the correct name', async () => {
     const { result } = renderHook(() => useAppManager())
+    // Mutations are only legitimate once a listing for the confirmed device exists.
+    await waitFor(() =>
+      expect(useAppManagerStore.getState().packagesSerial).toBe('test-device'),
+    )
     await act(async () => {
       await result.current.uninstallSingle('com.example.appA')
     })
