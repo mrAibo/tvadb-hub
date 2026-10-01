@@ -47,8 +47,7 @@ func lifecycleService() (*LogcatService, *[]LogcatEntry, *[]string, *sync.Mutex)
 func startHelperStream(t *testing.T, s *LogcatService, mode string, ctx context.Context) *logcatStream {
 	t.Helper()
 	childCtx, cancel := context.WithCancel(ctx)
-	processCtx, processCancel := context.WithCancel(childCtx)
-	_ = processCtx
+	_, processCancel := context.WithCancel(childCtx)
 	cmd := core.NewCommandContext(childCtx, os.Args[0], "-test.run=^TestLogcatProcessHelper$", "--", mode)
 	stream, err := s.startCommand(
 		childCtx,
