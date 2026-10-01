@@ -47,10 +47,11 @@ documentation, not application behaviour:
 1. **Physical Android/TV validation — issue #19.** Real firmware/OEM behaviour,
    Wireless ADB pairing/reconnect and the intended Windows package workflows are
    not proven until the checklist passes on hardware.
-2. **Repository administration.** At the PR #60 checkpoint, `main` was not
-   protected and repository rulesets were empty. The connected GitHub App does
-   not expose branch-protection writes, so required-check enforcement remains an
-   administrator action.
+2. **Repository administration — issue #62.** At the PR #60 checkpoint,
+   `main` was not protected and repository rulesets were empty. The connected
+   GitHub App does not expose branch-protection writes, so required-check
+   enforcement remains an administrator action tracked explicitly in
+   [issue #62](https://github.com/mrAibo/tvadb-hub/issues/62).
 3. **Publication/signing.** No GitHub Release, tag deployment or notarized macOS
    distribution is claimed by this status file.
 4. **Evidence-only ADB smart-socket adoption.** Production discovery remains on
