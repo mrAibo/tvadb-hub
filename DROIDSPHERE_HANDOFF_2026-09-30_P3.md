@@ -3,6 +3,9 @@
 Date: 2026-09-30 (historical file name and date kept for continuity). Content last verified
 **2026-10-01** against `main` `535295c9f63d7aab2cdd286fc86e1b5e0d4c938a` (tree
 `c7f65351a8b067aeb3ba2917514a3c7e151aae35`). Repository: `mrAibo/tvadb-hub`. Product: DroidSphere.
+This documentation refresh travels in the open docs-only PR **#59** (base `535295c9…`); when it is
+reviewed and merged, the final docs/main commit must be reconciled against that base — no later
+commit is claimed here.
 
 This file supersedes the earlier PR #29 handoff. Read it completely before
 changing code. Do not ask the user to re-explain the project.
@@ -120,8 +123,8 @@ the row says which head the final content matches.
 | Strict fastboot twins (blank refusal before any tool work, pinned target) — **original M1 backend half** | #57 Go base | t54 PASS (`abd66e16…`) |
 | Flash consent for partition/batch through strict RPC twins — **original M1 UI half** | #57 UI, baseline reviewed at t59 (`0184c44f…`, tree `e7abc456…`) | final content matches the **t75** head below: M3 legitimately changed 7 files, and t75 preserves the t59 baseline (an "empty diff against `0184c44`" would be wrong) |
 | **M3**: captured target/inputs confirmation for wipe and sideload | #57 commit `9725375` | t75 PASS (`f4fd252…`, tree `d6910324…`) |
-| Guarded Launcher Wizard backend (capability preflight, unique-HOME fail-closed, durable journal, cancel, rollback, offline recovery) | #56 + `1e056e3f…` | t45 PASS; docs t48 |
-| Launcher Wizard UI (Current+, truthful copy, offline recovery errors) | #56 | round 1 (t46) needs_revision → round-2 review `LAUNCHER_WIZARD_REVIEW_R2.md` PASS (task **t72**) on `91623eef…` (= merge `4e92686c^2`) |
+| Guarded Launcher Wizard backend (capability preflight, unique-HOME fail-closed, durable journal, cancel, rollback, offline recovery) | #56 + `1e056e3f…` | backend gate **t45 PASS** (kept separate); docs t48 |
+| Launcher Wizard UI (Current+, truthful copy, offline recovery errors) | #56 | **t46 (round 1, `needs_revision`) → t71 (repair) → t72 (round 2, PASS)**; the round-2 review `LAUNCHER_WIZARD_REVIEW_R2.md` covers head `91623eef…` |
 | Scrcpy preset persistence + non-clobber preferences | #55 | t56 needs_revision → **t67 PASS on reviewed head `30c9ca5…`**; the integrated head `bb7b578e…` (= merge `6411a71e^2`) preserves the same six blobs |
 | Dataset endpoints/benchmark evidence and toolchain provenance (earlier phase) | #48, #49, #50 | t13/t14/t32/t34 records |
 
@@ -144,17 +147,27 @@ Historical clarifications kept truthful (metadata, not source defects):
 `t58`'s extra sibling test file was treated as outside its authored scope and was formally adopted
 by the `t59` review — the earlier "directory/parser bug" explanation is **not** claimed (unproven).
 `t55`'s verification had one cached run in which the fourth verify appeared missing and had to be
-retried — an environment/caching artifact, not a validator bug. The literal
-`gh pr checks --watch --fail-fast` CLI form cannot resolve a PR in this environment without a
-target, so those integrations used the explicit per-PR proof and were independently reviewed
-(`t69`) — no "literal command passed" claim is made.
+retried — an environment/caching artifact, not a validator bug. Because those integrations ran from
+worktree directories/branches that had no open PR resolvable by the literal
+`gh pr checks --watch --fail-fast` form, verification used the explicit per-PR proof instead (the
+same command with the PR number/target) and was independently reviewed (`t69`) — there is no claim
+that the literal form itself passed.
+
+**Release versus build/packaging (two separate statements).** The release/distribution workflows
+(`release.yml`, triggered by `v*` tags, and `distribution.yml`) **never ran**: nothing was published,
+signed, notarized or deployed, there are no tags or GitHub releases, and repository permissions were
+not changed. Separately, the CI build/packaging steps **did execute**: `windows-build` produced the
+Windows binary and the NSIS installer, `linux-build`/`macos-build` produced their platform binaries,
+and those artifacts carry `BUILD_PROVENANCE` naming the exact revision (digests recomputed during
+verification). Building on CI is not publishing.
 
 Three metadata errors from the earlier whole-RC verification report (root
 `SOURCE_RC_VERIFICATION.md`, t61) are corrected here and in the root ledgers and must not be copied
 forward: (1) the final flash-UI content maps to the **t75** head `f4fd252…`, **not** to t59's
 `0184c44…` — M3 legitimately changed 7 files and t75 preserves the t59 baseline; (2) the
 scrcpy-presets **reviewed** head is `30c9ca5…` (t67), while `bb7b578e…` is the integration head that
-carries the same six blobs; (3) the Launcher-UI round-2 review is task **t72**, and the
+carries the same six blobs; (3) the Launcher-UI chain is **t46 (round 1, `needs_revision`) → t71
+(repair) → t72 (round 2, PASS)** with the backend gate t45 kept separate, and the
 `sourceDirty: true` cause recorded by all three provenance files is **unproven** (hypothesis, not a
 measurement) — no clean-source-built binary claim is made.
 
