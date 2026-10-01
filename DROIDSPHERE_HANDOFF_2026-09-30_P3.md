@@ -147,9 +147,11 @@ Historical clarifications kept truthful (metadata, not source defects):
 `t58`'s extra sibling test file was treated as outside its authored scope and was formally adopted
 by the `t59` review — the earlier "directory/parser bug" explanation is **not** claimed (unproven).
 `t55`'s verification had one cached run in which the fourth verify appeared missing and had to be
-retried — an environment/caching artifact, not a validator bug. In the t68 attempt the literal
-`gh pr checks --watch --fail-fast` form did not resolve the PR, so verification used the explicit
-per-PR proof instead — the same command with a PR number/target, as reported by t55 — and was
+retried — an environment/caching artifact, not a validator bug. In the t68 attempt the default
+`gh pr checks --watch --fail-fast` lookup (no target) did not resolve the PR, while the explicit
+PR-numbered form (as used for the #58 verification) succeeded; the cause is unknown, and the default
+form did work in t55, so no general claim is made. Verification therefore used the explicit per-PR
+proof — the same command with a PR number/target, as reported by t55 — and was
 independently reviewed (`t69`); there is no claim that the literal form itself passed.
 
 **Release versus build/packaging (two separate statements).** The release/distribution workflows
