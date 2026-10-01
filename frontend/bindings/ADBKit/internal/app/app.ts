@@ -28,6 +28,9 @@ import * as file$0 from "../file/models.js";
 import * as flasher$0 from "../flasher/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as launcher$0 from "../launcher/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as packagemgr$0 from "../package_mgr/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -54,6 +57,14 @@ export function AnalyzeSafeTuningForDevice(serial: string, profileID: string): $
     return $Call.ByID(1910898522, serial, profileID);
 }
 
+/**
+ * ApplyLauncher performs the confirmed HOME replacement. The request carries the
+ * client-generated operation ID so the caller can cancel while this call runs.
+ */
+export function ApplyLauncher(request: launcher$0.ApplyRequest): $CancellablePromise<launcher$0.ApplyResult> {
+    return $Call.ByID(3779371605, request);
+}
+
 export function ApplySafeTuning(request: tuning$0.ApplyRequest): $CancellablePromise<tuning$0.ApplyResult> {
     return $Call.ByID(2851340301, request);
 }
@@ -76,6 +87,15 @@ export function CancelFileTransfer(): $CancellablePromise<void> {
 
 export function CancelFileTransferFor(operationID: string): $CancellablePromise<void> {
     return $Call.ByID(2859205779, operationID);
+}
+
+/**
+ * CancelLauncherOperation signals the owned operation. It intentionally skips the
+ * admission check: the operation ID and the explicit serial must match, and the
+ * current global selection is irrelevant.
+ */
+export function CancelLauncherOperation(request: launcher$0.CancelRequest): $CancellablePromise<launcher$0.CancelResult> {
+    return $Call.ByID(3409198126, request);
 }
 
 export function CaptureScreenshot(serial: string, localPath: string): $CancellablePromise<device$0.ScreenshotResult> {
@@ -222,8 +242,23 @@ export function FlashPartition(serial: string, partition: string, filePath: stri
     return $Call.ByID(1653575171, serial, partition, filePath);
 }
 
+/**
+ * FlashPartitionForDevice flashes one partition to the confirmed fastboot serial.
+ */
+export function FlashPartitionForDevice(confirmedSerial: string, partition: string, filePath: string): $CancellablePromise<string> {
+    return $Call.ByID(3034615512, confirmedSerial, partition, filePath);
+}
+
 export function FlashRomFolder(serial: string, folderPath: string, plan: flasher$0.Plan): $CancellablePromise<string> {
     return $Call.ByID(2622410499, serial, folderPath, plan);
+}
+
+/**
+ * FlashRomFolderForDevice flashes a validated plan to the confirmed fastboot serial,
+ * pinning one fastboot executable for every step of the batch.
+ */
+export function FlashRomFolderForDevice(confirmedSerial: string, folderPath: string, plan: flasher$0.Plan): $CancellablePromise<string> {
+    return $Call.ByID(1043022296, confirmedSerial, folderPath, plan);
 }
 
 export function ForceStopPackage(packageName: string): $CancellablePromise<string> {
@@ -493,6 +528,13 @@ export function PairWireless(address: string, code: string): $CancellablePromise
     return $Call.ByID(2112472723, address, code);
 }
 
+/**
+ * PreflightLauncher is the read-only capability picture for one confirmed device.
+ */
+export function PreflightLauncher(expectedSerial: string): $CancellablePromise<launcher$0.Preflight> {
+    return $Call.ByID(3786023866, expectedSerial);
+}
+
 export function PullFile(remotePath: string, localPath: string): $CancellablePromise<string> {
     return $Call.ByID(2408197358, remotePath, localPath);
 }
@@ -537,6 +579,14 @@ export function PushScrcpyClipboard(serial: string, text: string): $CancellableP
     return $Call.ByID(992928109, serial, text);
 }
 
+/**
+ * ReadLauncherRecovery lists durable launcher records. It is local and read-only,
+ * stays available with no online device and sends no device command.
+ */
+export function ReadLauncherRecovery(expectedSerial: string): $CancellablePromise<launcher$0.Recovery> {
+    return $Call.ByID(1830642136, expectedSerial);
+}
+
 export function RebootDevice(serial: string, mode: string): $CancellablePromise<string> {
     return $Call.ByID(1236422188, serial, mode);
 }
@@ -555,6 +605,13 @@ export function RenameFileForDevice(expectedSerial: string, oldRemotePath: strin
 
 export function RestartADBServer(): $CancellablePromise<string> {
     return $Call.ByID(4093082264);
+}
+
+/**
+ * RestoreLauncher restores the recorded original HOME after a strict live admission.
+ */
+export function RestoreLauncher(request: launcher$0.RestoreRequest): $CancellablePromise<launcher$0.RestoreResult> {
+    return $Call.ByID(2477501031, request);
 }
 
 export function RestoreTuningSnapshot(snapshotID: string): $CancellablePromise<tuning$0.RestoreResult> {
@@ -717,6 +774,14 @@ export function StopScrcpySession(sessionID: string): $CancellablePromise<void> 
 
 export function TakeScrcpyScreenshot(sessionID: string, outputPath: string): $CancellablePromise<string> {
     return $Call.ByID(2289098450, sessionID, outputPath);
+}
+
+/**
+ * TestLauncherCandidate opens one candidate for inspection only. It never changes
+ * the default HOME.
+ */
+export function TestLauncherCandidate(expectedSerial: string, candidateComponent: string): $CancellablePromise<launcher$0.CandidateTestResult> {
+    return $Call.ByID(1054587676, expectedSerial, candidateComponent);
 }
 
 export function UnblockPath(remotePath: string): $CancellablePromise<file$0.UnblockResult> {
