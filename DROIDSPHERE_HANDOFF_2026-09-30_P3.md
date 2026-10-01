@@ -147,11 +147,12 @@ Historical clarifications kept truthful (metadata, not source defects):
 `t58`'s extra sibling test file was treated as outside its authored scope and was formally adopted
 by the `t59` review — the earlier "directory/parser bug" explanation is **not** claimed (unproven).
 `t55`'s verification had one cached run in which the fourth verify appeared missing and had to be
-retried — an environment/caching artifact, not a validator bug. Because those integrations ran from
-worktree directories/branches that had no open PR resolvable by the literal
-`gh pr checks --watch --fail-fast` form, verification used the explicit per-PR proof instead (the
-same command with the PR number/target) and was independently reviewed (`t69`) — there is no claim
-that the literal form itself passed.
+retried — an environment/caching artifact, not a validator bug. The literal
+`gh pr checks --watch --fail-fast` lookup also failed to resolve the PR in this environment (t68
+records the failed lookup; **the cause is not verified** — an environment/refspec explanation is
+only a hypothesis, and PR #58 was in fact open at the time). Verification therefore used the
+explicit per-PR proof — the same command with a PR number/target, as reported by t55 — and was
+independently reviewed (`t69`); there is no claim that the literal form itself passed.
 
 **Release versus build/packaging (two separate statements).** The release/distribution workflows
 (`release.yml`, triggered by `v*` tags, and `distribution.yml`) **never ran**: nothing was published,
