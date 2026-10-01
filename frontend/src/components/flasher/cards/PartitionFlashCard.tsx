@@ -1,10 +1,26 @@
+import { useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { PartitionChips } from '@/components/flasher/shared/PartitionChips'
 import { FilePicker } from '@/components/flasher/shared/FilePicker'
-import { useFlasher } from '@/hooks/useFlasher'
+import {
+  useFlasher,
+  useFlashDispatchBusy,
+  type FlashConsent,
+} from '@/hooks/useFlasher'
+import { useFlashTargetRevision } from '@/stores/useFlasherStore'
 import {
   IconAlertTriangle as AlertTriangle,
   IconBolt as Zap,
@@ -27,12 +43,31 @@ export function PartitionFlashCard({ disabled }: PartitionFlashCardProps) {
     runningFlash,
     chooseImageFile,
     executeFlashPartition,
+    capturePartitionConsent,
   } = useFlasher()
+
+  const dispatchBusy = useFlashDispatchBusy()
+  const targetRevision = useFlashTargetRevision()
+  const [pendingConsent, setPendingConsent] = useState<FlashConsent | null>(null)
+  // A serial or input change while the dialog is open (including A -> B -> A)
+  // invalidates the captured consent; the user has to confirm again.
+  const consentStale = pendingConsent !== null && pendingConsent.revision !== targetRevision
 
   const needsUserspace =
     LOGICAL_PARTITIONS.includes(selectedPartition) && !isUserspace && !!activeFastbootSerial
   const canFlash =
     !!activeFastbootSerial && !!selectedPartition && !!selectedImagePath && !needsUserspace && !disabled
+
+  function handleOpenConfirm() {
+    setPendingConsent(capturePartitionConsent())
+  }
+
+  function handleConfirmFlash() {
+    if (!pendingConsent) return
+    const consent = pendingConsent
+    setPendingConsent(null)
+    void executeFlashPartition(consent)
+  }
 
   return (
     <Card className="relative overflow-hidden border-[var(--border)] dark:border-[var(--border)] bg-card dark:bg-[var(--terminal-bg)]/40 rounded-2xl shadow-[var(--shadow-card)] h-full flex flex-col">
@@ -87,12 +122,62 @@ export function PartitionFlashCard({ disabled }: PartitionFlashCardProps) {
 
         <Button
           className="w-full rounded-full bg-primary hover:bg-primary/95 text-primary-foreground border-0 transition-[colors,transform] active:scale-[0.97] cursor-pointer text-xs font-semibold shadow-sm h-9 mt-4"
-          onClick={executeFlashPartition}
-          disabled={!canFlash || runningFlash}
+          onClick={handleOpenConfirm}
+          disabled={!canFlash || runningFlash || dispatchBusy}
         >
           {runningFlash ? 'Flashing...' : 'Flash Partition'}
         </Button>
       </CardContent>
+
+      <AlertDialog
+        open={pendingConsent !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingConsent(null)
+        }}
+      >
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Flash {pendingConsent?.partition || 'partition'}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This writes the selected image to one partition on the captured fastboot
+              device. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            <div>
+              Target device:{' '}
+              <span data-testid="partition-confirm-serial" className="font-mono text-foreground">
+                {pendingConsent?.serial || 'none'}
+              </span>
+              {pendingConsent?.deviceLabel ? <> ({pendingConsent.deviceLabel})</> : null}
+            </div>
+            <div data-testid="partition-confirm-partition">
+              Partition: <span className="font-mono text-foreground">{pendingConsent?.partition || 'none'}</span>
+            </div>
+            <div data-testid="partition-confirm-image" className="break-all">
+              Image: <span className="font-mono text-foreground">{pendingConsent?.imagePath || 'none'}</span>
+            </div>
+          </div>
+          {consentStale && (
+            <Alert variant="destructive" className="rounded-xl py-2 px-3">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <AlertDescription data-testid="partition-confirm-stale">
+                The device or the flash inputs changed. Close this dialog and confirm again.
+              </AlertDescription>
+            </Alert>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmFlash}
+              disabled={consentStale || dispatchBusy}
+              className="rounded-full bg-primary hover:bg-primary/95 text-primary-foreground border-0 shadow-sm"
+            >
+              Flash Partition
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {disabled && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-card/80 dark:bg-[var(--terminal-surface)]/85 backdrop-blur-[3px] select-none transition-colors duration-300">
