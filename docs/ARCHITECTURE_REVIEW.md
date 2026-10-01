@@ -18,8 +18,9 @@ post-transfer SHA-256 verification, safe TV text entry, scrcpy audio-source
 controls, Logcat crash/ANR diagnostics with saved filters and the opt-in
 signed Safe Tuning metadata feed infrastructure are now implemented. The
 remaining near-term product work is Logcat app/PID filtering and pinned events;
-the architecture-only P3 items should still be benchmarked or guarded before
-adoption.
+Logcat 2.0 phase 2 (app/PID filtering and session-local pinned events) is also
+implemented. The architecture-only P3 items should still be benchmarked or guarded
+before adoption.
 
 ## 1. Native ADB Client Protocol
 
@@ -291,7 +292,10 @@ Backend Logcat batching from that audit is now complete: parsed entries are
 emitted in bounded batches on a short interval, with a final flush on stream
 shutdown. Product-level crash/ANR classification, highlighting and locally
 saved filters are also implemented without changing the stream lifecycle.
-Remaining Logcat roadmap work is app/PID filtering and pinned events.
+Logcat 2.0 phase 2 is also implemented: backend entries are enriched with best-effort
+process names from bounded ADB `ps` snapshots, the frontend can filter by exact PID
+or process-name substring, and users can keep up to 100 session-local pinned event
+snapshots without persisting log contents.
 
 ## Recommended order
 
