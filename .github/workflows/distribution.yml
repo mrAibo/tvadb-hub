@@ -1,12 +1,10 @@
 name: Build Distribution Packages
 
 on:
-  push:
-    branches: [fix/base-ui-menu-group-error]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: droidsphere-distribution-${{ github.ref }}
@@ -14,7 +12,6 @@ concurrency:
 
 jobs:
   windows:
-    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[distribution]')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +54,6 @@ jobs:
           if-no-files-found: error
 
   linux:
-    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[distribution]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -114,7 +110,6 @@ jobs:
           if-no-files-found: error
 
   macos:
-    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[distribution]')
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -155,7 +150,6 @@ jobs:
           if-no-files-found: error
 
   collect:
-    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[distribution]')
     needs: [windows, linux, macos]
     runs-on: ubuntu-latest
     steps:
@@ -195,17 +189,3 @@ jobs:
           name: droidsphere-complete-distribution
           path: distribution/
           if-no-files-found: error
-      - name: Commit packages to distribution
-        if: github.ref_name == 'fix/base-ui-menu-group-error'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f distribution
-          if git diff --cached --quiet; then
-            echo "Distribution is already current."
-            exit 0
-          fi
-          git commit -m "chore(distribution): add DroidSphere multi-platform packages [distribution]"
-          git push origin HEAD:fix/base-ui-menu-group-error
