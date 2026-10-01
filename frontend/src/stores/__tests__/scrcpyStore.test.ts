@@ -130,10 +130,10 @@ describe('useScrcpyStore preset persistence', () => {
     expect(mocks.updatePreferences).toHaveBeenCalledTimes(1)
     const payload = mocks.updatePreferences.mock.calls[0][0]
     expect(payload).toEqual({
-      theme: 'light',
       auto_refresh_devices: true,
       scrcpy_presets: [{ name: 'Mine', options: OPTIONS }],
     })
+    expect(payload).not.toHaveProperty('theme')
     expect(useScrcpyStore.getState().presetsPersistError).toBeNull()
   })
 
@@ -145,6 +145,46 @@ describe('useScrcpyStore preset persistence', () => {
     await useScrcpyStore.getState().savePreset('NoPolling', OPTIONS)
 
     expect(mocks.updatePreferences.mock.calls[0][0].auto_refresh_devices).toBe(false)
+  })
+
+  // Simulation only: the mock stands in for the Go handler semantics. Real
+  // durability of scrcpy_presets across export/import is proven in Go
+  // (internal/core/config.go:24,127-130,171; internal/app/settings.go:134-135,180,228;
+  // internal/app/app_settings_backup.go:127-130, covered by config_concurrency_test.go
+  // and app_settings_backup_test.go).
+  it('does not send or revert the persisted theme when saving a preset', async () => {
+    // Mirrors internal/app/settings.go: theme is applied only when non-empty
+    // (:114-119), auto_refresh_devices is assigned unconditionally (:140),
+    // scrcpy_presets only when non-nil (:134-136).
+    const backend = {
+      theme: 'light' as 'dark' | 'light',
+      auto_refresh_devices: true,
+      scrcpy_presets: [] as Array<{ name: string; options: ScrcpyOptions }>,
+    }
+    mocks.getAppConfig.mockImplementation(async () => savedConfig(backend))
+    mocks.updatePreferences.mockImplementation(async (payload: never) => {
+      const patch = payload as {
+        theme?: string
+        auto_refresh_devices?: boolean
+        scrcpy_presets?: Array<{ name: string; options: ScrcpyOptions }>
+      }
+      if (typeof patch.theme === 'string' && patch.theme !== '') {
+        backend.theme = patch.theme === 'light' ? 'light' : 'dark'
+      }
+      backend.auto_refresh_devices = patch.auto_refresh_devices ?? false
+      if (patch.scrcpy_presets) {
+        backend.scrcpy_presets = patch.scrcpy_presets
+      }
+      return savedConfig(backend)
+    })
+
+    const saved = await useScrcpyStore.getState().savePreset('After light', OPTIONS)
+
+    expect(saved).toBe(true)
+    const payload = mocks.updatePreferences.mock.calls[0][0]
+    expect(payload).not.toHaveProperty('theme')
+    expect(backend.theme).toBe('light')
+    expect(backend.scrcpy_presets).toEqual([{ name: 'After light', options: OPTIONS }])
   })
 
   it('reports a failed write without dropping the local preset', async () => {

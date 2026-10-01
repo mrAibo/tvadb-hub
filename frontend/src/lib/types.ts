@@ -654,7 +654,10 @@ export interface ScrcpyPresetSnapshot {
 }
 
 export interface PreferencesPayload {
-  theme: 'dark' | 'light'
+  // Optional: the backend applies the theme only when a non-empty value is sent
+  // (internal/app/settings.go:114-119), so a caller that writes an unrelated
+  // preference can omit it instead of restating a possibly stale theme.
+  theme?: 'dark' | 'light'
   device_nicknames?: Record<string, string>
   logcat_buffer_limit?: number
   scrcpy_presets?: ScrcpyPresetSnapshot[]

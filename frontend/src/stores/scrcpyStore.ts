@@ -140,16 +140,21 @@ function persistErrorMessage(error: unknown): string {
 }
 
 /**
- * Reads the freshly saved configuration and writes only the preset list, so the
- * unconditionally assigned auto_refresh_devices (and the theme) keep their saved
- * values. Dirty local preference drafts are never sent from here.
+ * Reads the freshly saved configuration and writes only the preset list.
+ *
+ * `auto_refresh_devices` has to travel with the patch because the Go handler
+ * assigns it unconditionally (internal/app/settings.go:140), so omitting it would
+ * silently reset the saved flag. The theme is deliberately omitted: the handler
+ * applies a theme only when a non-empty value is present (:114-119), so leaving it
+ * out preserves whatever theme the user last persisted instead of restating a
+ * value this patch has no business owning. Dirty local preference drafts are never
+ * sent from here.
  */
 async function persistCurrentPresets(): Promise<boolean> {
   const presets = useScrcpyStore.getState().presets
   try {
     const saved: AppConfigSnapshot = await getAppConfig()
     const payload: PreferencesPayload = {
-      theme: saved.theme === 'light' ? 'light' : 'dark',
       auto_refresh_devices: saved.auto_refresh_devices,
       scrcpy_presets: toPresetSnapshots(presets),
     }
