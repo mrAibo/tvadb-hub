@@ -5,27 +5,43 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { listSdCards } from '@/services/fileService'
+import { listSdCardsForDevice } from '@/services/fileService'
+import { useDeviceStore } from '@/stores/useDeviceStore'
 import type { SdCard } from '@/lib/types'
 
 interface SdCardPickerProps {
   onSelect: (mountPoint: string) => void
   disabled?: boolean
+  /**
+   * Confirmed device target. When the caller passes it, the volumes are read for
+   * exactly that device; when it is omitted the picker reads the confirmed selection
+   * from the shared device store. It never issues a serial-less request.
+   */
+  serial?: string
 }
 
-export function SdCardPicker({ onSelect, disabled }: SdCardPickerProps) {
+export function SdCardPicker({ onSelect, disabled, serial }: SdCardPickerProps) {
   const [cards, setCards] = useState<SdCard[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (!open) return
+    const target = serial ?? useDeviceStore.getState().activeSerial
+    if (!target) {
+      // No confirmed device: refuse locally instead of asking the backend without one.
+      setCards([])
+      return
+    }
     setLoading(true)
-    listSdCards()
-      .then(setCards)
+    listSdCardsForDevice(target)
+      .then((next) => {
+        // A reply for a device the user has already left must not render.
+        if (useDeviceStore.getState().activeSerial === target) setCards(next)
+      })
       .catch(() => setCards([]))
       .finally(() => setLoading(false))
-  }, [open])
+  }, [open, serial])
 
   const externalCards = cards.filter((c) => c.isExternal)
 

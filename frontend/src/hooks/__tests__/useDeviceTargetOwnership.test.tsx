@@ -27,6 +27,29 @@ const deviceMocks = vi.hoisted(() => ({
   getPerformanceSnapshot: vi.fn(),
 }))
 
+// The generated bindings, so the real service wrappers can be exercised directly
+// instead of through the hook-level module mock.
+const bindingMocks = vi.hoisted(() => ({
+  ListFilesForDevice: vi.fn(),
+  GetDirectorySizeForDevice: vi.fn(),
+  PullFileForDevice: vi.fn(),
+  PushFileForDevice: vi.fn(),
+  DeleteFileForDevice: vi.fn(),
+  DeleteMultipleFilesForDevice: vi.fn(),
+  CreateDirectoryForDevice: vi.fn(),
+  RenameFileForDevice: vi.fn(),
+  SelectFile: vi.fn(),
+  SelectSavePath: vi.fn(),
+  SelectDirectory: vi.fn(),
+  SelectMultipleFiles: vi.fn(),
+  CancelFileTransfer: vi.fn(),
+  GetStorageInfoForDevice: vi.fn(),
+  ListSdCardsForDevice: vi.fn(),
+  UnblockPathForDevice: vi.fn(),
+}))
+
+vi.mock('../../../../bindings/ADBKit/internal/app/app', () => bindingMocks)
+
 vi.mock('@/services/fileService', () => fileMocks)
 vi.mock('@/services/deviceService', () => deviceMocks)
 vi.mock('sonner', () => ({
@@ -146,5 +169,66 @@ describe('monitor stale reply handling', () => {
       expect(useDeviceStore.getState().performance).toMatchObject({ cpuUsage: 10 }),
     )
     expect(deviceMocks.getPerformanceSnapshot).toHaveBeenCalledWith('A')
+  })
+})
+
+describe('confirmed-device file queries', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useDeviceStore.getState().reset()
+    useDeviceStore.setState({ devices: [readyDevice('tv-A')], activeSerial: 'tv-A' })
+  })
+
+  it('binds storage info, SD-card listing and unblock guidance to the captured serial', async () => {
+    const real = await vi.importActual<typeof import('@/services/fileService')>(
+      '@/services/fileService',
+    )
+    bindingMocks.GetStorageInfoForDevice.mockResolvedValue({ totalHuman: '64 GB' })
+    bindingMocks.ListSdCardsForDevice.mockResolvedValue([
+      { id: 'vol-1', description: 'SD card', mountPoint: '/storage/1234-5678', isExternal: true },
+    ])
+    bindingMocks.UnblockPathForDevice.mockResolvedValue({ guidance: 'grant access' })
+
+    await real.getStorageInfoForDevice('tv-A')
+    expect(bindingMocks.GetStorageInfoForDevice).toHaveBeenCalledTimes(1)
+    expect(bindingMocks.GetStorageInfoForDevice).toHaveBeenCalledWith('tv-A')
+
+    const cards = await real.listSdCardsForDevice('tv-A')
+    expect(bindingMocks.ListSdCardsForDevice).toHaveBeenCalledTimes(1)
+    expect(bindingMocks.ListSdCardsForDevice).toHaveBeenCalledWith('tv-A')
+    expect(cards).toHaveLength(1)
+
+    await real.unblockPathForDevice('tv-A', '/sdcard/blocked')
+    expect(bindingMocks.UnblockPathForDevice).toHaveBeenCalledTimes(1)
+    expect(bindingMocks.UnblockPathForDevice).toHaveBeenCalledWith('tv-A', '/sdcard/blocked')
+
+    // The serial-less legacy wrappers are gone, so no caller can silently fall back.
+    const legacy = real as unknown as Record<string, unknown>
+    expect(legacy.getStorageInfo).toBeUndefined()
+    expect(legacy.listSdCards).toBeUndefined()
+    expect(legacy.unblockPath).toBeUndefined()
+  })
+
+  it('refuses a blank target without reaching the backend', async () => {
+    const real = await vi.importActual<typeof import('@/services/fileService')>(
+      '@/services/fileService',
+    )
+
+    await expect(real.getStorageInfoForDevice('   ')).rejects.toThrow('get_storage_info')
+    await expect(real.listSdCardsForDevice('')).rejects.toThrow('list_sd_cards')
+    await expect(real.unblockPathForDevice('', '/sdcard/blocked')).rejects.toThrow('unblock_path')
+
+    expect(bindingMocks.GetStorageInfoForDevice).not.toHaveBeenCalled()
+    expect(bindingMocks.ListSdCardsForDevice).not.toHaveBeenCalled()
+    expect(bindingMocks.UnblockPathForDevice).not.toHaveBeenCalled()
+  })
+
+  it('normalises an empty SD-card answer to an empty list', async () => {
+    const real = await vi.importActual<typeof import('@/services/fileService')>(
+      '@/services/fileService',
+    )
+    bindingMocks.ListSdCardsForDevice.mockResolvedValue(null)
+
+    await expect(real.listSdCardsForDevice('tv-A')).resolves.toEqual([])
   })
 })

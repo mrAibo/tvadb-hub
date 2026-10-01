@@ -13,9 +13,9 @@ import {
   SelectDirectory,
   SelectMultipleFiles,
   CancelFileTransfer,
-  GetStorageInfo,
-  ListSdCards,
-  UnblockPath,
+  GetStorageInfoForDevice,
+  ListSdCardsForDevice,
+  UnblockPathForDevice,
 } from '../../bindings/ADBKit/internal/app/app'
 import { Events } from '@wailsio/runtime'
 import type { FileEntry, HostFileSystemInfo, StorageInfo, SdCard, TransferVerificationStatus, TransferBatchResult, UnblockResult } from '@/lib/types'
@@ -66,11 +66,10 @@ export async function getDirectorySize(serial: string, remotePath: string): Prom
   return GetDirectorySizeForDevice(confirmedSerial('get_directory_size', serial), remotePath)
 }
 
-// Storage info, SD-card listing and unblock guidance are still served by the legacy
-// serial-less bindings because their only callers (FilesPage, SdCardPicker) are
-// outside this change's scope; see the review note in the pull request.
-export async function getStorageInfo(): Promise<StorageInfo> {
-  const raw = await GetStorageInfo()
+// Storage info of the confirmed device only. The legacy serial-less binding is no
+// longer reachable from the frontend: an unanswered target is refused here.
+export async function getStorageInfoForDevice(serial: string): Promise<StorageInfo> {
+  const raw = await GetStorageInfoForDevice(confirmedSerial('get_storage_info', serial))
   return raw as unknown as StorageInfo
 }
 
@@ -149,18 +148,23 @@ export function cancelFileTransfer(operationId?: string): void {
   else CancelFileTransfer()
 }
 
-// listSdCards calls adb shell sm list-volumes and returns mounted volumes.
-export async function listSdCards(): Promise<SdCard[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw = await (ListSdCards as (...args: unknown[]) => Promise<unknown>)('')
-  return raw as SdCard[]
+// listSdCardsForDevice reads the mounted volumes of the confirmed device only.
+export async function listSdCardsForDevice(serial: string): Promise<SdCard[]> {
+  const raw = await ListSdCardsForDevice(confirmedSerial('list_sd_cards', serial))
+  return (raw as unknown as SdCard[] | null) ?? []
 }
 
-// unblockPath returns honest guidance for recovering access to a blocked path.
-// No fake bypass — tells the user exactly what they need to do on their device.
-export async function unblockPath(remotePath: string): Promise<UnblockResult> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw = await (UnblockPath as (...args: unknown[]) => Promise<unknown>)(remotePath)
+// unblockPathForDevice returns honest guidance for recovering access to a blocked
+// path on the confirmed device. No fake bypass — it tells the user exactly what they
+// need to do on that device.
+export async function unblockPathForDevice(
+  serial: string,
+  remotePath: string,
+): Promise<UnblockResult> {
+  const raw = await UnblockPathForDevice(
+    confirmedSerial('unblock_path', serial),
+    remotePath,
+  )
   return raw as UnblockResult
 }
 
