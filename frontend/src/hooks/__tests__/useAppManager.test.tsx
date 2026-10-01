@@ -30,6 +30,19 @@ vi.mock('sonner', () => ({
   },
 }))
 
+// Isolate the store's service boundary: the real deviceService re-exports
+// @wailsio/runtime, whose import-time 50 ms poll is not owned by the jsdom
+// environment (PHASE0_RUNTIME_DIAGNOSIS.md). The runtime mock is a fail-fast
+// sentinel: it is only evaluated if an import still reaches the runtime.
+vi.mock('@/services/deviceService', () => ({
+  getDeviceInfo: vi.fn(),
+  getDeviceMode: vi.fn(),
+  setActiveSerial: vi.fn(),
+}))
+vi.mock('@wailsio/runtime', () => {
+  throw new Error('Unexpected Wails runtime import in isolated unit test')
+})
+
 import { useAppManager } from '../useAppManager'
 
 const pkgA = { packageName: 'com.example.appA', isEnabled: true, isSystemApp: false }
