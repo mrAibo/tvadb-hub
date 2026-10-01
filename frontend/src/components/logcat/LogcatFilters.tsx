@@ -134,6 +134,8 @@ export function LogcatFilters() {
       levels: ['V', 'D', 'I', 'W', 'E', 'F'],
       tag: '',
       text: '',
+      pid: '',
+      process: '',
       issue: 'all',
     })
   }
@@ -170,6 +172,8 @@ export function LogcatFilters() {
                   levels: [...preset.levels],
                   tag: preset.tag,
                   text: preset.text,
+                  pid: '',
+                  process: '',
                   issue: preset.issue,
                 })
               }
@@ -248,6 +252,21 @@ export function LogcatFilters() {
             className="h-6 w-48 text-xs rounded-lg"
           />
 
+          <Input
+            value={filter.pid}
+            onChange={(e) => setFilter({ pid: e.target.value.replace(/\D/g, '') })}
+            placeholder="PID..."
+            inputMode="numeric"
+            className="h-6 w-20 text-xs rounded-lg"
+          />
+
+          <Input
+            value={filter.process}
+            onChange={(e) => setFilter({ process: e.target.value })}
+            placeholder="App / process..."
+            className="h-6 w-40 text-xs rounded-lg"
+          />
+
           <Button
             size="sm"
             variant="ghost"
@@ -296,7 +315,7 @@ export function LogcatFilters() {
             <DialogHeader>
               <DialogTitle>Save Logcat filter</DialogTitle>
               <DialogDescription>
-                Save the current level, issue, tag and message filters on this computer.
+                Save the current level, issue, tag, message, PID and process filters on this computer.
               </DialogDescription>
             </DialogHeader>
             <Input
