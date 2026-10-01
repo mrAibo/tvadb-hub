@@ -65,3 +65,45 @@ describe('flash target revision', () => {
     expect(flashTargetRevision()).toBeGreaterThan(beforeReset)
   })
 })
+
+describe('sideload input and device-context revision', () => {
+  beforeEach(() => {
+    useFlasherStore.getState().reset()
+  })
+
+  it('bumps when the sideload ZIP changes and not when the same path is re-applied', () => {
+    const store = useFlasherStore.getState()
+    const start = flashTargetRevision()
+
+    store.setSideloadFilePath('/update.zip')
+    const afterFirst = flashTargetRevision()
+    expect(afterFirst).toBeGreaterThan(start)
+
+    store.setSideloadFilePath('/update.zip')
+    expect(flashTargetRevision()).toBe(afterFirst)
+
+    store.setSideloadFilePath('/other.zip')
+    expect(flashTargetRevision()).toBeGreaterThan(afterFirst)
+  })
+
+  it('bumps on a device-context switch, including A -> B -> A', () => {
+    const store = useFlasherStore.getState()
+    const start = flashTargetRevision()
+
+    store.setDeviceMode('sideload')
+    const afterSideload = flashTargetRevision()
+    expect(afterSideload).toBeGreaterThan(start)
+
+    store.setDeviceMode('sideload')
+    expect(flashTargetRevision()).toBe(afterSideload)
+
+    store.setDeviceMode('fastboot')
+    const afterFastboot = flashTargetRevision()
+    expect(afterFastboot).toBeGreaterThan(afterSideload)
+
+    // A -> B -> A: the context looks restored but the revision moved, so a consent
+    // captured before the round trip stays invalid.
+    store.setDeviceMode('sideload')
+    expect(flashTargetRevision()).toBeGreaterThan(afterFastboot)
+  })
+})

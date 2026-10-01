@@ -93,7 +93,14 @@ export const useFlasherStore = create<FlasherState & FlasherActions>()(immer((se
     set({ activeFastbootSerial: serial })
     bumpTargetRevision()
   },
-  setDeviceMode: (mode) => set({ deviceMode: mode }),
+  // A device-context switch (fastboot / fastbootd / sideload) is part of the consent
+  // context: capture a confirmation, switch the context and switch back, and the
+  // revision has moved, so the stale dialog cannot be accepted.
+  setDeviceMode: (mode) => {
+    if (get().deviceMode === mode) return
+    set({ deviceMode: mode })
+    bumpTargetRevision()
+  },
   setIsUserspace: (isUserspace) => set({ isUserspace }),
   setSelectedPartition: (partition) => {
     if (get().selectedPartition === partition) return
@@ -163,7 +170,13 @@ export const useFlasherStore = create<FlasherState & FlasherActions>()(immer((se
   setCurrentSlot: (slot) => set({ currentSlot: slot }),
   setCustomCommand: (command) => set({ customCommand: command }),
   setCustomCommandOutput: (output) => set({ customCommandOutput: output }),
-  setSideloadFilePath: (path) => set({ sideloadFilePath: path }),
+  // The chosen ZIP is an input of the sideload confirmation, so it participates in
+  // the same revision contract as the flash inputs.
+  setSideloadFilePath: (path) => {
+    if (get().sideloadFilePath === path) return
+    set({ sideloadFilePath: path })
+    bumpTargetRevision()
+  },
   setLoadingDevices: (loading) => set({ loadingDevices: loading }),
   setRefreshingDevices: (refreshing) => set({ refreshingDevices: refreshing }),
   setScanningPlan: (scanning) => set({ scanningPlan: scanning }),

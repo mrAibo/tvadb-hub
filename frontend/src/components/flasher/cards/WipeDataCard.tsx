@@ -11,8 +11,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { useFlasher } from '@/hooks/useFlasher'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
+  useFlasher,
+  useFlashDispatchBusy,
+  type FlashConsent,
+} from '@/hooks/useFlasher'
+import { useFlashTargetRevision } from '@/stores/useFlasherStore'
+import {
+  IconAlertTriangle as AlertTriangle,
   IconTrash as Trash2,
   IconLoader2 as Loader2,
   IconCpu as Cpu
@@ -23,9 +30,25 @@ interface WipeDataCardProps {
 }
 
 export function WipeDataCard({ disabled }: WipeDataCardProps) {
-  const { activeFastbootSerial, runningWipe, executeWipeData } = useFlasher()
-  const [confirmOpen, setConfirmOpen] = useState(false)
+  const { activeFastbootSerial, runningWipe, executeWipeData, captureWipeConsent } = useFlasher()
+  const dispatchBusy = useFlashDispatchBusy()
+  const targetRevision = useFlashTargetRevision()
+  const [pendingConsent, setPendingConsent] = useState<FlashConsent | null>(null)
+  // A serial or device-context change while the dialog is open (including A -> B -> A)
+  // invalidates the captured consent and the user has to confirm again.
+  const consentStale = pendingConsent !== null && pendingConsent.revision !== targetRevision
   const hasDevice = !!activeFastbootSerial && !disabled
+
+  function handleOpenConfirm() {
+    setPendingConsent(captureWipeConsent())
+  }
+
+  function handleConfirmWipe() {
+    if (!pendingConsent) return
+    const consent = pendingConsent
+    setPendingConsent(null)
+    void executeWipeData(consent)
+  }
 
   return (
     <Card className="relative overflow-hidden border-[var(--destructive)]/30 dark:border-[var(--destructive)]/20 bg-[var(--destructive)]/[0.08] dark:bg-[var(--destructive)]/[0.04] rounded-2xl shadow-[var(--shadow-card)] h-full flex flex-col">
@@ -46,8 +69,8 @@ export function WipeDataCard({ disabled }: WipeDataCardProps) {
         <Button
           variant="destructive"
           className="w-full rounded-full bg-[var(--destructive)] hover:bg-[var(--destructive)]/90 text-white border-0 transition-[colors,transform] active:scale-[0.97] cursor-pointer text-xs font-semibold shadow-sm h-9 mt-4"
-          onClick={() => setConfirmOpen(true)}
-          disabled={!hasDevice || runningWipe}
+          onClick={handleOpenConfirm}
+          disabled={!hasDevice || runningWipe || dispatchBusy}
         >
           {runningWipe ? (
             <>
@@ -69,7 +92,12 @@ export function WipeDataCard({ disabled }: WipeDataCardProps) {
         </div>
       )}
 
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <AlertDialog
+        open={pendingConsent !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingConsent(null)
+        }}
+      >
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-[var(--destructive)] dark:text-[var(--destructive)] flex items-center gap-2">
@@ -80,10 +108,28 @@ export function WipeDataCard({ disabled }: WipeDataCardProps) {
               All user files, downloaded apps, system accounts, and encryption keys on the device will be permanently deleted. This action cannot be reversed.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            <div>
+              Target device:{' '}
+              <span data-testid="wipe-confirm-serial" className="font-mono text-foreground">
+                {pendingConsent?.serial || 'none'}
+              </span>
+              {pendingConsent?.deviceLabel ? <> ({pendingConsent.deviceLabel})</> : null}
+            </div>
+          </div>
+          {consentStale && (
+            <Alert variant="destructive" className="rounded-xl py-2 px-3">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <AlertDescription data-testid="wipe-confirm-stale">
+                The device changed. Close this dialog and confirm again.
+              </AlertDescription>
+            </Alert>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => { setConfirmOpen(false); executeWipeData() }}
+              onClick={handleConfirmWipe}
+              disabled={consentStale || dispatchBusy}
               className="rounded-full bg-[var(--destructive)] hover:bg-[var(--destructive)]/90 text-white border-0 shadow-sm"
             >
               Wipe Everything

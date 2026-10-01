@@ -93,10 +93,12 @@ export interface FlashConsent {
   serial: string
   deviceLabel: string | null
   revision: number
+  mode?: string
   partition?: string
   imagePath?: string
   folderPath?: string
   steps?: string[]
+  zipPath?: string
 }
 
 export function capturePartitionConsent(state: FlasherState): FlashConsent {
@@ -104,6 +106,7 @@ export function capturePartitionConsent(state: FlasherState): FlashConsent {
     serial: state.activeFastbootSerial,
     deviceLabel: deviceLabels.get(state.activeFastbootSerial) ?? null,
     revision: flashTargetRevision(),
+    mode: state.deviceMode ?? undefined,
     partition: state.selectedPartition,
     imagePath: state.selectedImagePath,
   }
@@ -114,29 +117,71 @@ export function captureBatchConsent(state: FlasherState): FlashConsent {
     serial: state.activeFastbootSerial,
     deviceLabel: deviceLabels.get(state.activeFastbootSerial) ?? null,
     revision: flashTargetRevision(),
+    mode: state.deviceMode ?? undefined,
     folderPath: state.romFolderPath,
     steps: [...state.selectedPartitions].sort(),
   }
 }
 
+// captureWipeConsent captures the wipe target. Wipe runs on a fastboot device, so the
+// live check requires fastboot presence.
+export function captureWipeConsent(state: FlasherState): FlashConsent {
+  return {
+    serial: state.activeFastbootSerial,
+    deviceLabel: deviceLabels.get(state.activeFastbootSerial) ?? null,
+    revision: flashTargetRevision(),
+    mode: state.deviceMode ?? undefined,
+  }
+}
+
+// captureSideloadConsent captures the sideload target AND the chosen ZIP. Sideload
+// runs on an ADB-recovery device: the fastboot device list is expected to be empty, so
+// the live check uses the sideload mode plus the captured serial/path instead of
+// fastboot-list membership.
+export function captureSideloadConsent(state: FlasherState): FlashConsent {
+  return {
+    serial: state.activeFastbootSerial,
+    deviceLabel: deviceLabels.get(state.activeFastbootSerial) ?? null,
+    revision: flashTargetRevision(),
+    mode: state.deviceMode ?? undefined,
+    zipPath: state.sideloadFilePath,
+  }
+}
+
 // consentRefusal re-checks the captured snapshot against the LIVE store right before
 // dispatch. The revision comparison catches value-changing edits (including an
-// A -> B -> A sequence that looks restored), and the explicit field comparisons plus
-// the device-list check catch a device that disappeared without a serial change.
+// A -> B -> A sequence that looks restored or a device-context switch), and the
+// explicit field comparisons catch a target that changed without a revision move.
+//
+// The guard is mode specific on purpose: wipe/partition/batch require the device to be
+// in the live fastboot list, while sideload must NOT require that membership because a
+// sideload target is an ADB-recovery device whose fastboot list is legitimately empty.
 function consentRefusal(
-  kind: 'partition' | 'batch',
+  kind: 'partition' | 'batch' | 'wipe' | 'sideload',
   consent: FlashConsent,
   live: FlasherState,
 ): string | null {
-  if (!consent.serial) return 'No confirmed fastboot device'
+  if (!consent.serial) return 'No confirmed device'
   if (flashTargetRevision() !== consent.revision) {
-    return 'The device or the flash inputs changed — review and confirm again'
+    return 'The device or the inputs changed — review and confirm again'
   }
   if (live.activeFastbootSerial !== consent.serial) {
-    return `The confirmed fastboot device changed to ${live.activeFastbootSerial || 'none'} — review and confirm again`
+    return `The confirmed device changed to ${live.activeFastbootSerial || 'none'} — review and confirm again`
   }
-  if (!live.fastbootDevices.some((device) => device.serial === consent.serial)) {
+  if (kind !== 'sideload' && !live.fastbootDevices.some((device) => device.serial === consent.serial)) {
     return `Fastboot device ${consent.serial} is no longer connected`
+  }
+  if (kind === 'sideload') {
+    if (consent.mode !== 'sideload' || live.deviceMode !== 'sideload') {
+      return 'The device is no longer in sideload mode — review and confirm again'
+    }
+    if (live.sideloadFilePath !== (consent.zipPath ?? '')) {
+      return 'The selected ZIP changed — review and confirm again'
+    }
+    return null
+  }
+  if (kind === 'wipe') {
+    return null
   }
   if (kind === 'partition') {
     if (live.selectedPartition !== (consent.partition ?? '')) {
@@ -468,46 +513,58 @@ export function useFlasher() {
     }
   }, [])
 
-  const executeWipeData = useCallback(async () => {
-    const serial = store.activeFastbootSerial
-    if (operationInProgressRef.current) return
-    if (!serial) {
-      toast.error('No fastboot device connected')
-      return
-    }
-    store.setRunningWipe(true)
+  const executeWipeData = useCallback(async (consent: FlashConsent) => {
+    if (!beginFlashDispatch()) return
+    store.setError(null)
     try {
-      const result = await fastbootSvc.wipeData(serial)
-      toast.success(result || 'Device data wiped successfully')
-    } catch (err) {
-      toast.error(getErrorMessage(err))
+      const refusal = consentRefusal('wipe', consent, useFlasherStore.getState())
+      if (refusal) {
+        store.setError(refusal)
+        toast.error(refusal)
+        return
+      }
+      store.setRunningWipe(true)
+      try {
+        const result = await fastbootSvc.wipeData(consent.serial)
+        toast.success(result || 'Device data wiped successfully')
+      } catch (err) {
+        toast.error(getErrorMessage(err))
+      } finally {
+        store.setRunningWipe(false)
+      }
     } finally {
-      store.setRunningWipe(false)
+      setFlashDispatchBusy(false)
     }
-  }, [store.activeFastbootSerial])
+  }, [])
 
-  const executeSideload = useCallback(async () => {
-    const serial = store.activeFastbootSerial
-    const zipPath = store.sideloadFilePath
-    if (operationInProgressRef.current) return
-    if (!serial) {
-      toast.error('No device connected')
-      return
-    }
-    if (!zipPath) {
-      toast.error('Select a ZIP file to sideload')
-      return
-    }
-    store.setRunningSideload(true)
+  const executeSideload = useCallback(async (consent: FlashConsent) => {
+    if (!beginFlashDispatch()) return
+    store.setError(null)
     try {
-      const result = await fastbootSvc.sideloadPackage(serial, zipPath)
-      toast.success(result || 'Sideload completed')
-    } catch (err) {
-      toast.error(getErrorMessage(err))
+      const refusal = consentRefusal('sideload', consent, useFlasherStore.getState())
+      if (refusal) {
+        store.setError(refusal)
+        toast.error(refusal)
+        return
+      }
+      const zipPath = consent.zipPath ?? ''
+      if (!zipPath) {
+        toast.error('Select a ZIP file to sideload')
+        return
+      }
+      store.setRunningSideload(true)
+      try {
+        const result = await fastbootSvc.sideloadPackage(consent.serial, zipPath)
+        toast.success(result || 'Sideload completed')
+      } catch (err) {
+        toast.error(getErrorMessage(err))
+      } finally {
+        store.setRunningSideload(false)
+      }
     } finally {
-      store.setRunningSideload(false)
+      setFlashDispatchBusy(false)
     }
-  }, [store.activeFastbootSerial, store.sideloadFilePath])
+  }, [])
 
   const executeCustomCommand = useCallback(async () => {
     const serial = store.activeFastbootSerial
@@ -617,6 +674,8 @@ export function useFlasher() {
     dispatchBusy: flashDispatchBusy,
     capturePartitionConsent: () => capturePartitionConsent(useFlasherStore.getState()),
     captureBatchConsent: () => captureBatchConsent(useFlasherStore.getState()),
+    captureWipeConsent: () => captureWipeConsent(useFlasherStore.getState()),
+    captureSideloadConsent: () => captureSideloadConsent(useFlasherStore.getState()),
     chooseImageFile,
     chooseSideloadFile,
     chooseRomFolder,

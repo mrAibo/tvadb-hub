@@ -13,8 +13,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { FilePicker } from '@/components/flasher/shared/FilePicker'
-import { useFlasher } from '@/hooks/useFlasher'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
+  useFlasher,
+  useFlashDispatchBusy,
+  type FlashConsent,
+} from '@/hooks/useFlasher'
+import { useFlashTargetRevision } from '@/stores/useFlasherStore'
+import {
+  IconAlertTriangle as AlertTriangle,
   IconBox as Package,
   IconLoader2 as Loader2,
   IconCpu as Cpu
@@ -33,12 +40,29 @@ export function SideloadCard({ disabled }: SideloadCardProps) {
     runningSideload,
     chooseSideloadFile,
     executeSideload,
+    captureSideloadConsent,
   } = useFlasher()
 
-  const [confirmOpen, setConfirmOpen] = useState(false)
+  const dispatchBusy = useFlashDispatchBusy()
+  const targetRevision = useFlashTargetRevision()
+  const [pendingConsent, setPendingConsent] = useState<FlashConsent | null>(null)
+  // A serial, a chosen ZIP or a device-context change while the dialog is open
+  // (including A -> B -> A) invalidates the captured consent.
+  const consentStale = pendingConsent !== null && pendingConsent.revision !== targetRevision
   const isSideloadMode = deviceMode === 'sideload'
   const hasDevice = !!activeFastbootSerial
   const hasFile = !!sideloadFilePath
+
+  function handleOpenConfirm() {
+    setPendingConsent(captureSideloadConsent())
+  }
+
+  function handleConfirmSideload() {
+    if (!pendingConsent) return
+    const consent = pendingConsent
+    setPendingConsent(null)
+    void executeSideload(consent)
+  }
 
   return (
     <Card className="relative overflow-hidden border-[var(--border)] dark:border-[var(--border)] bg-card dark:bg-[var(--terminal-bg)]/40 rounded-2xl shadow-[var(--shadow-card)] h-full flex flex-col">
@@ -88,8 +112,8 @@ export function SideloadCard({ disabled }: SideloadCardProps) {
 
         <Button
           className="w-full rounded-full bg-primary hover:bg-primary/95 text-primary-foreground border-0 transition-[colors,transform] active:scale-[0.97] cursor-pointer text-xs font-semibold shadow-sm h-9 mt-4"
-          onClick={() => setConfirmOpen(true)}
-          disabled={disabled || !hasDevice || !hasFile || runningSideload}
+          onClick={handleOpenConfirm}
+          disabled={disabled || !hasDevice || !hasFile || runningSideload || dispatchBusy}
         >
           {runningSideload ? (
             <>
@@ -111,7 +135,12 @@ export function SideloadCard({ disabled }: SideloadCardProps) {
         </div>
       )}
 
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <AlertDialog
+        open={pendingConsent !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingConsent(null)
+        }}
+      >
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Sideload</AlertDialogTitle>
@@ -120,10 +149,31 @@ export function SideloadCard({ disabled }: SideloadCardProps) {
               be in sideload/recovery mode.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            <div>
+              Target device:{' '}
+              <span data-testid="sideload-confirm-serial" className="font-mono text-foreground">
+                {pendingConsent?.serial || 'none'}
+              </span>
+              {pendingConsent?.deviceLabel ? <> ({pendingConsent.deviceLabel})</> : null}
+            </div>
+            <div data-testid="sideload-confirm-file" className="break-all">
+              Package: <span className="font-mono text-foreground">{pendingConsent?.zipPath || 'none'}</span>
+            </div>
+          </div>
+          {consentStale && (
+            <Alert variant="destructive" className="rounded-xl py-2 px-3">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <AlertDescription data-testid="sideload-confirm-stale">
+                The device, the mode or the selected ZIP changed. Close this dialog and confirm again.
+              </AlertDescription>
+            </Alert>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => { setConfirmOpen(false); executeSideload() }}
+            <AlertDialogAction
+              onClick={handleConfirmSideload}
+              disabled={consentStale || dispatchBusy}
               className="rounded-full bg-primary hover:bg-primary/95 text-primary-foreground border-0 shadow-sm"
             >
               Start Sideload
