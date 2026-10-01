@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { PartitionFlashCard } from '../cards/PartitionFlashCard'
 import { RomFlashCard } from '../cards/RomFlashCard'
+import { flashDeviceLabel } from '@/hooks/useFlasher'
 import { useFlasherStore } from '@/stores/useFlasherStore'
 
 const flashPartitionForDevice = vi.fn()
@@ -70,13 +71,15 @@ describe('PartitionFlashCard destructive confirmation', () => {
 
   it('shows the captured serial, model, partition and image, and cancels without dispatching', async () => {
     render(<PartitionFlashCard />)
+    // The model label is part of the captured consent, so wait until the device poll
+    // has reported it before opening the dialog.
+    await waitFor(() => expect(flashDeviceLabel('F1')).toBe('Chromecast HD'))
     fireEvent.click(screen.getByRole('button', { name: /flash partition/i }))
 
     expect(await screen.findByTestId('partition-confirm-serial')).toHaveTextContent('F1')
     expect(screen.getByTestId('partition-confirm-partition')).toHaveTextContent('boot')
     expect(screen.getByTestId('partition-confirm-image')).toHaveTextContent('/images/boot.img')
-    // The model is shown once the device poll reported it.
-    await waitFor(() => expect(screen.getByText(/Chromecast HD/)).toBeInTheDocument())
+    expect(screen.getByText(/Chromecast HD/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
     expect(flashPartitionForDevice).not.toHaveBeenCalled()
@@ -140,12 +143,13 @@ describe('RomFlashCard destructive confirmation', () => {
 
   it('shows the captured serial, folder and step list, and cancels without dispatching', async () => {
     render(<RomFlashCard />)
+    await waitFor(() => expect(flashDeviceLabel('F1')).toBe('Chromecast HD'))
     fireEvent.click(screen.getByRole('button', { name: /flash 2 partition\(s\)/i }))
 
     expect(await screen.findByTestId('batch-confirm-serial')).toHaveTextContent('F1')
     expect(screen.getByTestId('batch-confirm-folder')).toHaveTextContent('/rom')
     expect(screen.getByTestId('batch-confirm-steps')).toHaveTextContent('boot, vbmeta')
-    await waitFor(() => expect(screen.getByText(/Chromecast HD/)).toBeInTheDocument())
+    expect(screen.getByText(/Chromecast HD/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
     expect(flashRomFolderForDevice).not.toHaveBeenCalled()
