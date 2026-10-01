@@ -80,7 +80,7 @@ export function LogcatView({ scrollContainerRef }: LogcatViewProps) {
     )
   }
 
-  if (filteredLogs.length === 0 && logs.length === 0) {
+  if (!pinnedOnly && logs.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground">
         <div className="text-center">
