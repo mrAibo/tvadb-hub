@@ -1,5 +1,32 @@
 # DroidSphere — audit remediation and P3 handoff
 
+## 2026-10-01 continuation addendum
+
+This addendum supersedes the **current-state/next-action** statements later in
+this historical handoff; the detailed P3 evidence below remains useful history.
+
+- Latest verified application baseline before the release-readiness workflow/docs
+  follow-up: `main` `f122983eb911051de192412db17d22cf01f18ee9`, merge PR #60.
+- Post-merge CI run `36874540492` passed all six repository jobs. The Windows
+  raw-byte witness reported 34 checked tracked paths and zero mismatches.
+- PR #60 closed the Phase-0 provenance/test-harness stabilization package:
+  raw tracked-status provenance, canonical generated inputs and five explicit
+  frontend service-boundary mocks that prevent Wails runtime timer leakage.
+- No P1/P2/P3 feature package is waiting in an open PR at that checkpoint.
+- The immediate release-readiness follow-up is to remove the stale
+  distribution self-commit branch and make Windows release publication require
+  a version-bound physical-device validation record.
+- Physical device validation (#19), administrator-enforced required checks,
+  publication/signing and real cross-platform ADB benchmark measurements remain
+  external/manual evidence gates.
+- After release readiness, the next contained product package is Logcat 2.0
+  phase 2 (app/PID filtering + pinned events), implemented from a fresh current
+  `main` branch rather than directly merging the old experimental branch.
+
+Always read [STATUS.md](STATUS.md) and issue #43 first; they are newer than the
+historical chronology below.
+
+
 Date: 2026-09-30 (historical file name and date kept for continuity). Content last verified
 **2026-10-01** against `main` `535295c9f63d7aab2cdd286fc86e1b5e0d4c938a` (tree
 `c7f65351a8b067aeb3ba2917514a3c7e151aae35`). Repository: `mrAibo/tvadb-hub`. Product: DroidSphere.
