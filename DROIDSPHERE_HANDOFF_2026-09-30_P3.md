@@ -1,6 +1,11 @@
 # DroidSphere — audit remediation and P3 handoff
 
-Date: 2026-09-30. Repository: `mrAibo/tvadb-hub`. Product: DroidSphere.
+Date: 2026-09-30 (historical file name and date kept for continuity). Content last verified
+**2026-10-01** against `main` `535295c9f63d7aab2cdd286fc86e1b5e0d4c938a` (tree
+`c7f65351a8b067aeb3ba2917514a3c7e151aae35`). Repository: `mrAibo/tvadb-hub`. Product: DroidSphere.
+This documentation refresh travels in the open docs-only PR **#59** (base `535295c9…`); when it is
+reviewed and merged, the final docs/main commit must be reconciled against that base — no later
+commit is claimed here.
 
 This file supersedes the earlier PR #29 handoff. Read it completely before
 changing code. Do not ask the user to re-explain the project.
@@ -27,10 +32,19 @@ git pull --ff-only origin main
 git rev-parse HEAD
 ```
 
-Verified source checkpoint before this documentation refresh:
-`41967b679551dc190d02461b5d8850245babaa23`, merge of PR #45.
-Post-merge run [36752405380](https://github.com/mrAibo/tvadb-hub/actions/runs/36752405380)
-passed frontend-check, go-test, Windows, Linux and macOS builds.
+Historical checkpoint at the previous milestone: `41967b679551dc190d02461b5d8850245babaa23`,
+merge of PR #45 (post-merge run [36752405380](https://github.com/mrAibo/tvadb-hub/actions/runs/36752405380)).
+That checkpoint is superseded.
+
+Verified source checkpoint at **2026-10-01**: `535295c9f63d7aab2cdd286fc86e1b5e0d4c938a`
+("Merge pull request #57 from mrAibo/fix/fastboot-ui"), tree
+`c7f65351a8b067aeb3ba2917514a3c7e151aae35`, working tree clean, open PRs = 0.
+Post-merge PR CI run [36817054417](https://github.com/mrAibo/tvadb-hub/actions/runs/36817054417)
+attempt 1 passed **six** GitHub Actions checks (frontend-check, go-test, windows-internal-tests,
+linux-build, macos-build, windows-build) and the platform artifacts carry `BUILD_PROVENANCE` with
+`sourceRevision = 535295c9f63d7aab2cdd286fc86e1b5e0d4c938a`. Exactly six checks are green — see
+"What is deliberately not claimed" below; the external `Kilo Code Review` check did not run.
+
 Inspect every intervening commit if main is newer and preserve valid newer work.
 Never overwrite a parallel session's valid changes or duplicate merged features.
 
@@ -83,24 +97,96 @@ passed all five jobs. These packages are complete; do not implement them again.
   36752405380 passed all five jobs. `docs/STREAM_LIFECYCLE.md` describes the
   regression coverage; no physical-device validation is implied.
 
-## Published but not yet merged at this milestone
+## Published but not yet merged at the 2026-09-30 milestone (historical)
 
-| PR | Scope | Head SHA | Evidence / next action |
-| --- | --- | --- | --- |
-| #46 | Single transfer admission, operation-aware cancellation, pinned target/tool/settings, truthful per-item results, retry/hash diagnostics and stale UI guards | `c0113d418701e337ba90a6aa7d1308b78d95ae5d` | Includes #45; full integration CI 36752572581 pending. |
-| #47 | Read-only dynamic user-0 HOME/IME safety floor, per-action recheck and disabled-state snapshot guard | `b71d3490604989b1a7c4148de97ada9012bd8ab4` | Based on #45; full CI 36753585452 pending. |
+The table that stood here listed PR #46 and PR #47 as published and pending. Both were merged
+later the same day (#46 `2026-09-30T17:56:07Z`, #47 `2026-09-30T18:40:48Z`), and every later
+package is now merged too — the live merged set is in "P3 source closure" below. This section is
+kept only as history; do not re-open, re-implement or re-review those packages from it.
 
-Read issue #43 and current PR metadata before acting; these may be merged after
-this document is written. Transfer changes passed the production frontend
-build and 114 frontend tests; full Go tests are verified in CI, not inferred
-from Windows cross-compilation. Dynamic recovery core tests/race/vet passed
-locally; tuning runtime tests require CI. Both packages are durably published.
+Transfer changes passed the production frontend build and 114 frontend tests at that milestone;
+full Go tests are verified in CI, never inferred from Windows cross-compilation.
+
+## P3 source closure (2026-10-01)
+
+Every confirmed P3 package is merged on `main` `535295c9`. Each row names the independent review
+gate that judged the patch; identity was checked byte-wise against the **latest reviewed head of that
+package** (never inferred from PR titles). Where a later reviewed commit legitimately changed files,
+the row says which head the final content matches.
+
+| Package | Integrated as | Independent gate (workspace-root document) |
+| --- | --- | --- |
+| Device-bound Apps/Files, selection queue, monitor/cache, confirmed-device API | #53 (Go twin API + frontend guards) | `DEVICE_TARGET_INTEGRATION.md`: t27 PASS (`3f7fa7e5…`) + t50 PASS (`306a1656…`) |
+| UX: Ctrl/K ownership, real theme toggle, protected preferences draft | #51 | t39 PASS r2 (`2023089…`) |
+| Recording lifecycle: single `Wait` owner, fail-closed stop, bounded prompt probe | #54 | t26 PASS (`2206b09e…`) |
+| Recording test-helper readiness + repeated race gate `-count=20` | #58 | t69 PASS (`b7382ff…`) |
+| Strict fastboot twins (blank refusal before any tool work, pinned target) — **original M1 backend half** | #57 Go base | t54 PASS (`abd66e16…`) |
+| Flash consent for partition/batch through strict RPC twins — **original M1 UI half** | #57 UI, baseline reviewed at t59 (`0184c44f…`, tree `e7abc456…`) | final content matches the **t75** head below: M3 legitimately changed 7 files, and t75 preserves the t59 baseline (an "empty diff against `0184c44`" would be wrong) |
+| **M3**: captured target/inputs confirmation for wipe and sideload | #57 commit `9725375` | t75 PASS (`f4fd252…`, tree `d6910324…`) |
+| Guarded Launcher Wizard backend (capability preflight, unique-HOME fail-closed, durable journal, cancel, rollback, offline recovery) | #56 + `1e056e3f…` | backend gate **t45 PASS** (kept separate); docs t48 |
+| Launcher Wizard UI (Current+, truthful copy, offline recovery errors) | #56 | **t46 (round 1, `needs_revision`) → t71 (repair) → t72 (round 2, PASS)**; the round-2 review `LAUNCHER_WIZARD_REVIEW_R2.md` covers head `91623eef…` |
+| Scrcpy preset persistence + non-clobber preferences | #55 | t56 needs_revision → **t67 PASS on reviewed head `30c9ca5…`**; the integrated head `bb7b578e…` (= merge `6411a71e^2`) preserves the same six blobs |
+| Dataset endpoints/benchmark evidence and toolchain provenance (earlier phase) | #48, #49, #50 | t13/t14/t32/t34 records |
+
+M1 (original scope) = the two confirmed cards (`PartitionFlashCard`, `RomFlashCard`): strict
+`…ForDevice` RPC twins with a captured serial, and a consent dialog that shows the captured target.
+M3 is a **deliberate minimal safety extension** discovered while fixing M1 — the same wrong-target
+risk existed on the wipe and sideload cards, which were outside the original two-card C-12 scope.
+It is not a roadmap item: it adds captured consent (serial plus, for sideload, the ZIP and mode),
+keeps wipe/partition/batch requiring a live fastboot target, and accepts a sideload target whose
+fastboot list is legitimately empty (an ADB-recovery device). All four destructive flows share one
+synchronous dispatch admission checked before the first await. It is **not** a claim that every
+power-user fastboot action (custom command, active-slot change, WOF helpers) is consent-gated.
+
+Recording readiness (#58/#70): the Linux `-race` failure was a **test-harness readiness gap** (the
+fake recorder's `os.WriteFile` creates the file before writing it, while the old wait checked only
+existence), not a product bug and not a data race; the product's fail-closed empty-output path was
+correct. The fix is test-only, and the repeated `-count=20` race step is now a CI gate.
+
+Historical clarifications kept truthful (metadata, not source defects):
+`t58`'s extra sibling test file was treated as outside its authored scope and was formally adopted
+by the `t59` review — the earlier "directory/parser bug" explanation is **not** claimed (unproven).
+`t55`'s verification had one cached run in which the fourth verify appeared missing and had to be
+retried — an environment/caching artifact, not a validator bug. In the t68 attempt the default
+`gh pr checks --watch --fail-fast` lookup (no target) did not resolve the PR, while the explicit
+PR-numbered form (as used for the #58 verification) succeeded; the cause is unknown, and the default
+form did work in t55, so no general claim is made. Verification therefore used the explicit per-PR
+proof — the same command with a PR number/target, as reported by t55 — and was
+independently reviewed (`t69`); there is no claim that the literal form itself passed.
+
+**Release versus build/packaging (two separate statements).** The release/distribution workflows
+(`release.yml`, triggered by `v*` tags, and `distribution.yml`) **never ran**: nothing was published,
+signed, notarized or deployed, there are no tags or GitHub releases, and repository permissions were
+not changed. Separately, the CI build/packaging steps **did execute**: `windows-build` produced the
+Windows binary and the NSIS installer, `linux-build`/`macos-build` produced their platform binaries,
+and those artifacts carry `BUILD_PROVENANCE` naming the exact revision (digests recomputed during
+verification). Building on CI is not publishing.
+
+Three metadata errors from the earlier whole-RC verification report (root
+`SOURCE_RC_VERIFICATION.md`, t61) are corrected here and in the root ledgers and must not be copied
+forward: (1) the final flash-UI content maps to the **t75** head `f4fd252…`, **not** to t59's
+`0184c44…` — M3 legitimately changed 7 files and t75 preserves the t59 baseline; (2) the
+scrcpy-presets **reviewed** head is `30c9ca5…` (t67), while `bb7b578e…` is the integration head that
+carries the same six blobs; (3) the Launcher-UI chain is **t46 (round 1, `needs_revision`) → t71
+(repair) → t72 (round 2, PASS)** with the backend gate t45 kept separate, and the
+`sourceDirty: true` cause recorded by all three provenance files is **unproven** (hypothesis, not a
+measurement) — no clean-source-built binary claim is made.
+
+Final source-RC evidence (`t61`, root `SOURCE_RC_VERIFICATION.md`): six GitHub Actions checks green
+on `535295c9` **plus** the Linux `./internal/launcher` race execution, the separate
+`go test -race ./internal/scrcpy -count=20` gate, the Windows internal/atomic-write steps, and
+three platform artifacts whose `BUILD_PROVENANCE` names this revision (digests recomputed).
+Still open and explicitly **not** executed: physical Fire TV/Google TV validation (issue **#19**,
+firmware/OEM behaviour unproven), administrator-enforced branch protection/required checks,
+distribution publishing, signing/notarization, tags/releases/deployments, and Git-history rewriting.
+`C-13` and `C-14` remain unproven.
 
 ## Accepted remaining sequence
 
-1. Finish #46 current-main integration/full CI, merge and verify main.
-2. Finish #47 integration/full CI, merge and verify main. Unknown recovery
-   capability blocks disabling actions; enabling recovery remains possible.
+1. ~~Finish #46 current-main integration/full CI, merge and verify main.~~ **Done** (merged
+   2026-09-30; see "P3 source closure").
+2. ~~Finish #47 integration/full CI, merge and verify main.~~ **Done** (merged 2026-09-30). Unknown
+   recovery capability still blocks disabling actions; enabling recovery remains possible.
 3. Benchmark: CLI and smart socket must use the same endpoint; alternate paired
    samples; check snapshot consistency; export raw/summary JSON evidence.
 4. Validation/distribution: make frontend typecheck actually check application,
@@ -162,6 +248,29 @@ do not bypass them. Full desktop-dependent testing/builds use GitHub CI.
 Unit/fake-device tests do not establish real firmware compatibility. Physical TV
 validation, user experience smoke tests and cross-platform ADB measurements are
 still required. Unknown/ambiguous package-state output must fail closed.
+
+Environment limits versus CI evidence (do not conflate them):
+
+- Local `bun run test` (Vitest) cannot start on this Windows host — the Vite/spawn path fails with
+  `EPERM`. UI runtime proof therefore comes from CI's `frontend-check` job, never from a local pass.
+- Local `go test -race` is impossible here (no cgo/gcc). Race proof comes from the CI Ubuntu jobs,
+  including `./internal/launcher` and the repeated `./internal/scrcpy -count=20` step.
+- `go test ./...` (repo root) needs the built frontend for `//go:embed`; use
+  `go test ./internal/...` locally and let CI run the root package.
+- Build provenance for the RC records `"sourceDirty": true` on all three artifacts. Its **cause is
+  unproven**: the "`wails3 generate bindings` rewrites the tracked `frontend/bindings/**`"
+  explanation is a hypothesis (and the earlier PR49-F1 "different artifact byte-target" claim was
+  refuted), so no dirty-path list or log is asserted. The recorded revision is certified; **no
+  pristine-checkout and no clean-source-built binary claim** is made until dirty paths are captured
+  from an actual build log.
+- Exactly **six** CI checks are green. The external `Kilo Code Review` check is `action_required`
+  ("Insufficient credits to run review") — no review signal, not a code finding, and never counted
+  as a seventh green check. No payment/plan/admin change was attempted or is authorized here.
+- No wall-clock or hardware behaviour is asserted: no device, emulator, adb or fastboot command was
+  run for this RC, and the FULL Go settings export/import round-trip (presets surviving a real
+  backup/restore) has no end-to-end test yet — it remains an optional hardening item.
+- This handoff is documentation only. Commenting the docs refresh into issue #43 happens after the
+  independent review of the docs PR and its merge, not before.
 
 Repository administration is not available through the connected GitHub app;
 administrator-enforced branch protections remain an explicit external task.
