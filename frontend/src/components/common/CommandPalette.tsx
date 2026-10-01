@@ -16,6 +16,7 @@ import {
   IconCamera as Camera
 } from "@tabler/icons-react"
 import { useUIStore } from '@/stores/useUIStore'
+import { useSettings } from '@/hooks/useSettings'
 import { useDeviceStore } from '@/stores/useDeviceStore'
 import { getDevices } from '@/services/deviceService'
 import { toast } from 'sonner'
@@ -32,8 +33,19 @@ const routeCommands = [
 ]
 
 export function CommandPalette() {
-  const { commandPaletteOpen, setCommandPaletteOpen, theme, toggleTheme } = useUIStore()
+  const { commandPaletteOpen, setCommandPaletteOpen, theme, setTheme: setLocalTheme } = useUIStore()
+  const { setTheme: persistTheme } = useSettings()
   const navigate = useNavigate()
+  const modLabel = navigator.platform.toUpperCase().includes('MAC') ? '\u2318' : 'Ctrl'
+
+  const handleToggleTheme = useCallback(() => {
+    const next: 'dark' | 'light' = theme === 'dark' ? 'light' : 'dark'
+    // Reuse the same pair the dock uses: apply the effective theme immediately and
+    // persist it through the settings mutation, so the config sync cannot revert it.
+    setLocalTheme(next)
+    void persistTheme(next)
+    setCommandPaletteOpen(false)
+  }, [theme, setLocalTheme, persistTheme, setCommandPaletteOpen])
 
   const handleRefreshDevices = useCallback(async () => {
     setCommandPaletteOpen(false)
@@ -59,9 +71,13 @@ export function CommandPalette() {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      const mod = e.metaKey || e.ctrlKey
+      // Only the exact, unshifted chord toggles the palette; the shifted variant
+      // belongs to the Logcat surface and must not be swallowed here.
+      if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setCommandPaletteOpen(!commandPaletteOpen)
+        return
       }
       if (e.key === 'Escape') {
         setCommandPaletteOpen(false)
@@ -142,10 +158,7 @@ export function CommandPalette() {
             </Command.Item>
             <Command.Item
               value="Toggle theme"
-              onSelect={() => {
-                toggleTheme()
-                setCommandPaletteOpen(false)
-              }}
+              onSelect={handleToggleTheme}
               className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors hover:bg-accent/50 data-[selected=true]:bg-accent/60"
             >
               {theme === 'dark' ? (
@@ -163,7 +176,7 @@ export function CommandPalette() {
             Press <kbd className="rounded border border-border bg-muted px-1 py-0.5 text-[10px]">Esc</kbd> to close
           </span>
           <span className="text-[10px] text-muted-foreground">
-            <kbd className="rounded border border-border bg-muted px-1 py-0.5 text-[10px]">Ctrl+K</kbd> to toggle
+            <kbd className="rounded border border-border bg-muted px-1 py-0.5 text-[10px]">{modLabel}+K</kbd> to toggle
           </span>
         </div>
       </Command>
