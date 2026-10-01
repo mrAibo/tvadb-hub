@@ -69,4 +69,28 @@ describe('PresetsManager TV presets', () => {
     expect(screen.getByText('TV High Quality')).toBeInTheDocument()
     expect(screen.getByText('TV Low Bandwidth')).toBeInTheDocument()
   })
+
+  it('hands the trimmed name and the preset id to the durable callbacks', () => {
+    const onSavePreset = vi.fn()
+    const onDeletePreset = vi.fn()
+
+    render(
+      <PresetsManager
+        currentOptions={options}
+        presets={[{ id: 'preset-1', name: 'Mine', options, createdAt: 1 }]}
+        onApplyPreset={() => {}}
+        onSavePreset={onSavePreset}
+        onDeletePreset={onDeletePreset}
+      />,
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. Low-latency, High quality'), {
+      target: { value: '  Living room  ' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSavePreset).toHaveBeenCalledWith('Living room')
+
+    fireEvent.click(screen.getByLabelText('Delete preset Mine'))
+    expect(onDeletePreset).toHaveBeenCalledWith('preset-1')
+  })
 })
