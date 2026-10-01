@@ -156,32 +156,33 @@ describe('useScrcpy preset persistence', () => {
   })
 
   it('keeps a preset added while the initial config is still loading', async () => {
-    let resolveConfig: (config: AppConfigSnapshot) => void = () => {}
+    const pendingConfigs: Array<(config: AppConfigSnapshot) => void> = []
     mocks.getAppConfig.mockImplementation(
       () =>
         new Promise<AppConfigSnapshot>((resolve) => {
-          resolveConfig = resolve
+          pendingConfigs.push(resolve)
         }),
     )
 
     const { result } = renderHook(() => useScrcpy())
 
-    await act(async () => {
-      await result.current.handleSavePreset('Added early')
+    let savePromise: Promise<void> = Promise.resolve()
+    act(() => {
+      savePromise = result.current.handleSavePreset('Added early')
     })
 
+    // Release both the hydration read and the queued write read.
     await act(async () => {
-      resolveConfig(savedConfig())
+      pendingConfigs.forEach((resolve) => resolve(savedConfig()))
       await Promise.resolve()
     })
-
-    await waitFor(() => {
-      expect(useScrcpyStore.getState().presets.map((preset) => preset.name)).toContain(
-        'Added early',
-      )
+    await act(async () => {
+      await savePromise
     })
-    expect(useScrcpyStore.getState().presets.map((preset) => preset.name)).not.toContain(
-      'Saved TV',
-    )
+
+    const names = useScrcpyStore.getState().presets.map((preset) => preset.name)
+    expect(names).toContain('Added early')
+    // The snapshot that arrived later must not overwrite the live preset.
+    expect(names).not.toContain('Saved TV')
   })
 })

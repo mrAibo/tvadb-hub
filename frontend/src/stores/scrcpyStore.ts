@@ -67,14 +67,24 @@ interface ScrcpyPresetPersistence {
 
 type ScrcpyStore = ScrcpyState & ScrcpyActions & ScrcpyPresetPersistence
 
-const INITIAL_PRESET_STATE: ScrcpyPresetPersistence & { presets: ScrcpyPreset[] } = {
+// Only state lives here: reset() must restore every state field without replacing
+// the real actions with placeholders.
+const INITIAL_STATE: ScrcpyState &
+  Pick<ScrcpyPresetPersistence, 'presetsRevision' | 'presetsHydrated' | 'presetsPersistError'> = {
+  session: null,
+  options: { ...DEFAULT_OPTIONS },
+  encoderSupport: null,
   presets: [],
+  isStarting: false,
+  isStopping: false,
+  isRecording: false,
+  recordingStartedAt: null,
+  isFetchingEncoder: false,
+  error: null,
+  lastEventAt: null,
   presetsRevision: 0,
   presetsHydrated: false,
   presetsPersistError: null,
-  hydratePresets: () => {},
-  savePreset: async () => false,
-  deletePreset: async () => false,
 }
 
 function mergeSessionFromEvent(
@@ -163,17 +173,8 @@ function enqueuePresetPersist(): Promise<boolean> {
 }
 
 export const useScrcpyStore = create<ScrcpyStore>()((set) => ({
-  session: null,
+  ...INITIAL_STATE,
   options: { ...DEFAULT_OPTIONS },
-  encoderSupport: null,
-  isStarting: false,
-  isStopping: false,
-  isRecording: false,
-  recordingStartedAt: null,
-  isFetchingEncoder: false,
-  error: null,
-  lastEventAt: null,
-  ...INITIAL_PRESET_STATE,
   setSession: (session) => set({ session }),
   setOptions: (options) => set({ options }),
   setEncoderSupport: (encoderSupport) => set({ encoderSupport }),
@@ -251,5 +252,5 @@ export const useScrcpyStore = create<ScrcpyStore>()((set) => ({
     if (!removed) return true
     return enqueuePresetPersist()
   },
-  reset: () => set({ ...INITIAL_PRESET_STATE, options: { ...DEFAULT_OPTIONS } }),
+  reset: () => set({ ...INITIAL_STATE, options: { ...DEFAULT_OPTIONS } }),
 }))
