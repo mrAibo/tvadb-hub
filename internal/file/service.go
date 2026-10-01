@@ -74,6 +74,74 @@ func (s *Service) requireActiveSerial(ctx context.Context) (string, error) {
 	return s.resolveActiveSerial(ctx)
 }
 
+// targetService is the smallest non-transfer view of a file service pinned to one
+// confirmed device. It owns a fresh Service value built from explicit immutable
+// callbacks, so it copies no mutex, no cancellation/operation state and no
+// transfer cache. Transfers and cancellation always stay on the original service:
+// this view deliberately exposes no transfer method.
+type targetService struct {
+	svc *Service
+}
+
+// ForTarget pins the resolver and the tool paths used by listing, deleting, mkdir,
+// rename and storage helpers for one confirmed device. The pinned service never
+// consults the mutable global device selection, and a blank serial is refused
+// before any command runs. The pinned callbacks are read without holding s.mu,
+// because that lock also guards the transfer state this view must not touch.
+func (s *Service) ForTarget(serial string) *targetService {
+	paths := core.BinaryPaths{}
+	if s.getBinPath != nil {
+		paths = s.getBinPath()
+	}
+	trimmed := strings.TrimSpace(serial)
+	return &targetService{svc: &Service{
+		wailsCtx: s.wailsCtx,
+		resolveActiveSerial: func(context.Context) (string, error) {
+			if trimmed == "" {
+				return "", core.NewOperationError("device_target", "Confirmed device is required", "select and confirm an ADB device", false)
+			}
+			return trimmed, nil
+		},
+		getBinPath: func() core.BinaryPaths { return paths },
+	}}
+}
+
+func (t *targetService) ListFiles(ctx context.Context, remotePath string, showHidden bool) ([]Entry, error) {
+	return t.svc.ListFiles(ctx, remotePath, showHidden)
+}
+
+func (t *targetService) GetDirectorySize(ctx context.Context, remotePath string) (string, error) {
+	return t.svc.GetDirectorySize(ctx, remotePath)
+}
+
+func (t *targetService) GetStorageInfo(ctx context.Context) (StorageInfo, error) {
+	return t.svc.GetStorageInfo(ctx)
+}
+
+func (t *targetService) ListSdCards(ctx context.Context) ([]SdCard, error) {
+	return t.svc.ListSdCards(ctx)
+}
+
+func (t *targetService) UnblockPath(ctx context.Context, remotePath string) (UnblockResult, error) {
+	return t.svc.UnblockPath(ctx, remotePath)
+}
+
+func (t *targetService) DeleteFile(ctx context.Context, remotePath string) (string, error) {
+	return t.svc.DeleteFile(ctx, remotePath)
+}
+
+func (t *targetService) DeleteMultipleFiles(ctx context.Context, remotePaths []string) (string, error) {
+	return t.svc.DeleteMultipleFiles(ctx, remotePaths)
+}
+
+func (t *targetService) CreateDirectory(ctx context.Context, remotePath string) (string, error) {
+	return t.svc.CreateDirectory(ctx, remotePath)
+}
+
+func (t *targetService) RenameFile(ctx context.Context, oldRemotePath string, newRemotePath string) (string, error) {
+	return t.svc.RenameFile(ctx, oldRemotePath, newRemotePath)
+}
+
 // CancelTransfer cancels the active file transfer if one is in progress.
 func (s *Service) CancelTransfer() {
 	s.CancelTransferFor("")

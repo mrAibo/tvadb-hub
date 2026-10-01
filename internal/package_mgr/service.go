@@ -39,6 +39,26 @@ func (s *Service) ForTarget(serial string, userID int) *Service {
 	}
 }
 
+// ForTargetKeepUser pins the same device and tool paths as ForTarget without
+// forcing an Android user scope: --user is emitted only when a user was
+// explicitly requested, which is what the Apps surface expects. A blank serial is
+// refused by the pinned resolver, so no command runs for an unconfirmed target.
+func (s *Service) ForTargetKeepUser(serial string) *Service {
+	paths := s.getBinPath()
+	trimmed := strings.TrimSpace(serial)
+	return &Service{
+		resolveActiveSerial: func(context.Context) (string, error) {
+			if trimmed == "" {
+				return "", core.NewOperationError("device_target", "Confirmed device is required", "select and confirm an ADB device", false)
+			}
+			return trimmed, nil
+		},
+		selectSaveFile: s.selectSaveFile,
+		getBinPath:     func() core.BinaryPaths { return paths },
+		runCommand:     s.runCommand,
+	}
+}
+
 func (s *Service) execute(ctx context.Context, req core.ExecRequest) (*core.ExecResult, error) {
 	if s.runCommand != nil {
 		return s.runCommand(ctx, req)
