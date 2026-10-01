@@ -82,7 +82,7 @@ function LauncherWizard({ onClose }: { onClose: () => void }) {
                 Custom launcher (Current+)
               </CardTitle>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Guarded HOME replacement. Every step is explicit and reversible.
+                Explicit steps, guarded changes, and recovery options.
               </p>
             </div>
             <Button ref={closeRef} type="button" variant="ghost" size="sm" onClick={onClose}>
