@@ -1,14 +1,170 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 import * as fastbootSvc from '@/services/fastbootService'
 import * as deviceSvc from '@/services/deviceService'
-import { useFlasherStore } from '@/stores/useFlasherStore'
-import type { FlasherMode } from '@/lib/types'
+import { useFlasherStore, flashTargetRevision } from '@/stores/useFlasherStore'
+import type { FlasherMode, FlasherState } from '@/lib/types'
 
 const POLL_INTERVAL = 4000
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'An unexpected error occurred'
+}
+
+// ---------------------------------------------------------------------------
+// Shared destructive-dispatch admission, common to every useFlasher() instance.
+//
+// The flag flips synchronously, before the first await, so a double click or a
+// second card cannot start a second flash while one is still in flight. It is a
+// module-level guard on purpose: it needs no store field, no context provider and
+// no job framework, and every caller of the hook shares the same admission.
+let flashDispatchBusy = false
+const dispatchBusyListeners = new Set<() => void>()
+
+function setFlashDispatchBusy(value: boolean) {
+  flashDispatchBusy = value
+  dispatchBusyListeners.forEach((listener) => listener())
+}
+
+export function isFlashDispatchBusy(): boolean {
+  return flashDispatchBusy
+}
+
+export function subscribeFlashDispatchBusy(listener: () => void): () => void {
+  dispatchBusyListeners.add(listener)
+  return () => {
+    dispatchBusyListeners.delete(listener)
+  }
+}
+
+export function useFlashDispatchBusy(): boolean {
+  return useSyncExternalStore(
+    subscribeFlashDispatchBusy,
+    isFlashDispatchBusy,
+    isFlashDispatchBusy,
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Serial -> model labels, refreshed with the device poll, so a destructive
+// confirmation can name the captured device whenever a model is actually known.
+const deviceLabels = new Map<string, string>()
+const deviceLabelListeners = new Set<() => void>()
+
+function replaceDeviceLabels(entries: Map<string, string>) {
+  let changed = entries.size !== deviceLabels.size
+  if (!changed) {
+    for (const [serial, label] of entries) {
+      if (deviceLabels.get(serial) !== label) {
+        changed = true
+        break
+      }
+    }
+  }
+  if (!changed) return
+  deviceLabels.clear()
+  entries.forEach((label, serial) => deviceLabels.set(serial, label))
+  deviceLabelListeners.forEach((listener) => listener())
+}
+
+export function subscribeFlashDeviceLabels(listener: () => void): () => void {
+  deviceLabelListeners.add(listener)
+  return () => {
+    deviceLabelListeners.delete(listener)
+  }
+}
+
+export function flashDeviceLabel(serial: string): string | null {
+  return deviceLabels.get(serial) ?? null
+}
+
+export function useFlashDeviceLabel(serial: string): string | null {
+  return useSyncExternalStore(
+    subscribeFlashDeviceLabels,
+    () => deviceLabels.get(serial) ?? null,
+    () => deviceLabels.get(serial) ?? null,
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Destructive confirmation payload: the target and the inputs captured when the
+// user opened the dialog. The accepted callback dispatches exactly this snapshot.
+export interface FlashConsent {
+  serial: string
+  deviceLabel: string | null
+  revision: number
+  partition?: string
+  imagePath?: string
+  folderPath?: string
+  steps?: string[]
+}
+
+export function capturePartitionConsent(state: FlasherState): FlashConsent {
+  return {
+    serial: state.activeFastbootSerial,
+    deviceLabel: deviceLabels.get(state.activeFastbootSerial) ?? null,
+    revision: flashTargetRevision(),
+    partition: state.selectedPartition,
+    imagePath: state.selectedImagePath,
+  }
+}
+
+export function captureBatchConsent(state: FlasherState): FlashConsent {
+  return {
+    serial: state.activeFastbootSerial,
+    deviceLabel: deviceLabels.get(state.activeFastbootSerial) ?? null,
+    revision: flashTargetRevision(),
+    folderPath: state.romFolderPath,
+    steps: [...state.selectedPartitions].sort(),
+  }
+}
+
+// consentRefusal re-checks the captured snapshot against the LIVE store right before
+// dispatch. The revision comparison catches value-changing edits (including an
+// A -> B -> A sequence that looks restored), and the explicit field comparisons plus
+// the device-list check catch a device that disappeared without a serial change.
+function consentRefusal(
+  kind: 'partition' | 'batch',
+  consent: FlashConsent,
+  live: FlasherState,
+): string | null {
+  if (!consent.serial) return 'No confirmed fastboot device'
+  if (flashTargetRevision() !== consent.revision) {
+    return 'The device or the flash inputs changed — review and confirm again'
+  }
+  if (live.activeFastbootSerial !== consent.serial) {
+    return `The confirmed fastboot device changed to ${live.activeFastbootSerial || 'none'} — review and confirm again`
+  }
+  if (!live.fastbootDevices.some((device) => device.serial === consent.serial)) {
+    return `Fastboot device ${consent.serial} is no longer connected`
+  }
+  if (kind === 'partition') {
+    if (live.selectedPartition !== (consent.partition ?? '')) {
+      return 'The partition changed — review and confirm again'
+    }
+    if (live.selectedImagePath !== (consent.imagePath ?? '')) {
+      return 'The image file changed — review and confirm again'
+    }
+    return null
+  }
+  if (live.romFolderPath !== (consent.folderPath ?? '')) {
+    return 'The ROM folder changed — review and confirm again'
+  }
+  const liveSteps = [...live.selectedPartitions].sort().join('\u0000')
+  const consentSteps = [...(consent.steps ?? [])].sort().join('\u0000')
+  if (liveSteps !== consentSteps) {
+    return 'The selected partitions changed — review and confirm again'
+  }
+  return null
+}
+
+function beginFlashDispatch(): boolean {
+  if (flashDispatchBusy) {
+    toast.error('A flash operation is already running')
+    return false
+  }
+  setFlashDispatchBusy(true)
+  return true
 }
 
 export function useFlasher() {
@@ -57,6 +213,14 @@ export function useFlasher() {
         const adbList = adbDevices.status === 'fulfilled' ? adbDevices.value : []
 
         store.setFastbootDevices(fastbootList)
+
+        // Keep the serial -> model labels in step with the poll so a confirmation can
+        // name the captured device when a model is known.
+        const labels = new Map<string, string>()
+        adbList.forEach((device) => {
+          if (device.serial && device.model) labels.set(device.serial, device.model)
+        })
+        replaceDeviceLabels(labels)
 
         const currentSerial = store.activeFastbootSerial
 
@@ -218,86 +382,91 @@ export function useFlasher() {
     }
   }, [store.romFolderPath])
 
-  const executeFlashPartition = useCallback(async () => {
-    const serial = store.activeFastbootSerial
-    const partition = store.selectedPartition
-    const filePath = store.selectedImagePath
-
-    if (operationInProgressRef.current) return
-    if (!serial) {
-      toast.error('No fastboot device connected')
-      return
-    }
-    if (!partition) {
-      toast.error('Select a partition to flash')
-      return
-    }
-    if (!filePath) {
-      toast.error('Select an image file to flash')
-      return
-    }
-
-    store.setRunningFlash(true)
+  // Destructive single-partition flash. The caller passes the consent snapshot it
+  // captured when the user opened the confirmation dialog; the target and the inputs
+  // are re-checked against the LIVE store before the strict backend twin is called.
+  const executeFlashPartition = useCallback(async (consent: FlashConsent) => {
+    if (!beginFlashDispatch()) return
     store.setError(null)
     try {
-      const result = await fastbootSvc.flashPartition(serial, partition, filePath)
-      toast.success(result || `Flashed ${partition} successfully`)
-      store.setSelectedPartition('')
-      store.setSelectedImagePath('')
-    } catch (err) {
-      const msg = getErrorMessage(err)
-      store.setError(msg)
-      toast.error(msg)
+      const refusal = consentRefusal('partition', consent, useFlasherStore.getState())
+      if (refusal) {
+        store.setError(refusal)
+        toast.error(refusal)
+        return
+      }
+      store.setRunningFlash(true)
+      try {
+        const result = await fastbootSvc.flashPartitionForDevice(
+          consent.serial,
+          consent.partition ?? '',
+          consent.imagePath ?? '',
+        )
+        toast.success(result || `Flashed ${consent.partition} successfully`)
+        store.setSelectedPartition('')
+        store.setSelectedImagePath('')
+      } catch (err) {
+        const msg = getErrorMessage(err)
+        store.setError(msg)
+        toast.error(msg)
+      } finally {
+        store.setRunningFlash(false)
+      }
     } finally {
-      store.setRunningFlash(false)
+      setFlashDispatchBusy(false)
     }
-  }, [store.activeFastbootSerial, store.selectedPartition, store.selectedImagePath])
+  }, [])
 
-  const executeBatchFlash = useCallback(async () => {
-    const serial = store.activeFastbootSerial
-    const folderPath = store.romFolderPath
-    const plan = store.flashPlan
-    const selected = store.selectedPartitions
-    const steps = store.flashPlanSteps
-
-    if (operationInProgressRef.current) return
-    if (!serial || !plan || selected.length === 0) {
-      toast.error('No device or no partitions selected')
-      return
-    }
-
-    const filteredSteps = steps.filter((s) => selected.includes(s.partition))
-    if (filteredSteps.length === 0) {
-      toast.error('No partitions to flash')
-      return
-    }
-
-    store.setRunningBatchFlash(true)
+  // Destructive batch flash with the same consent contract: one captured serial,
+  // folder and step selection, re-checked live before the batch twin is called.
+  const executeBatchFlash = useCallback(async (consent: FlashConsent) => {
+    if (!beginFlashDispatch()) return
     store.setError(null)
-
-    for (const step of filteredSteps) {
-      store.setFlashPlanStepStatus(step.partition, 'pending')
-    }
-
     try {
-      const filteredPlan = { steps: plan.steps.filter((s) => selected.includes(s.partition)) }
-      await fastbootSvc.flashRomFolder(serial, folderPath, filteredPlan)
-      toast.success(`Batch flash completed: ${filteredSteps.length} partition(s)`)
-    } catch (err) {
-      const msg = getErrorMessage(err)
-      // Per-step error state already arrives via the flash_step_status event listener.
-      store.setError(msg)
-      toast.error(msg)
+      const live = useFlasherStore.getState()
+      const refusal = consentRefusal('batch', consent, live)
+      if (refusal) {
+        store.setError(refusal)
+        toast.error(refusal)
+        return
+      }
+      const plan = live.flashPlan
+      if (!plan) {
+        toast.error('Scan the ROM folder again before flashing')
+        return
+      }
+      const selected = consent.steps ?? []
+      const filteredSteps = live.flashPlanSteps.filter((s) => selected.includes(s.partition))
+      if (filteredSteps.length === 0) {
+        toast.error('No partitions to flash')
+        return
+      }
+
+      store.setRunningBatchFlash(true)
+      for (const step of filteredSteps) {
+        store.setFlashPlanStepStatus(step.partition, 'pending')
+      }
+
+      try {
+        const filteredPlan = { steps: plan.steps.filter((s) => selected.includes(s.partition)) }
+        await fastbootSvc.flashRomFolderForDevice(
+          consent.serial,
+          consent.folderPath ?? '',
+          filteredPlan,
+        )
+        toast.success(`Batch flash completed: ${filteredSteps.length} partition(s)`)
+      } catch (err) {
+        const msg = getErrorMessage(err)
+        // Per-step error state already arrives via the flash_step_status event listener.
+        store.setError(msg)
+        toast.error(msg)
+      } finally {
+        store.setRunningBatchFlash(false)
+      }
     } finally {
-      store.setRunningBatchFlash(false)
+      setFlashDispatchBusy(false)
     }
-  }, [
-    store.activeFastbootSerial,
-    store.romFolderPath,
-    store.flashPlan,
-    store.selectedPartitions,
-    store.flashPlanSteps,
-  ])
+  }, [])
 
   const executeWipeData = useCallback(async () => {
     const serial = store.activeFastbootSerial
@@ -445,6 +614,9 @@ export function useFlasher() {
   return {
     ...store,
     syncFastbootDevices: syncDevices,
+    dispatchBusy: flashDispatchBusy,
+    capturePartitionConsent: () => capturePartitionConsent(useFlasherStore.getState()),
+    captureBatchConsent: () => captureBatchConsent(useFlasherStore.getState()),
     chooseImageFile,
     chooseSideloadFile,
     chooseRomFolder,

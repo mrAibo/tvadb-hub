@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,8 +15,14 @@ import {
 } from '@/components/ui/alert-dialog'
 import { FilePicker } from '@/components/flasher/shared/FilePicker'
 import { RomPartitionList } from '@/components/flasher/shared/RomPartitionList'
-import { useFlasher } from '@/hooks/useFlasher'
 import {
+  useFlasher,
+  useFlashDispatchBusy,
+  type FlashConsent,
+} from '@/hooks/useFlasher'
+import { useFlashTargetRevision } from '@/stores/useFlasherStore'
+import {
+  IconAlertTriangle as AlertTriangle,
   IconFolderSearch as FolderSearch,
   IconLoader2 as Loader2,
   IconCpu as Cpu
@@ -40,18 +47,30 @@ export function RomFlashCard({ disabled }: RomFlashCardProps) {
     selectAllPartitions,
     deselectAllPartitions,
     executeBatchFlash,
+    captureBatchConsent,
   } = useFlasher()
 
-  const [confirmOpen, setConfirmOpen] = useState(false)
+  const dispatchBusy = useFlashDispatchBusy()
+  const targetRevision = useFlashTargetRevision()
+  const [pendingConsent, setPendingConsent] = useState<FlashConsent | null>(null)
+  // A serial, folder or selection change while the dialog is open (including the
+  // A -> B -> A case) invalidates the captured consent.
+  const consentStale = pendingConsent !== null && pendingConsent.revision !== targetRevision
   const hasDevice = !!activeFastbootSerial && !disabled
   const hasPlan = flashPlan && flashPlanSteps.length > 0
   const selectedCount = selectedPartitions.length
   const completedCount = flashPlanSteps.filter((s) => s.status === 'success').length
   const progress = hasPlan ? (completedCount / flashPlanSteps.length) * 100 : 0
 
+  function handleOpenConfirm() {
+    setPendingConsent(captureBatchConsent())
+  }
+
   function handleConfirmFlash() {
-    setConfirmOpen(false)
-    executeBatchFlash()
+    if (!pendingConsent) return
+    const consent = pendingConsent
+    setPendingConsent(null)
+    void executeBatchFlash(consent)
   }
 
   return (
@@ -117,8 +136,8 @@ export function RomFlashCard({ disabled }: RomFlashCardProps) {
         {hasPlan && (
           <Button
             className="w-full rounded-full bg-primary hover:bg-primary/95 text-primary-foreground border-0 transition-[colors,transform] active:scale-[0.97] cursor-pointer text-xs font-semibold shadow-sm h-9 mt-4"
-            onClick={() => setConfirmOpen(true)}
-            disabled={!hasDevice || selectedCount === 0 || runningBatchFlash}
+            onClick={handleOpenConfirm}
+            disabled={!hasDevice || selectedCount === 0 || runningBatchFlash || dispatchBusy}
           >
             {runningBatchFlash
               ? 'Flashing ROM...'
@@ -136,22 +155,56 @@ export function RomFlashCard({ disabled }: RomFlashCardProps) {
         </div>
       )}
 
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <AlertDialog
+        open={pendingConsent !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingConsent(null)
+        }}
+      >
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Batch Flash</AlertDialogTitle>
             <AlertDialogDescription>
-              This will flash {selectedCount} partition(s) to the connected device. Make sure you
-              selected the correct ROM folder. This action cannot be undone.
+              This flushes the selected partitions of the captured ROM folder to the
+              captured fastboot device. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            <div>
+              Target device:{' '}
+              <span data-testid="batch-confirm-serial" className="font-mono text-foreground">
+                {pendingConsent?.serial || 'none'}
+              </span>
+              {pendingConsent?.deviceLabel ? <> ({pendingConsent.deviceLabel})</> : null}
+            </div>
+            <div data-testid="batch-confirm-folder" className="break-all">
+              ROM folder:{' '}
+              <span className="font-mono text-foreground">{pendingConsent?.folderPath || 'none'}</span>
+            </div>
+            <div data-testid="batch-confirm-steps">
+              Partitions ({(pendingConsent?.steps ?? []).length}):{' '}
+              <span className="font-mono text-foreground">
+                {(pendingConsent?.steps ?? []).join(', ') || 'none'}
+              </span>
+            </div>
+          </div>
+          {consentStale && (
+            <Alert variant="destructive" className="rounded-xl py-2 px-3">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <AlertDescription data-testid="batch-confirm-stale">
+                The device, the ROM folder or the selection changed. Close this dialog and
+                confirm again.
+              </AlertDescription>
+            </Alert>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleConfirmFlash}
+              disabled={consentStale || dispatchBusy}
               className="rounded-full bg-primary hover:bg-primary/95 text-primary-foreground border-0 shadow-sm"
             >
-              Flash {selectedCount} Partition(s)
+              Flash {(pendingConsent?.steps ?? []).length} Partition(s)
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

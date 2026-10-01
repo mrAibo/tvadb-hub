@@ -74,7 +74,7 @@ jobs:
         run: govulncheck ./...
       - name: Run race detector on concurrent backend packages
         run: |
-          go test -race             ./internal/core             ./internal/device             ./internal/file             ./internal/package_mgr             ./internal/shell             ./internal/scrcpy             ./internal/tuning             ./internal/app
+          go test -race             ./internal/core             ./internal/device             ./internal/file             ./internal/launcher             ./internal/package_mgr             ./internal/shell             ./internal/scrcpy             ./internal/tuning             ./internal/app
 
   windows-internal-tests:
     runs-on: windows-latest

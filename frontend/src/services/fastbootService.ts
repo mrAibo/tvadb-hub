@@ -1,6 +1,8 @@
 import {
   GetFastbootDevices,
   FlashPartition,
+  FlashPartitionForDevice,
+  FlashRomFolderForDevice,
   WipeData,
   GetActiveSlot,
   SetActiveSlot,
@@ -48,6 +50,17 @@ export async function flashPartition(
   filePath: string,
 ): Promise<string> {
   return FlashPartition(serial, partition, filePath)
+}
+
+// Confirmed-target twins (additive backend RPCs from the reviewed fastboot work):
+// they take the caller-confirmed fastboot serial, never fall back to the ADB
+// selection, and pin the serial plus the fastboot executable for the whole command.
+export async function flashPartitionForDevice(
+  confirmedSerial: string,
+  partition: string,
+  filePath: string,
+): Promise<string> {
+  return FlashPartitionForDevice(confirmedSerial, partition, filePath)
 }
 
 export async function wipeData(serial: string): Promise<string> {
@@ -136,4 +149,20 @@ export async function flashRomFolder(
     })),
   }
   return FlashRomFolder(serial, folderPath, backendPlan)
+}
+
+// Confirmed-target batch twin: the same plan payload, executed on the confirmed
+// fastboot serial with one captured fastboot executable for every step.
+export async function flashRomFolderForDevice(
+  confirmedSerial: string,
+  folderPath: string,
+  plan: FlashPlan,
+): Promise<string> {
+  const backendPlan = {
+    steps: plan.steps.map((s) => ({
+      partition: s.partition,
+      image_file: s.image_file,
+    })),
+  }
+  return FlashRomFolderForDevice(confirmedSerial, folderPath, backendPlan)
 }
