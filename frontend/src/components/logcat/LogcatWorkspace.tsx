@@ -49,6 +49,10 @@ export function LogcatWorkspace({ embedded = false }: LogcatWorkspaceProps) {
   const bufferFull = useLogcatStore((state) => state.bufferFull)
   const bufferLimit = useLogcatStore((state) => state.bufferLimit)
   const setBufferLimit = useLogcatStore((state) => state.setBufferLimit)
+  const pinnedEntries = useLogcatStore((state) => state.pinnedEntries)
+  const pinnedOnly = useLogcatStore((state) => state.pinnedOnly)
+  const setPinnedOnly = useLogcatStore((state) => state.setPinnedOnly)
+  const clearPinned = useLogcatStore((state) => state.clearPinned)
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
@@ -152,13 +156,35 @@ export function LogcatWorkspace({ embedded = false }: LogcatWorkspaceProps) {
       </div>
 
       <div className="flex items-center justify-between border-t border-border/40 bg-background px-3 py-1.5">
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={autoScroll}
-            onCheckedChange={setAutoScroll}
-            className="scale-75 origin-left"
-          />
-          <span className="text-xs text-muted-foreground">Auto-scroll</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={autoScroll}
+              onCheckedChange={setAutoScroll}
+              className="scale-75 origin-left"
+            />
+            <span className="text-xs text-muted-foreground">Auto-scroll</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={pinnedOnly}
+              onCheckedChange={setPinnedOnly}
+              disabled={pinnedEntries.length === 0}
+              className="scale-75 origin-left"
+            />
+            <span className="text-xs text-muted-foreground">
+              Pinned ({pinnedEntries.length})
+            </span>
+            {pinnedEntries.length > 0 && (
+              <button
+                type="button"
+                className="text-[10px] text-muted-foreground hover:text-destructive"
+                onClick={clearPinned}
+              >
+                Clear pins
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {bufferFull && (
