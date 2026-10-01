@@ -103,7 +103,7 @@ export function LogcatWorkspace({ embedded = false }: LogcatWorkspaceProps) {
             className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
             onClick={handleClear}
             disabled={logCount === 0}
-            title={`Clear (${modKey}+K)`}
+            title={`Clear (${modKey}+Shift+K)`}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>

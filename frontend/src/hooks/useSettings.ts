@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getAppConfig,
@@ -39,6 +39,7 @@ export function useSettings() {
   const queryClient = useQueryClient()
   const appConfig = useSettingsStore((state) => state.appConfig)
   const preferencesDraft = useSettingsStore((state) => state.preferencesDraft)
+  const preferencesDirty = useSettingsStore((state) => state.preferencesDirty)
   const loadingConfig = useSettingsStore((state) => state.loadingConfig)
   const savingPreferences = useSettingsStore((state) => state.savingPreferences)
   const preferencesError = useSettingsStore((state) => state.preferencesError)
@@ -53,6 +54,11 @@ export function useSettings() {
     queryKey: settingsQueryKeys.config,
     queryFn: getAppConfig,
   })
+
+  // Read through a ref so the hydration effect keeps its dependency list and does
+  // not re-run on every keystroke while the user edits the draft.
+  const preferencesDirtyRef = useRef(preferencesDirty)
+  preferencesDirtyRef.current = preferencesDirty
 
   const preferencesMutation = useMutation({
     mutationFn: updatePreferences,
@@ -71,7 +77,12 @@ export function useSettings() {
     setLoadingConfig(configQuery.isLoading || configQuery.isFetching)
     if (configQuery.data) {
       setAppConfig(configQuery.data)
-      hydratePreferencesDraft(configQuery.data)
+      // A background refetch must not discard unsaved edits: the fresh snapshot is
+      // always published for read-only consumers, but only a clean draft is
+      // re-hydrated. Discard and save hydrate explicitly.
+      if (!preferencesDirtyRef.current) {
+        hydratePreferencesDraft(configQuery.data)
+      }
       setPreferencesError(null)
     }
     if (configQuery.error) {

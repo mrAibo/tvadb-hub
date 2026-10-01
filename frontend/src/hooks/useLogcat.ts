@@ -163,23 +163,31 @@ export function useLogcat() {
     function handleKeyDown(event: KeyboardEvent) {
       const isMac = navigator.platform.toUpperCase().includes('MAC')
       const mod = isMac ? event.metaKey : event.ctrlKey
+      if (!mod) return
 
-      if (mod && event.key === 'k') {
+      // Modifier matching is exact. The palette owns the unshifted mod+K chord, so
+      // this handler must neither clear on it nor let the shifted variant fall
+      // through to another binding.
+      const key = event.key.toLowerCase()
+
+      if (key === 'k') {
+        if (!event.shiftKey) return
         event.preventDefault()
         actions.handleClear()
+        return
       }
 
-      if (mod && event.shiftKey && event.key === 'E') {
+      if (key === 'e') {
         event.preventDefault()
-        actions.exportAsJson()
+        if (event.shiftKey) {
+          actions.exportAsJson()
+        } else {
+          actions.exportAsText()
+        }
+        return
       }
 
-      if (mod && event.key === 'e') {
-        event.preventDefault()
-        actions.exportAsText()
-      }
-
-      if (mod && event.key === 's') {
+      if (key === 's' && !event.shiftKey) {
         event.preventDefault()
         if (isStreamingRef.current) {
           actions.handleStop()

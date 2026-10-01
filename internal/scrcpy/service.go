@@ -226,9 +226,12 @@ type Service struct {
 	mu      sync.Mutex
 	process *scrcpyProcess
 
-	recordingMu   sync.Mutex
-	recordingCmd  *exec.Cmd
-	recordingPath string
+	recordingMu sync.Mutex
+	recording   *recordingProcess
+	// recordingStopGrace overrides the bounded wait StopRecording uses for the
+	// recording owner. A zero value uses defaultRecordingStopGrace; tests lower
+	// it instead of waiting seconds for the termination fallback.
+	recordingStopGrace time.Duration
 }
 
 func New(
