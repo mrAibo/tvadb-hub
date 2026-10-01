@@ -29,13 +29,14 @@ const (
 var logcatPattern = regexp.MustCompile(`^(\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+(.+?):\s?(.*)$`)
 
 type LogcatEntry struct {
-	ID        string `json:"id"`
-	Serial    string `json:"serial"`
-	Date      string `json:"date"`
-	Time      string `json:"time"`
-	PID       string `json:"pid"`
-	TID       string `json:"tid"`
-	Level     string `json:"level"`
+	ID          string `json:"id"`
+	Serial      string `json:"serial"`
+	Date        string `json:"date"`
+	Time        string `json:"time"`
+	PID         string `json:"pid"`
+	TID         string `json:"tid"`
+	ProcessName string `json:"processName,omitempty"`
+	Level       string `json:"level"`
 	Tag       string `json:"tag"`
 	Message   string `json:"message"`
 	Raw       string `json:"raw"`
@@ -56,9 +57,11 @@ type logcatStream struct {
 	batchDone chan struct{}
 	finished  chan struct{}
 	cancel    context.CancelFunc
-	ctx       context.Context
-	once      sync.Once
-	stopping  atomic.Bool
+	ctx          context.Context
+	once         sync.Once
+	stopping     atomic.Bool
+	processNames *processNameCache
+	processCancel context.CancelFunc
 }
 
 type LogcatService struct {
@@ -114,8 +117,16 @@ func (s *LogcatService) StartStream(ctx context.Context, serial string, levels s
 	}
 
 	streamCtx, cancel := context.WithCancel(ctx)
-	_, err = s.startCommand(streamCtx, trimmedSerial, core.NewCommandContext(streamCtx, adbPath, args...), cancel)
-	return err
+	initialProcessNames, _ := queryLogcatProcessNames(streamCtx, adbPath, trimmedSerial)
+	stream, err := s.startCommand(streamCtx, trimmedSerial, core.NewCommandContext(streamCtx, adbPath, args...), cancel)
+	if err != nil {
+		return err
+	}
+	stream.processNames = newProcessNameCache(initialProcessNames)
+	processCtx, processCancel := context.WithCancel(streamCtx)
+	stream.processCancel = processCancel
+	go refreshLogcatProcessNames(processCtx, stream.processNames, adbPath, trimmedSerial)
+	return nil
 }
 
 // The assigned writers let Wait drain output before closing the batch channel.
@@ -132,6 +143,7 @@ func (s *LogcatService) startCommand(ctx context.Context, serial string, cmd *ex
 	lineWriter := func(isError bool) *core.ProcessLineWriter {
 		return core.NewProcessLineWriter(func(line string) {
 			entry := parseLogcatEntry(serial, line)
+			entry.ProcessName = stream.processNames.get(entry.PID)
 			if isError && entry.Tag == "" {
 				entry.Level = "W"
 			}
@@ -240,6 +252,10 @@ func (s *LogcatService) closeStream(stream *logcatStream, status string, streamE
 			status = "error"
 		} else if intentionalStop {
 			status = "stopped"
+		}
+
+		if stream.processCancel != nil {
+			stream.processCancel()
 		}
 
 		// Wait has already joined the output copiers, including final lines.
