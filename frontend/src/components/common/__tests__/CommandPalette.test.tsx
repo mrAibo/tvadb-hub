@@ -21,6 +21,14 @@ vi.mock('sonner', () => ({ toast: mocks.toast }))
 
 import { CommandPalette } from '../CommandPalette'
 
+// jsdom does not implement ResizeObserver or scrollIntoView, both of which cmdk's
+// list uses once the palette is open. Keep the shim local to this test file.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
 function pressKey(init: KeyboardEventInit) {
   act(() => {
     document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, ...init }))
@@ -39,6 +47,11 @@ describe('CommandPalette keyboard and theme behaviour', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     Object.defineProperty(window.navigator, 'platform', { value: 'Win32', configurable: true })
+    Object.defineProperty(globalThis, 'ResizeObserver', {
+      value: ResizeObserverStub,
+      configurable: true,
+    })
+    Element.prototype.scrollIntoView = () => {}
     useUIStore.setState({ commandPaletteOpen: false, theme: 'dark' })
   })
 
