@@ -95,6 +95,11 @@ jobs:
     needs: [go-test]
     steps:
       - uses: actions/checkout@v4
+      - name: Record pre-build tracked status
+        shell: bash
+        run: |
+          git status --porcelain --untracked-files=no
+          git rev-parse HEAD
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
@@ -137,6 +142,11 @@ jobs:
     needs: [go-test]
     steps:
       - uses: actions/checkout@v4
+      - name: Record pre-build tracked status
+        shell: bash
+        run: |
+          git status --porcelain --untracked-files=no
+          git rev-parse HEAD
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
@@ -170,6 +180,11 @@ jobs:
     needs: [go-test]
     steps:
       - uses: actions/checkout@v4
+      - name: Record pre-build tracked status
+        shell: bash
+        run: |
+          git status --porcelain --untracked-files=no
+          git rev-parse HEAD
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
