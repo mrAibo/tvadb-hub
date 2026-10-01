@@ -34,8 +34,11 @@ independent review of this docs PR and its merge.
 - Exactly **six** CI checks are green. The external `Kilo Code Review` check is `action_required`
   ("Insufficient credits to run review"): it is not one of the six jobs, contributes no review
   signal and must never be described as a passed review.
-- Build provenance records `"sourceDirty": true` (generated `frontend/bindings/**` is rewritten
-  during the build). The recorded revision is certified; a pristine-checkout build is not.
+- Build provenance records `"sourceDirty": true` on all three platform artifacts. The **cause is
+  unproven**: the "generated `frontend/bindings/**`" explanation is only a hypothesis (the earlier
+  PR49-F1 "different artifact byte-target" claim was refuted), and no dirty-path log or source
+  evidence exists yet. The recorded revision is certified; **no clean-source-built binary claim**
+  and no pristine-checkout claim is made.
 - No hardware, firmware or OEM behaviour is verified; no release, signature, tag, deployment,
   repository-permission or Git-history change has been performed.
 

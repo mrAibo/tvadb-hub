@@ -107,8 +107,9 @@ full Go tests are verified in CI, never inferred from Windows cross-compilation.
 ## P3 source closure (2026-10-01)
 
 Every confirmed P3 package is merged on `main` `535295c9`. Each row names the independent review
-gate that judged the patch; the integrated content was checked byte-wise (empty `git diff` against
-the reviewed head), not inferred from PR titles.
+gate that judged the patch; identity was checked byte-wise against the **latest reviewed head of that
+package** (never inferred from PR titles). Where a later reviewed commit legitimately changed files,
+the row says which head the final content matches.
 
 | Package | Integrated as | Independent gate (workspace-root document) |
 | --- | --- | --- |
@@ -117,11 +118,11 @@ the reviewed head), not inferred from PR titles.
 | Recording lifecycle: single `Wait` owner, fail-closed stop, bounded prompt probe | #54 | t26 PASS (`2206b09e…`) |
 | Recording test-helper readiness + repeated race gate `-count=20` | #58 | t69 PASS (`b7382ff…`) |
 | Strict fastboot twins (blank refusal before any tool work, pinned target) — **original M1 backend half** | #57 Go base | t54 PASS (`abd66e16…`) |
-| Flash consent for partition/batch through strict RPC twins — **original M1 UI half** | #57 UI | t59 PASS (`0184c44…`, tree `e7abc456…`) |
+| Flash consent for partition/batch through strict RPC twins — **original M1 UI half** | #57 UI, baseline reviewed at t59 (`0184c44f…`, tree `e7abc456…`) | final content matches the **t75** head below: M3 legitimately changed 7 files, and t75 preserves the t59 baseline (an "empty diff against `0184c44`" would be wrong) |
 | **M3**: captured target/inputs confirmation for wipe and sideload | #57 commit `9725375` | t75 PASS (`f4fd252…`, tree `d6910324…`) |
 | Guarded Launcher Wizard backend (capability preflight, unique-HOME fail-closed, durable journal, cancel, rollback, offline recovery) | #56 + `1e056e3f…` | t45 PASS; docs t48 |
-| Launcher Wizard UI (Current+, truthful copy, offline recovery errors) | #56 | t46 round 1 needs_revision → t71/t46-R2 PASS (`91623eef…`) |
-| Scrcpy preset persistence + non-clobber preferences | #55 | t56 needs_revision → t57-R2/t67 PASS (`bb7b578e…`) |
+| Launcher Wizard UI (Current+, truthful copy, offline recovery errors) | #56 | round 1 (t46) needs_revision → round-2 review `LAUNCHER_WIZARD_REVIEW_R2.md` PASS (task **t72**) on `91623eef…` (= merge `4e92686c^2`) |
+| Scrcpy preset persistence + non-clobber preferences | #55 | t56 needs_revision → **t67 PASS on reviewed head `30c9ca5…`**; the integrated head `bb7b578e…` (= merge `6411a71e^2`) preserves the same six blobs |
 | Dataset endpoints/benchmark evidence and toolchain provenance (earlier phase) | #48, #49, #50 | t13/t14/t32/t34 records |
 
 M1 (original scope) = the two confirmed cards (`PartitionFlashCard`, `RomFlashCard`): strict
@@ -147,6 +148,15 @@ retried — an environment/caching artifact, not a validator bug. The literal
 `gh pr checks --watch --fail-fast` CLI form cannot resolve a PR in this environment without a
 target, so those integrations used the explicit per-PR proof and were independently reviewed
 (`t69`) — no "literal command passed" claim is made.
+
+Three metadata errors from the earlier whole-RC verification report (root
+`SOURCE_RC_VERIFICATION.md`, t61) are corrected here and in the root ledgers and must not be copied
+forward: (1) the final flash-UI content maps to the **t75** head `f4fd252…`, **not** to t59's
+`0184c44…` — M3 legitimately changed 7 files and t75 preserves the t59 baseline; (2) the
+scrcpy-presets **reviewed** head is `30c9ca5…` (t67), while `bb7b578e…` is the integration head that
+carries the same six blobs; (3) the Launcher-UI round-2 review is task **t72**, and the
+`sourceDirty: true` cause recorded by all three provenance files is **unproven** (hypothesis, not a
+measurement) — no clean-source-built binary claim is made.
 
 Final source-RC evidence (`t61`, root `SOURCE_RC_VERIFICATION.md`): six GitHub Actions checks green
 on `535295c9` **plus** the Linux `./internal/launcher` race execution, the separate
@@ -233,9 +243,12 @@ Environment limits versus CI evidence (do not conflate them):
   including `./internal/launcher` and the repeated `./internal/scrcpy -count=20` step.
 - `go test ./...` (repo root) needs the built frontend for `//go:embed`; use
   `go test ./internal/...` locally and let CI run the root package.
-- Build provenance for the RC records `"sourceDirty": true` because `wails3 generate bindings`
-  rewrites the tracked `frontend/bindings/**` during the build. The recorded revision is certified;
-  a pristine-checkout claim is not, and must not be made.
+- Build provenance for the RC records `"sourceDirty": true` on all three artifacts. Its **cause is
+  unproven**: the "`wails3 generate bindings` rewrites the tracked `frontend/bindings/**`"
+  explanation is a hypothesis (and the earlier PR49-F1 "different artifact byte-target" claim was
+  refuted), so no dirty-path list or log is asserted. The recorded revision is certified; **no
+  pristine-checkout and no clean-source-built binary claim** is made until dirty paths are captured
+  from an actual build log.
 - Exactly **six** CI checks are green. The external `Kilo Code Review` check is `action_required`
   ("Insufficient credits to run review") — no review signal, not a code finding, and never counted
   as a seventh green check. No payment/plan/admin change was attempted or is authorized here.
