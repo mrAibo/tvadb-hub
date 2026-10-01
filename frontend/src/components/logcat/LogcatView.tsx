@@ -12,6 +12,9 @@ interface LogcatViewProps {
 
 export function LogcatView({ scrollContainerRef }: LogcatViewProps) {
   const logs = useLogcatStore((state) => state.logs)
+  const pinnedEntries = useLogcatStore((state) => state.pinnedEntries)
+  const pinnedOnly = useLogcatStore((state) => state.pinnedOnly)
+  const togglePinned = useLogcatStore((state) => state.togglePinned)
   const filter = useLogcatStore((state) => state.filter)
   const autoScroll = useLogcatStore((state) => state.autoScroll)
   const autoScrollRef = useRef(autoScroll)
@@ -20,17 +23,25 @@ export function LogcatView({ scrollContainerRef }: LogcatViewProps) {
   autoScrollRef.current = autoScroll
 
   const filteredLogs = useMemo(() => {
+    const source = pinnedOnly ? pinnedEntries : logs
     if (
       filter.levels.length === 6 &&
       filter.tag === '' &&
       filter.text === '' &&
+      filter.pid === '' &&
+      filter.process === '' &&
       filter.issue === 'all'
     ) {
-      return logs
+      return source
     }
 
-    return logs.filter((entry) => matchesLogcatFilter(entry, filter))
-  }, [logs, filter])
+    return source.filter((entry) => matchesLogcatFilter(entry, filter))
+  }, [logs, pinnedEntries, pinnedOnly, filter])
+
+  const pinnedIds = useMemo(
+    () => new Set(pinnedEntries.map((entry) => entry.id)),
+    [pinnedEntries],
+  )
 
   const virtualizer = useVirtualizer({
     count: filteredLogs.length,
@@ -62,8 +73,12 @@ export function LogcatView({ scrollContainerRef }: LogcatViewProps) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground">
         <div className="text-center">
-          <p className="text-sm font-medium">No logcat output</p>
-          <p className="text-xs mt-1">Start a logcat stream to see device logs here</p>
+          <p className="text-sm font-medium">{pinnedOnly ? 'No pinned events' : 'No logcat output'}</p>
+          <p className="text-xs mt-1">
+            {pinnedOnly
+              ? 'Pin an event from the live log to keep it here'
+              : 'Start a logcat stream to see device logs here'}
+          </p>
         </div>
       </div>
     )
@@ -105,7 +120,11 @@ export function LogcatView({ scrollContainerRef }: LogcatViewProps) {
               transform: `translate3d(0, ${virtualRow.start}px, 0)`,
             }}
           >
-            <LogcatEntry entry={entry} />
+            <LogcatEntry
+              entry={entry}
+              pinned={pinnedIds.has(entry.id)}
+              onTogglePin={togglePinned}
+            />
           </div>
         )
       })}
