@@ -54,6 +54,9 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
+          PUBLISH_REQUESTED: ${{ inputs.publish }}
+          PHYSICAL_DEVICE_VALIDATED_INPUT: ${{ inputs.physical_device_validated }}
+          PHYSICAL_DEVICE_VALIDATED_VERSION: ${{ vars.PHYSICAL_DEVICE_VALIDATED_VERSION }}
         run: |
           $makeLine = Select-String -Path Makefile -Pattern '^VERSION :=\s*(\d+\.\d+\.\d+)\s*$'
           if (-not $makeLine) {
@@ -79,15 +82,21 @@ jobs:
             throw "Version mismatch: Makefile=$version, internal/core/version.go=$coreVersion"
           }
 
-          if ($env:EVENT_NAME -eq "workflow_dispatch" -and
-              "${{ inputs.publish }}" -eq "true" -and
-              "${{ inputs.physical_device_validated }}" -ne "true") {
-            throw "Manual publishing requires physical_device_validated=true."
-          }
-
           $tag = "v$version"
           if ($env:EVENT_NAME -eq "push" -and $env:REF_NAME -ne $tag) {
             throw "Tag '$($env:REF_NAME)' does not match project version '$tag'."
+          }
+
+          $publishing = ($env:EVENT_NAME -eq "push") -or ($env:PUBLISH_REQUESTED -eq "true")
+          if ($publishing) {
+            if ($env:PHYSICAL_DEVICE_VALIDATED_VERSION -ne $version) {
+              throw "Publishing $tag requires repository variable PHYSICAL_DEVICE_VALIDATED_VERSION='$version'. Current value: '$($env:PHYSICAL_DEVICE_VALIDATED_VERSION)'."
+            }
+
+            if ($env:EVENT_NAME -eq "workflow_dispatch" -and
+                $env:PHYSICAL_DEVICE_VALIDATED_INPUT -ne "true") {
+              throw "Manual publishing additionally requires physical_device_validated=true."
+            }
           }
 
           "version=$version" >> $env:GITHUB_OUTPUT
