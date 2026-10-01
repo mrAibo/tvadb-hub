@@ -26,6 +26,10 @@ const (
 	ModeFastboot = "fastboot-host"
 )
 
+// promptProbeTimeout bounds the diagnostic getprop probe that only renders the
+// shell prompt. Binary discovery keeps its own internal command deadlines.
+const promptProbeTimeout = 5 * time.Second
+
 type Session struct {
 	ID     string `json:"id"`
 	Serial string `json:"serial"`
@@ -46,6 +50,9 @@ type TerminalService struct {
 	binaryService *binary.Service
 	getConfig     func() *core.AppConfig
 	resolveSerial func(context.Context, string) (string, error)
+	// runProbe executes the diagnostic prompt probe. Nil uses core.RunCommand;
+	// tests inject a fake runner instead of spawning a real adb process.
+	runProbe func(context.Context, core.ExecRequest) (*core.ExecResult, error)
 
 	mu       sync.Mutex
 	sessions map[string]*terminalProcess
@@ -120,7 +127,7 @@ func (s *TerminalService) StartSessionWithMode(ctx context.Context, mode string,
 
 	log.Printf("terminal: session created id=%q mode=%q serial=%q", session.ID, session.Mode, resolvedSerial)
 
-	prompt := s.buildPrompt(resolvedSerial, trimmedMode)
+	prompt := s.buildPrompt(sessionCtx, resolvedSerial, trimmedMode)
 	s.emitSessionOutput(session, prompt+"Ready for commands\r\n\r\n")
 
 	return &session, nil
@@ -196,10 +203,10 @@ func (s *TerminalService) runCommand(process *terminalProcess, input string) {
 	s.emitSessionOutput(process.session, output+"\r\n\r\n")
 }
 
-func (s *TerminalService) buildPrompt(serial string, mode string) string {
+func (s *TerminalService) buildPrompt(ctx context.Context, serial string, mode string) string {
 	switch mode {
 	case ModeShell:
-		codename := s.resolveCodename(serial)
+		codename := s.resolveCodename(ctx, serial)
 		return fmt.Sprintf("%s:/ $ ", codename)
 	case ModeADBHost:
 		return "$ "
@@ -210,7 +217,7 @@ func (s *TerminalService) buildPrompt(serial string, mode string) string {
 	}
 }
 
-func (s *TerminalService) resolveCodename(serial string) string {
+func (s *TerminalService) resolveCodename(ctx context.Context, serial string) string {
 	if serial == "" {
 		return "device"
 	}
@@ -220,19 +227,40 @@ func (s *TerminalService) resolveCodename(serial string) string {
 		return serial
 	}
 
-	result, err := core.RunCommand(context.Background(), core.ExecRequest{
-		Command: adbStatus.Adb.Path,
-		Args:    []string{"-s", serial, "shell", "getprop", "ro.product.device"},
-	})
+	codename, err := promptCodename(ctx, adbStatus.Adb.Path, serial, s.runProbe)
 	if err != nil {
 		return serial
 	}
+	return codename
+}
 
+// promptCodename runs the diagnostic getprop probe under the caller's context and
+// a finite request timeout, so a closing session or an unresponsive device cannot
+// block the prompt. Cancellation and errors fall back to the serial: the codename
+// is cosmetic and must never prevent the terminal from opening.
+func promptCodename(ctx context.Context, adbPath, serial string, run func(context.Context, core.ExecRequest) (*core.ExecResult, error)) (string, error) {
+	if run == nil {
+		run = core.RunCommand
+	}
+	result, err := run(ctx, core.ExecRequest{
+		Command: adbPath,
+		Args:    []string{"-s", serial, "shell", "getprop", "ro.product.device"},
+		Timeout: promptProbeTimeout,
+	})
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	if err != nil {
+		return "", err
+	}
+	if result == nil {
+		return "", core.NewOperationError("terminal_prompt", "prompt probe returned no result", "", true)
+	}
 	codename := strings.TrimSpace(result.Stdout)
 	if codename == "" {
-		return serial
+		return "", core.NewOperationError("terminal_prompt", "prompt probe returned no codename", "", true)
 	}
-	return codename
+	return codename, nil
 }
 
 func (s *TerminalService) emitSessionOutput(session Session, data string) {
