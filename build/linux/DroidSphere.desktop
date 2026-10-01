@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
 Name=DroidSphere
-Comment=Cross-platform Android device manager
 Exec=DroidSphere
 Icon=DroidSphere
 Categories=Development;Utility;
+Comment=Cross-platform Android device manager
 Terminal=false
 Keywords=android;adb;fastboot;scrcpy;device;
 Version=1.0

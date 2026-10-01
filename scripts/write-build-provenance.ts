@@ -4,21 +4,25 @@ import { basename, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 const root = resolve(import.meta.dirname, '..')
-function run(command: string, args: string[]) {
+function run(command: string, args: string[], options: { trim?: boolean } = {}) {
   const result = spawnSync(command, args, { cwd: root, encoding: 'utf8', shell: false })
   if (result.error || result.status !== 0) throw new Error('Cannot record ' + command + ': ' + (result.error?.message ?? result.stderr))
-  return (result.stdout + result.stderr).trim()
+  const output = result.stdout + result.stderr
+  return options.trim === false ? output : output.trim()
 }
 export function buildProvenance(rootDir: string, platform: string, artifacts: string[], env: Record<string, string | undefined>, command: typeof run = run) {
   if (!platform || artifacts.length === 0) throw new Error('Platform and artifact paths are required')
   const head = command('git', ['rev-parse', 'HEAD'])
-  const dirty = command('git', ['status', '--porcelain', '--untracked-files=no']) !== ''
+  // One single capture: the raw porcelain text drives both the boolean and the recorded status.
+  const sourceStatusRaw = command('git', ['status', '--porcelain', '--untracked-files=no'], { trim: false })
+  const dirty = sourceStatusRaw.trim() !== ''
   if (env.GITHUB_SHA && env.GITHUB_SHA !== head) throw new Error('Workflow SHA does not match the checked-out source revision')
   const pins = JSON.parse(readFileSync(resolve(rootDir, 'build/toolchain.json'), 'utf8')) as Record<string, string>
   return {
     schemaVersion: 1,
     sourceRevision: head,
     sourceDirty: dirty,
+    sourceStatusRaw,
     platform,
     generatedAt: new Date().toISOString(),
     workflowRun: env.GITHUB_RUN_ID ?? null,

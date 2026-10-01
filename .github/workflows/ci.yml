@@ -93,8 +93,18 @@ jobs:
   windows-build:
     runs-on: windows-latest
     needs: [go-test]
+    env:
+      # process-local git config only (never persisted to a config file): LF checkout for this job
+      GIT_CONFIG_COUNT: 1
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: false
     steps:
       - uses: actions/checkout@v4
+      - name: Record pre-build tracked status
+        shell: bash
+        run: |
+          git status --porcelain --untracked-files=no
+          git rev-parse HEAD
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
@@ -130,6 +140,24 @@ jobs:
             bin/DroidSphere-*-windows-amd64-installer.exe
             bin/BUILD_PROVENANCE-windows.json
           if-no-files-found: error
+      - name: Verify tracked raw bytes after provenance
+        shell: bash
+        run: |
+          checked=0
+          mismatched=0
+          for path in go.mod $(git ls-files 'frontend/bindings/**'); do
+            expected=$(git rev-parse "HEAD:$path")
+            actual=$(git hash-object --no-filters "$path")
+            checked=$((checked + 1))
+            if [ "$actual" != "$expected" ]; then
+              echo "raw byte mismatch: $path expected=$expected actual=$actual"
+              mismatched=$((mismatched + 1))
+            fi
+          done
+          echo "raw byte witness: checked=$checked mismatched=$mismatched"
+          if [ "$mismatched" -ne 0 ]; then
+            exit 1
+          fi
 
 
   linux-build:
@@ -137,6 +165,11 @@ jobs:
     needs: [go-test]
     steps:
       - uses: actions/checkout@v4
+      - name: Record pre-build tracked status
+        shell: bash
+        run: |
+          git status --porcelain --untracked-files=no
+          git rev-parse HEAD
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
@@ -170,6 +203,11 @@ jobs:
     needs: [go-test]
     steps:
       - uses: actions/checkout@v4
+      - name: Record pre-build tracked status
+        shell: bash
+        run: |
+          git status --porcelain --untracked-files=no
+          git rev-parse HEAD
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
