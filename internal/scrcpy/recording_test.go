@@ -4,7 +4,10 @@ import (
 	"ADBKit/internal/audit"
 	"ADBKit/internal/core"
 	"context"
+	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -171,6 +174,64 @@ func TestStopRecordingReportsEmptyOutput(t *testing.T) {
 	}
 }
 
+// TestStopRecordingUnconfirmedCompletionFailsClosed models an owner that never
+// confirms completion (for example a process tree that does not die) while a
+// non-empty output file already exists. The stop must report a structured failure
+// with the truthful output state, audit the unsuccessful attempt, keep the record
+// tracked so no second recording can start, and answer a repeated stop without
+// pretending there is nothing left to stop.
+func TestStopRecordingUnconfirmedCompletionFailsClosed(t *testing.T) {
+	svc, auditLog := newRecordingTestService(t)
+	svc.recordingStopGrace = time.Millisecond
+	rec, _, _ := startFakeRecordingProcess(t, svc, "payload", false)
+	// No Wait owner is started for this cmd, so completion cannot be confirmed here.
+	t.Cleanup(func() { reapRecordingProcess(t, rec.cmd) })
+
+	waitForRecordingOutput(t, rec.path)
+
+	_, err := svc.StopRecording()
+	if err == nil {
+		t.Fatal("a stop with unconfirmed completion was reported as success")
+	}
+	opErr, ok := err.(*core.OperationError)
+	if !ok || opErr.Operation != "stop_scrcpy_recording" || !opErr.Retryable {
+		t.Fatalf("unexpected error shape: %#v", err)
+	}
+	if !strings.Contains(opErr.Message, "could not be confirmed") {
+		t.Fatalf("the failure does not state that completion was unconfirmed: %v", opErr)
+	}
+	if !strings.Contains(opErr.Detail, "completion unconfirmed") {
+		t.Fatalf("the failure detail hides the process state: %v", opErr.Detail)
+	}
+	wantSize := fmt.Sprintf("output size=%d", len("payload"))
+	if !strings.Contains(opErr.Detail, wantSize) {
+		t.Fatalf("the failure detail hides the output state (%s): %v", wantSize, opErr.Detail)
+	}
+
+	if hasSuccessfulAuditEntry(auditLog, "stop_scrcpy_recording") {
+		t.Fatal("an unconfirmed stop was audited as successful")
+	}
+	if !hasFailedAuditEntry(auditLog, "stop_scrcpy_recording") {
+		t.Fatal("the unsuccessful stop attempt was not audited")
+	}
+
+	// The record stays owned and stopping, so nothing may start on top of it.
+	svc.recordingMu.Lock()
+	stillTracked := svc.recording == rec
+	stopping := rec.stopping
+	svc.recordingMu.Unlock()
+	if !stillTracked || !stopping {
+		t.Fatalf("an unconfirmed stop released the recording slot (tracked=%t stopping=%t)", stillTracked, stopping)
+	}
+	startErr := svc.StartRecording("SERIAL-1", filepath.Join(t.TempDir(), "second.mp4"), Options{})
+	if startErr == nil || !strings.Contains(startErr.Error(), "already in progress") {
+		t.Fatalf("a new recording was allowed while the previous stop was unconfirmed: %v", startErr)
+	}
+	if _, repeated := svc.StopRecording(); repeated == nil || !strings.Contains(repeated.Error(), "already in progress") {
+		t.Fatalf("a repeated stop was not reported truthfully: %v", repeated)
+	}
+}
+
 // TestRecordingHelperProcess is the owned fake recorder used by the lifecycle
 // tests. It acts only when the environment variables are set, so a normal test run
 // leaves it a no-op. It writes the requested payload and then either exits or
@@ -200,6 +261,15 @@ func newRecordingTestService(t *testing.T) (*Service, *audit.Log) {
 }
 
 func startFakeRecording(t *testing.T, svc *Service, payload string, exitImmediately bool) (*recordingProcess, *os.File) {
+	t.Helper()
+	rec, stderrPipe, stdinWrite := startFakeRecordingProcess(t, svc, payload, exitImmediately)
+	go svc.monitorRecordingProcess(rec, stderrPipe)
+	return rec, stdinWrite
+}
+
+// startFakeRecordingProcess starts the fake recorder and registers it without a
+// Wait owner, which lets a test model an owner that never confirms completion.
+func startFakeRecordingProcess(t *testing.T, svc *Service, payload string, exitImmediately bool) (*recordingProcess, io.ReadCloser, *os.File) {
 	t.Helper()
 	outputPath := filepath.Join(t.TempDir(), "recording.mp4")
 
@@ -236,9 +306,28 @@ func startFakeRecording(t *testing.T, svc *Service, payload string, exitImmediat
 	svc.recordingMu.Lock()
 	svc.recording = rec
 	svc.recordingMu.Unlock()
-	go svc.monitorRecordingProcess(rec, stderrPipe)
 
-	return rec, stdinWrite
+	return rec, stderrPipe, stdinWrite
+}
+
+// reapRecordingProcess terminates and reaps a helper process whose Wait had no
+// owner in the test, with a bounded wait so a stuck process cannot hang the suite.
+func reapRecordingProcess(t *testing.T, cmd *exec.Cmd) {
+	t.Helper()
+	_ = core.TerminateProcessTree(cmd)
+	if cmd.Process == nil {
+		return
+	}
+	done := make(chan struct{})
+	go func() {
+		_, _ = cmd.Process.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Error("the recording helper did not exit")
+	}
 }
 
 func waitForRecordingOutput(t *testing.T, path string) {
@@ -265,6 +354,15 @@ func hasAuditEntry(log *audit.Log, operation string) bool {
 func hasSuccessfulAuditEntry(log *audit.Log, operation string) bool {
 	for _, entry := range log.EntriesWithLimit(0) {
 		if entry.Operation == operation && entry.Success {
+			return true
+		}
+	}
+	return false
+}
+
+func hasFailedAuditEntry(log *audit.Log, operation string) bool {
+	for _, entry := range log.EntriesWithLimit(0) {
+		if entry.Operation == operation && !entry.Success {
 			return true
 		}
 	}

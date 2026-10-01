@@ -51,10 +51,13 @@ func (s *Service) RebootDevice(ctx context.Context, serial string, mode string) 
 
 // knownRebootMode is the set of reboot targets DroidSphere accepts at all. The
 // dashboard offers system/recovery/bootloader; the remaining values are the
-// documented adb targets kept for parity with adb's own reboot argument.
+// documented adb/fastboot targets kept for parity with the tools' own reboot
+// arguments. "fastbootd" is deliberately absent: it names the daemon/mode, not a
+// reboot target, so it is refused instead of being forwarded to a binary. Entering
+// fastbootd uses the native "fastboot" target.
 func knownRebootMode(mode string) bool {
 	switch mode {
-	case "", "system", "bootloader", "recovery", "sideload", "fastboot", "fastbootd":
+	case "", "system", "bootloader", "recovery", "sideload", "fastboot":
 		return true
 	default:
 		return false
@@ -70,9 +73,12 @@ func adbRebootMode(mode string) bool {
 	}
 }
 
+// fastbootRebootMode lists the reboot targets the fastboot binary itself accepts.
+// "fastboot" is the native target that boots into fastbootd; the daemon name
+// "fastbootd" is never forwarded.
 func fastbootRebootMode(mode string) bool {
 	switch mode {
-	case "bootloader", "recovery", "fastbootd":
+	case "bootloader", "recovery", "fastboot":
 		return true
 	default:
 		return false

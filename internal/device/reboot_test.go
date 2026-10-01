@@ -27,7 +27,7 @@ func TestRebootArgsPinConfirmedSerial(t *testing.T) {
 		{name: "fastboot system keeps bare reboot", connectionMode: ModeFastboot, mode: "system", want: []string{"-s", "SERIAL-1", "reboot"}},
 		{name: "fastboot recovery", connectionMode: ModeFastboot, mode: "recovery", want: []string{"-s", "SERIAL-1", "reboot", "recovery"}},
 		{name: "fastboot bootloader", connectionMode: ModeFastboot, mode: "bootloader", want: []string{"-s", "SERIAL-1", "reboot", "bootloader"}},
-		{name: "fastboot fastbootd", connectionMode: ModeFastboot, mode: "fastbootd", want: []string{"-s", "SERIAL-1", "reboot", "fastbootd"}},
+		{name: "fastboot fastboot target", connectionMode: ModeFastboot, mode: "fastboot", want: []string{"-s", "SERIAL-1", "reboot", "fastboot"}},
 	}
 
 	for _, tc := range cases {
@@ -48,7 +48,9 @@ func TestRebootArgsPinConfirmedSerial(t *testing.T) {
 
 // TestRebootArgsRejectModesUnsupportedForConnectionMode keeps the documented
 // per-mode target sets: a target valid for one tool is refused before the other
-// tool runs, instead of being forwarded.
+// tool runs, instead of being forwarded. "fastbootd" names the daemon/mode, not a
+// target, so it is refused for both tools and the native "fastboot" target is the
+// documented way to enter fastbootd.
 func TestRebootArgsRejectModesUnsupportedForConnectionMode(t *testing.T) {
 	cases := []struct {
 		name           string
@@ -56,7 +58,7 @@ func TestRebootArgsRejectModesUnsupportedForConnectionMode(t *testing.T) {
 		mode           string
 	}{
 		{name: "sideload is not a fastboot target", connectionMode: ModeFastboot, mode: "sideload"},
-		{name: "fastboot is not a fastboot target", connectionMode: ModeFastboot, mode: "fastboot"},
+		{name: "fastbootd is a daemon name, not a fastboot target", connectionMode: ModeFastboot, mode: "fastbootd"},
 		{name: "fastbootd is not an adb target", connectionMode: ModeADB, mode: "fastbootd"},
 	}
 
@@ -85,17 +87,22 @@ func TestRebootArgsRejectEmptySerialAndUnknownConnectionMode(t *testing.T) {
 
 // TestRebootDeviceRejectsUnknownModeBeforeAnyDeviceCommand proves the ordering:
 // an unsupported mode must be refused even when device detection cannot succeed,
-// so no adb/fastboot command was attempted for it.
+// so no adb/fastboot command was attempted for it. "fastbootd" is included because
+// it is a daemon name that must never be forwarded to a binary.
 func TestRebootDeviceRejectsUnknownModeBeforeAnyDeviceCommand(t *testing.T) {
 	svc := rebootTestService(t)
 
-	_, err := svc.RebootDevice(context.Background(), "SERIAL-1", "wipe-everything")
-	if err == nil {
-		t.Fatal("expected the unknown reboot mode to be rejected")
-	}
-	opErr, ok := err.(*core.OperationError)
-	if !ok || opErr.Operation != "reboot_device" || opErr.Message != "unsupported reboot mode" || opErr.Detail != "wipe-everything" {
-		t.Fatalf("unexpected error: %v", err)
+	for _, mode := range []string{"wipe-everything", "fastbootd"} {
+		t.Run("mode="+mode, func(t *testing.T) {
+			_, err := svc.RebootDevice(context.Background(), "SERIAL-1", mode)
+			if err == nil {
+				t.Fatal("expected the unknown reboot mode to be rejected")
+			}
+			opErr, ok := err.(*core.OperationError)
+			if !ok || opErr.Operation != "reboot_device" || opErr.Message != "unsupported reboot mode" || opErr.Detail != mode {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
 	}
 }
 

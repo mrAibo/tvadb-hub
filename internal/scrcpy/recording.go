@@ -27,6 +27,10 @@ type recordingProcess struct {
 	// manual marks a requested stop. It is written under Service.recordingMu
 	// before the process is signaled and read by the owner after Wait returned.
 	manual bool
+	// stopping marks a requested stop whose completion the owner has not confirmed
+	// yet. While it is set the record stays owned: no second stop signals it again
+	// and no new recording may start on top of a process that is still running.
+	stopping bool
 	// done is closed by the owner once Wait returned and the slot was released.
 	done chan struct{}
 	// waitErr is written by the owner before done is closed, so a reader that
@@ -59,16 +63,23 @@ func (s *Service) StartRecording(serial, outputPath string, opts Options) error 
 	}
 
 	s.recordingMu.Lock()
-	if s.recording != nil {
-		s.recordingMu.Unlock()
+	active := s.recording
+	stopping := active != nil && active.stopping
+	s.recordingMu.Unlock()
+	if active != nil {
+		detail := "stop current recording before starting a new one"
+		if stopping {
+			// The process of the previous stop is still owned: starting a new
+			// recording here would mix two scrcpy processes and two output files.
+			detail = "the previous stop is not confirmed complete; wait for it before starting a new recording"
+		}
 		return core.NewOperationError(
 			"start_scrcpy_recording",
 			"Recording is already in progress",
-			"stop current recording before starting a new one",
+			detail,
 			true,
 		)
 	}
-	s.recordingMu.Unlock()
 
 	scrcpyPath, err := s.resolveBinaryPath()
 	if err != nil {
@@ -235,11 +246,22 @@ func (s *Service) StopRecording() (string, error) {
 	s.recordingMu.Lock()
 	rec := s.recording
 	if rec != nil {
-		// Mark the manual reason and release the slot before signaling: the owner
-		// must not report this stop as an unexpected exit, and a later start must
-		// never be able to observe this record.
+		if rec.stopping {
+			// A previous stop is still unconfirmed: never signal a second time and
+			// never report the still-owned process as "no active recording".
+			s.recordingMu.Unlock()
+			return "", core.NewOperationError(
+				"stop_scrcpy_recording",
+				"Recording stop is already in progress",
+				"the previous stop is not confirmed complete; the recording process is still owned",
+				true,
+			)
+		}
+		// Mark the manual reason and the stop attempt under the existing mutex, but
+		// keep the record owned: only the single Wait owner releases the slot, so no
+		// new recording can be mixed with a process that is still running.
 		rec.manual = true
-		s.recording = nil
+		rec.stopping = true
 	}
 	s.recordingMu.Unlock()
 
@@ -267,18 +289,42 @@ func (s *Service) StopRecording() (string, error) {
 	}
 
 	completed := false
+	var terminateErr error
 	select {
 	case <-rec.done:
 		completed = true
 	case <-time.After(grace):
-		_ = core.TerminateProcessTree(rec.cmd)
+		terminateErr = core.TerminateProcessTree(rec.cmd)
 		select {
 		case <-rec.done:
 			completed = true
 		case <-time.After(grace):
-			// The owner did not finish in time. The file state below is reported
-			// as-is rather than as a successful finalization.
 		}
+	}
+
+	if !completed {
+		// The owner never confirmed that the process ended, so the record stays
+		// owned and its output must not be presented as a finished file. Only facts
+		// that can be read without racing the owner are reported.
+		detail := fmt.Sprintf("path=%s; process completion unconfirmed after %s", rec.path, grace)
+		if terminateErr != nil {
+			detail += fmt.Sprintf("; process-tree termination failed: %v", terminateErr)
+		}
+		if signalErr != nil {
+			detail += fmt.Sprintf("; graceful interrupt unavailable: %v", signalErr)
+		}
+		if info, statErr := os.Stat(rec.path); statErr != nil {
+			detail += fmt.Sprintf("; output: %v", statErr)
+		} else {
+			detail += fmt.Sprintf("; output size=%d", info.Size())
+		}
+		s.logAudit("stop_scrcpy_recording", rec.serial, false, detail)
+		return "", core.NewOperationError(
+			"stop_scrcpy_recording",
+			"Recording stop could not be confirmed",
+			detail,
+			true,
+		)
 	}
 
 	// Give a tiny bit of time for the filesystem to catch up if needed
@@ -290,9 +336,10 @@ func (s *Service) StopRecording() (string, error) {
 		if signalErr != nil {
 			detail += fmt.Sprintf("; graceful interrupt unavailable: %v", signalErr)
 		}
-		if completed && rec.waitErr != nil {
+		if rec.waitErr != nil {
 			detail += fmt.Sprintf("; process exit: %v", rec.waitErr)
 		}
+		s.logAudit("stop_scrcpy_recording", rec.serial, false, detail)
 		return "", core.NewOperationError(
 			"stop_scrcpy_recording",
 			"Recording file not found",
@@ -302,9 +349,10 @@ func (s *Service) StopRecording() (string, error) {
 	}
 	if info.Size() == 0 {
 		detail := "scrcpy failed to capture any frames. Ensure the device screen is on and no other scrcpy instance is using the same encoder."
-		if completed && rec.waitErr != nil {
+		if rec.waitErr != nil {
 			detail += fmt.Sprintf("; process exit: %v", rec.waitErr)
 		}
+		s.logAudit("stop_scrcpy_recording", rec.serial, false, detail)
 		return "", core.NewOperationError(
 			"stop_scrcpy_recording",
 			"Recording file is empty",
