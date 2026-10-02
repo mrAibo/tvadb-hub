@@ -28,6 +28,18 @@ jobs:
         run: bun scripts/check-toolchain.ts
       - name: Validate project version consistency
         run: bash scripts/check-version-consistency.sh
+      - name: Release authorization policy tests
+        shell: pwsh
+        run: ./scripts/new-release-authorization-helper/tests/ReleaseAuthorization.Tests.ps1
+      # Dependency-vulnerability policy: fail this job on high or critical
+      # advisories. `bun audit` reads frontend/bun.lock and needs no
+      # node_modules; `--audit-level=high` both filters the report and sets the
+      # exit code (0 = nothing at or above high, 1 = findings or a failed
+      # advisory request, i.e. fail-closed either way). Flag verified against the
+      # pinned Bun CLI with `bun audit --help` (Bun 1.4.2).
+      - name: Audit frontend dependencies for high/critical vulnerabilities
+        working-directory: frontend
+        run: bun audit --audit-level=high
       - name: Install frontend dependencies
         working-directory: frontend
         run: bun install --frozen-lockfile

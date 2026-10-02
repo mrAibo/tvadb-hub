@@ -94,16 +94,20 @@ Older `tvadb-hub-settings` backups remain import-compatible after the rename.
 
 ## How to install
 
-Ready-to-run release-candidate packages are stored under `distribution/` after
-the multi-platform distribution workflow completes.
+Ready-to-run release-candidate packages are produced by the **Build Distribution
+Packages** workflow and retrieved from that run's artifacts
+(**Actions → the run → Artifacts → `droidsphere-complete-distribution`**). The
+workflow no longer commits generated binaries back into the repository, so the
+committed `distribution/` tree on `main` is a historical snapshot of older
+versions only. The paths below are the folders inside the downloaded artifact.
 
 ### Windows
 
 Choose one of:
 
-- `distribution/windows/DroidSphere-<version>-windows-amd64-installer.exe` —
+- `windows/DroidSphere-<version>-windows-amd64-installer.exe` —
   recommended installer.
-- `distribution/windows/DroidSphere-<version>-windows-amd64.exe` — portable
+- `windows/DroidSphere-<version>-windows-amd64.exe` — portable
   executable; no installation is required.
 
 For the installer, run the EXE and follow the per-user setup wizard. For the
@@ -113,7 +117,7 @@ portable build, place the EXE in any writable folder and launch it directly.
 
 Use:
 
-- `distribution/macos/DroidSphere-<version>-macos-universal.zip`
+- `macos/DroidSphere-<version>-macos-universal.zip`
 
 Unzip it, move `DroidSphere.app` to **Applications**, then launch it. The
 repository build is ad-hoc signed but not Apple-notarized yet, so macOS may
@@ -123,8 +127,8 @@ require **Control-click → Open** on first launch.
 
 Choose one of:
 
-- `distribution/linux/DroidSphere-<version>-linux-amd64.AppImage`
-- `distribution/linux/DroidSphere-<version>-linux-amd64.deb`
+- `linux/DroidSphere-<version>-linux-amd64.AppImage`
+- `linux/DroidSphere-<version>-linux-amd64.deb`
 
 For AppImage:
 
@@ -201,17 +205,19 @@ engineering details.
 
 ## Recommended next features
 
-The strongest candidates after Connection Doctor are:
+The current in-progress batch covers the Wireless discovery/pairing UX,
+release-evidence/dependency monitoring and a small Logcat polish package; see
+[STATUS.md](STATUS.md). Logcat 2.0 (crash/ANR filtering, saved filters, app/PID
+filtering and pinned events) has shipped. The strongest candidates after that
+batch are:
 
 1. **App backup & restore** — export base/split APK sets and restore them as a
    unit; add user-data backup only where Android actually permits it.
-2. **Logcat 2.0** — app/PID filtering, crash and ANR highlighting, saved filter
-   presets and pinned events.
-3. **File preview + folder sync** — preview images/text, compare folder changes,
+2. **File preview + folder sync** — preview images/text, compare folder changes,
    define include/exclude patterns and choose conflict handling before sync.
-4. **Permission/AppOps inspector** — begin read-only, then expose carefully
+3. **Permission/AppOps inspector** — begin read-only, then expose carefully
    scoped changes with before/after state.
-5. **Quick Share integration** — longer-term, ordinary Android file exchange
+4. **Quick Share integration** — longer-term, ordinary Android file exchange
    without requiring ADB for every transfer.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the maintained roadmap.

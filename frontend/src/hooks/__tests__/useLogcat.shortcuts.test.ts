@@ -50,7 +50,8 @@ describe('useLogcat keyboard ownership', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     Object.defineProperty(window.navigator, 'platform', { value: 'Win32', configurable: true })
-    useLogcatStore.setState({ logs: [], streamingSerial: '', isStreaming: false })
+    useLogcatStore.getState().reset()
+    useLogcatStore.getState().setExportMode('all')
   })
 
   it('leaves the buffer untouched when the unshifted palette chord is pressed', () => {
@@ -102,5 +103,32 @@ describe('useLogcat keyboard ownership', () => {
 
     expect(mocks.saveLogcatToFile).toHaveBeenCalledTimes(1)
     expect(mocks.saveLogcatToFile.mock.calls[0][1]).toMatch(/\.txt$/)
+  })
+
+  it('exports pinned events over the chord after the buffer was cleared', async () => {
+    useLogcatStore.getState().appendLogs([entry('pinned-line')])
+    const pinned = useLogcatStore.getState().logs[0]
+    useLogcatStore.getState().togglePinned(pinned)
+    useLogcatStore.getState().clearLogs()
+    useLogcatStore.getState().setExportMode('pinned')
+    renderHook(() => useLogcat())
+
+    pressKey({ key: 'E', ctrlKey: true, shiftKey: true })
+    await act(async () => {})
+
+    expect(mocks.saveLogcatToFile).toHaveBeenCalledTimes(1)
+    expect(mocks.saveLogcatToFile.mock.calls[0][1]).toMatch(/\.json$/)
+    expect(mocks.saveLogcatToFile.mock.calls[0][0]).toContain(pinned.raw)
+    expect(mocks.toast.success).toHaveBeenCalledWith('Exported 1 log entries')
+  })
+
+  it('refuses the chord when the selected export scope is empty', async () => {
+    renderHook(() => useLogcat())
+
+    pressKey({ key: 'e', ctrlKey: true })
+    await act(async () => {})
+
+    expect(mocks.saveLogcatToFile).not.toHaveBeenCalled()
+    expect(mocks.toast.error).toHaveBeenCalledWith('No logs to export')
   })
 })

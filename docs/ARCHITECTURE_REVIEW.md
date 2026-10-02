@@ -15,12 +15,11 @@ benefit, such as continuous device tracking.
 
 Backend Logcat event batching, ADB CLI transfer compression, optional
 post-transfer SHA-256 verification, safe TV text entry, scrcpy audio-source
-controls, Logcat crash/ANR diagnostics with saved filters and the opt-in
-signed Safe Tuning metadata feed infrastructure are now implemented. The
-remaining near-term product work is Logcat app/PID filtering and pinned events;
-Logcat 2.0 phase 2 (app/PID filtering and session-local pinned events) is also
-implemented. The architecture-only P3 items should still be benchmarked or guarded
-before adoption.
+controls, Logcat crash/ANR diagnostics with saved filters, Logcat app/PID
+filtering with session-local pinned events, the guarded TV custom launcher wizard
+and the opt-in signed Safe Tuning metadata feed infrastructure are now
+implemented. The architecture-only P3 items should still be benchmarked or
+guarded before adoption.
 
 ## 1. Native ADB Client Protocol
 
@@ -309,7 +308,7 @@ snapshots without persisting log contents.
 | Done | Signed/versioned Safe Tuning metadata feed infrastructure | Medium-High | Completed, opt-in |
 | Done | scrcpy audio-source/audio-only UX | Low | Completed |
 | P3 | Focused ADB smart-socket client | Medium | Prototype added; benchmark before adoption |
-| P3 | Custom launcher wizard | Medium-High | TV-specific, guarded |
+| Done | Custom launcher wizard | Medium-High | Completed, TV-specific and guarded (PR #56) |
 | P3 | Macro engine | Medium | Later |
 | Avoid | Full replacement of official ADB CLI | High | No, unless profiling proves need |
 | Avoid | Generic scoped-storage "bypass" | High/risky | No |

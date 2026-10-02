@@ -114,9 +114,9 @@ func TestRunLogcatBatcherFlushesAtMaxSizeAndPreservesOrdering(t *testing.T) {
 	close(entries)
 
 	var batches [][]LogcatEntry
-	runLogcatBatcher(entries, time.Hour, 3, func(batch []LogcatEntry) {
+	runLogcatBatcher(entries, time.Hour, 3, logcatBatchMaxBytes, func(batch []LogcatEntry) {
 		batches = append(batches, batch)
-	})
+	}, nil)
 
 	if len(batches) != 2 {
 		t.Fatalf("expected 2 batches, got %d", len(batches))
@@ -144,9 +144,9 @@ func TestRunLogcatBatcherFlushesFinalPartialBatch(t *testing.T) {
 	close(entries)
 
 	var batches [][]LogcatEntry
-	runLogcatBatcher(entries, time.Hour, 10, func(batch []LogcatEntry) {
+	runLogcatBatcher(entries, time.Hour, 10, logcatBatchMaxBytes, func(batch []LogcatEntry) {
 		batches = append(batches, batch)
-	})
+	}, nil)
 
 	if len(batches) != 1 {
 		t.Fatalf("expected 1 final batch, got %d", len(batches))
@@ -163,9 +163,9 @@ func TestRunLogcatBatcherFlushesOnInterval(t *testing.T) {
 
 	go func() {
 		defer close(done)
-		runLogcatBatcher(entries, 10*time.Millisecond, 10, func(batch []LogcatEntry) {
+		runLogcatBatcher(entries, 10*time.Millisecond, 10, logcatBatchMaxBytes, func(batch []LogcatEntry) {
 			emitted <- batch
-		})
+		}, nil)
 	}()
 
 	entries <- LogcatEntry{ID: "interval", Serial: "ABC123"}
@@ -206,11 +206,15 @@ func TestCloseStreamFlushesPendingBatchOnCancellation(t *testing.T) {
 		serial:    "ABC123",
 		entries:   make(chan LogcatEntry, 4),
 		batchDone: make(chan struct{}),
+		ctx:       context.Background(),
 	}
+	stream.queue = newLogcatByteQueue(stream.entries, &stream.stopping, logcatQueueMaxBytes)
 	service.streams[stream.serial] = stream
 	go service.emitLogcatBatches(stream)
 
-	stream.entries <- LogcatEntry{ID: "pending", Serial: stream.serial}
+	if err := stream.send(LogcatEntry{ID: "pending", Serial: stream.serial}); err != nil {
+		t.Fatalf("pending entry was rejected: %v", err)
+	}
 	stream.stopping.Store(true)
 	service.closeStream(stream, "stopped", context.Canceled)
 

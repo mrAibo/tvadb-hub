@@ -60,9 +60,12 @@ and the intended release workflows without unresolved blocking failures.
 
 After all blocking checks and the intended Windows package smoke test pass for a specific release candidate:
 
-1. Retain the validation JSON and test notes with the release evidence. Avoid committing device-identifying data to the public repository.
-2. Set the repository Actions variable `PHYSICAL_DEVICE_VALIDATED_VERSION` to the exact version that was tested, for example `0.1.0`.
-3. Publish only that version. A later version requires a new physical validation and a new variable value.
+1. Retain the validation JSON, the test notes and the candidate's artifact hashes (`SHA256SUMS.txt` and `BUILD_PROVENANCE-windows-release.json`) together with the release evidence. Avoid committing device-identifying data to the public repository.
+2. Record the exact commit SHA of the validated candidate.
+3. Set the repository Actions variable `PHYSICAL_DEVICE_VALIDATED_VERSION` to the exact version that was tested, for example `0.1.0`.
+4. Set the repository Actions variable `PHYSICAL_DEVICE_VALIDATED_SHA` to that candidate's full Git commit SHA (currently 40 hexadecimal characters on GitHub). Do not substitute a 64-character SHA-256 artifact digest.
+5. Publish only that version and source commit. A later version, **or any other source commit of the same version**, requires a new physical validation and new variable values.
 
-The release workflow enforces this value for both manual publication and tag-triggered publication. Building an unpublished release candidate remains possible without it.
+The release workflow enforces both values for manual publication and for tag-triggered publication. Building an unpublished release candidate remains possible without them.
 
+The retained hashes identify the artifacts that were actually tested. Authorization is tied to the source commit, not to artifact bytes, so a rebuild from the same source is a different artifact and must not be described as the physically validated one.

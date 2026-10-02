@@ -18,6 +18,25 @@ export interface DiscoveredWirelessDevice {
     "legacyAddress"?: string;
     "preferredAddress"?: string;
     "secureConnect": boolean;
+
+    /**
+     * ConnectInstanceNames lists only the mDNS instance names that advertise the
+     * chosen connect endpoint of the chosen kind: the unique TLS connect endpoint
+     * when one is advertised, otherwise the unique legacy endpoint. It is the
+     * evidence that may tie an authorized transport to this endpoint. InstanceNames
+     * stays the unfiltered diagnostic view and must never be used that way.
+     */
+    "connectInstanceNames"?: string[] | null;
+
+    /**
+     * Derived convenience fields for the UI. PairingPort is the advertised
+     * temporary pairing port. NeedsPairing means pairing is currently OFFERED
+     * (a pairing endpoint exists); it is not proof that this host is not already
+     * paired. ConnectPort is the port of the preferred connect endpoint.
+     */
+    "pairingPort"?: number;
+    "connectPort"?: number;
+    "needsPairing": boolean;
 }
 
 export interface Info {

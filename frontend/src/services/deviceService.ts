@@ -11,6 +11,7 @@ import {
   AutoConnectWireless,
   AutoReconnectRememberedWireless,
   PairAndConnectWireless,
+  PairWireless,
   GetWirelessDiagnostics,
   EnableWirelessTCPIP,
   DisconnectWireless,
@@ -134,6 +135,15 @@ export async function pairAndConnectWireless(
   return raw as unknown as WirelessPairAndConnectResult
 }
 
+/**
+ * Pairs with an explicit `host:port` endpoint (`adb pair`). Unlike the
+ * discovery-driven flow this needs no mDNS, which is why it is the manual
+ * fallback for routers that block multicast.
+ */
+export async function pairWireless(address: string, code: string): Promise<string> {
+  return PairWireless(address, code)
+}
+
 export async function getWirelessDiagnostics(
   selector: string = '',
 ): Promise<WirelessDiagnosticsReport> {
@@ -141,11 +151,12 @@ export async function getWirelessDiagnostics(
   return raw as WirelessDiagnosticsReport
 }
 
-export async function enableWirelessTCPIP(
-  port: string,
-  serial?: string,
-): Promise<string> {
-  return EnableWirelessTCPIP(port, serial ?? '')
+/**
+ * Enables legacy ADB TCP/IP on a specific connected device. The serial is
+ * required: the mode switch restarts adbd on the selected target only.
+ */
+export async function enableWirelessTCPIP(port: string, serial: string): Promise<string> {
+  return EnableWirelessTCPIP(port, serial)
 }
 
 export async function disconnectWireless(address: string): Promise<string> {

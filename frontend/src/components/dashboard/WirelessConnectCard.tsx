@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
+  IconAlertTriangle as AlertTriangle,
+  IconLoader2 as Loader2,
   IconRefresh as RefreshCw,
   IconUsb as Usb,
   IconWifi as Wifi,
@@ -14,18 +16,16 @@ import {
 } from '@/services/deviceService'
 import { useDevices } from '@/hooks/useDevices'
 import { useDeviceStore } from '@/stores/useDeviceStore'
+import { isWirelessTransportSerial, LEGACY_TCPIP_PORT } from '@/lib/wirelessPairing'
 import type {
+  DeviceSummary,
   DiscoveredWirelessDevice,
   RememberedWirelessDevice,
 } from '@/lib/types'
 import { toast } from 'sonner'
 
-function isWirelessADBSerial(serial: string): boolean {
-  const value = serial.trim()
-  if (!value) return false
-  if (value.startsWith('[')) return value.includes(']:')
-  const separator = value.lastIndexOf(':')
-  return separator > 0 && /^\d+$/.test(value.slice(separator + 1))
+function targetLabel(device: DeviceSummary): string {
+  return device.model || device.product || device.serial
 }
 
 export function WirelessConnectCard() {
@@ -36,6 +36,54 @@ export function WirelessConnectCard() {
   const [remembered, setRemembered] = useState<RememberedWirelessDevice[]>([])
   const [scanning, setScanning] = useState(false)
   const [enablingLegacy, setEnablingLegacy] = useState(false)
+  // Consent is held as a serial, not a captured device. The consent epoch is bumped
+  // by an explicit selection change only — never by the derived ready-target list:
+  // enabling TCP/IP restarts adbd, so this very device legitimately disappears from
+  // that list mid-command, and that must not invalidate the command's own feedback.
+  const [pendingSerial, setPendingSerial] = useState<string | null>(null)
+  // Kept after the target drops so the in-flight command can still name the serial
+  // and model it was confirmed for. It never reselects a replacement device.
+  const [confirmedSerial, setConfirmedSerial] = useState<string | null>(null)
+  const [pendingDropped, setPendingDropped] = useState(false)
+  const consentEpochRef = useRef(0)
+  const confirmedSerialRef = useRef<string | null>(null)
+
+  const readyTargets = useMemo(
+    () => adbDevices.filter((device) => device.mode === 'adb' && device.state === 'device'),
+    [adbDevices],
+  )
+
+  const pendingTarget = readyTargets.find((device) => device.serial === pendingSerial) ?? null
+  // `pendingDropped` is the observable "the confirmed device left adb" flag. It is
+  // set below, so reading it here never races the in-flight `enablingLegacy` state.
+  const targetDropped = pendingDropped || (confirmedSerial !== null && pendingSerial === null)
+
+  // A device that drops while it is confirmed is never re-confirmed automatically:
+  // only the user may re-arm the command on whatever appears afterwards. The epoch
+  // is deliberately NOT bumped here — a command that already ran must still report
+  // its own result even though adbd disconnected the target it ran on.
+  useLayoutEffect(() => {
+    if (pendingSerial === null || pendingTarget) return
+    setPendingDropped(true)
+    setPendingSerial(null)
+  }, [pendingSerial, pendingTarget])
+
+  // The lone ready device is confirmed explicitly; several require an explicit choice.
+  function confirmTarget(serial: string) {
+    consentEpochRef.current += 1
+    confirmedSerialRef.current = serial
+    setPendingSerial(serial)
+    setConfirmedSerial(serial)
+    setPendingDropped(false)
+  }
+
+  function dropConsent() {
+    consentEpochRef.current += 1
+    confirmedSerialRef.current = null
+    setPendingSerial(null)
+    setConfirmedSerial(null)
+    setPendingDropped(false)
+  }
 
   const connectedWirelessCount = useMemo(
     () =>
@@ -43,13 +91,9 @@ export function WirelessConnectCard() {
         (device) =>
           device.mode === 'adb' &&
           device.state === 'device' &&
-          isWirelessADBSerial(device.serial),
+          isWirelessTransportSerial(device.serial),
       ).length,
     [adbDevices],
-  )
-
-  const hasReadyAdbDevice = adbDevices.some(
-    (device) => device.mode === 'adb' && device.state === 'device',
   )
 
   const scan = useCallback(async () => {
@@ -73,14 +117,59 @@ export function WirelessConnectCard() {
     void scan()
   }, [scan])
 
-  async function handleLegacyTCPIP() {
+  function requestLegacyTCPIP() {
+    // Never pick a target for the user: one ready device may be implied, several
+    // require an explicit choice, and nothing runs before the confirmation. A device
+    // that dropped while it was confirmed is never re-armed automatically.
+    if (readyTargets.length === 1 && !targetDropped) {
+      confirmTarget(readyTargets[0].serial)
+      return
+    }
+    // Collapsing the confirmation is an explicit change of the confirmed selection,
+    // so a command that is still in flight is discarded instead of being reported
+    // for a target the user just took back.
+    dropConsent()
+  }
+
+  async function handleConfirmLegacyTCPIP() {
+    const target = pendingTarget
+    if (!target || enablingLegacy) return
+    const serial = target.serial
+    // The command is pinned to the explicitly confirmed serial before it runs: a
+    // replacement device is never selected, and this guard never reads the derived
+    // ready-target list.
+    const consentEpoch = consentEpochRef.current
+    const capturedLabel = targetLabel(target)
     setEnablingLegacy(true)
     try {
-      const message = await enableWirelessTCPIP('5555')
-      toast.success('Legacy ADB TCP/IP enabled', { description: message })
+      const message = await enableWirelessTCPIP(LEGACY_TCPIP_PORT, serial)
+      // Only a change of the user's explicit selection discards the result. adbd
+      // restarting and dropping this very device from `adb devices` is expected and
+      // must not hide the completion feedback.
+      if (consentEpochRef.current !== consentEpoch || confirmedSerialRef.current !== serial) {
+        return
+      }
+      const stillListed = useDeviceStore
+        .getState()
+        .devices.some((device) => device.serial === serial)
+      if (stillListed) {
+        toast.success(`Legacy ADB TCP/IP enabled on ${capturedLabel}`, {
+          description: `${serial} · ${message || `adbd restarted, reconnect on port ${LEGACY_TCPIP_PORT} when it drops.`}`,
+        })
+      } else {
+        toast.info('Legacy ADB TCP/IP command finished; the device is no longer listed', {
+          description: `${capturedLabel} · ${serial} · ${message || `adbd restarted on port ${LEGACY_TCPIP_PORT}.`}`,
+        })
+      }
+      dropConsent()
+      await refreshDevices()
+      await scan()
     } catch (error) {
+      if (consentEpochRef.current !== consentEpoch || confirmedSerialRef.current !== serial) {
+        return
+      }
       toast.error('Could not enable legacy TCP/IP', {
-        description: error instanceof Error ? error.message : String(error),
+        description: `${capturedLabel} · ${serial} · ${error instanceof Error ? error.message : String(error)}`,
       })
     } finally {
       setEnablingLegacy(false)
@@ -155,12 +244,12 @@ export function WirelessConnectCard() {
               Discover / Pair / Connect
             </Button>
 
-            {hasReadyAdbDevice && (
+            {readyTargets.length > 0 && (
               <Button
                 size="sm"
                 variant="outline"
                 className="h-8 text-xs font-medium"
-                onClick={() => void handleLegacyTCPIP()}
+                onClick={requestLegacyTCPIP}
                 disabled={enablingLegacy}
                 title="Legacy fallback for devices that use adb tcpip 5555"
               >
@@ -169,6 +258,85 @@ export function WirelessConnectCard() {
               </Button>
             )}
           </div>
+
+          {readyTargets.length > 1 && !pendingTarget && !targetDropped && (
+            <div className="mt-2.5 rounded-lg border border-border/50 bg-muted/5 p-2.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Legacy TCP/IP target
+              </p>
+              <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+                Port {LEGACY_TCPIP_PORT} restarts adbd on one device only. Choose which connected
+                serial to switch.
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {readyTargets.map((device) => (
+                  <Button
+                    key={device.serial}
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px]"
+                    onClick={() => confirmTarget(device.serial)}
+                  >
+                    {targetLabel(device)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(pendingTarget || targetDropped) && (
+            <div className="mt-2.5 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5">
+              <p className="flex items-center gap-1.5 text-[11px] font-medium">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                {pendingTarget
+                  ? `Enable legacy TCP/IP on ${targetLabel(pendingTarget)}?`
+                  : `Legacy TCP/IP was confirmed for ${confirmedSerial}`}
+              </p>
+              <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
+                {pendingTarget
+                  ? `${pendingTarget.serial}${pendingTarget.product ? ` · ${pendingTarget.product}` : ''}`
+                  : confirmedSerial}
+              </p>
+              <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+                {pendingTarget ? (
+                  <>
+                    Warning: port {LEGACY_TCPIP_PORT} is unencrypted ADB and adbd restarts, so this
+                    exact device drops off adb until you connect to it again. No pairing is
+                    attempted automatically.
+                  </>
+                ) : (
+                  <>
+                    This confirmed serial is no longer a ready ADB device, so nothing is sent to any
+                    other device. Reconnect it and confirm again, or dismiss this.
+                  </>
+                )}
+              </p>
+              <div className="mt-1.5 flex gap-1.5">
+                <Button
+                  size="sm"
+                  className="h-7 text-[11px]"
+                  onClick={() => void handleConfirmLegacyTCPIP()}
+                  disabled={enablingLegacy || !pendingTarget}
+                >
+                  {enablingLegacy ? (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  ) : (
+                    <Usb className="mr-1 h-3 w-3" />
+                  )}
+                  Confirm on this serial
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-[11px]"
+                  onClick={dropConsent}
+                  disabled={enablingLegacy}
+                >
+                  {pendingTarget ? 'Cancel' : 'Dismiss'}
+                </Button>
+              </div>
+            </div>
+          )}
 
           <p className="mt-2 text-[9px] leading-relaxed text-muted-foreground/70">
             Modern Android / Google TV normally does not use port 5555. TVADB Hub resolves

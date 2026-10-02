@@ -201,6 +201,27 @@ export interface DiscoveredWirelessDevice {
   legacyAddress?: string
   preferredAddress?: string
   secureConnect: boolean
+  /**
+   * Only the mDNS instance names that advertise the chosen connect endpoint of
+   * the chosen kind: the unique TLS connect endpoint when one is advertised,
+   * otherwise the unique legacy endpoint. These are the names that may tie an
+   * authorized transport to this endpoint; `instanceNames` stays the unfiltered
+   * diagnostic list. Optional so older payloads and fixtures keep working.
+   */
+  connectInstanceNames?: string[]
+  /**
+   * Dynamic `_adb-tls-pairing._tcp` port. Optional so discovery fixtures and
+   * older payloads keep working through the address fields above.
+   */
+  pairingPort?: number
+  /** Dynamic `_adb-tls-connect._tcp` port (never the pairing port). */
+  connectPort?: number
+  /**
+   * The host is currently offering a pairing window. This is an offer, not a
+   * trust state. The current backend always sends this flag; fixtures/payloads
+   * from before its introduction omit it and use the pairing endpoint fallback.
+   */
+  needsPairing?: boolean
 }
 
 export interface WirelessConnectResult {

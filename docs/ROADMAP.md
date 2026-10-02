@@ -27,16 +27,27 @@ devices.
 - [x] Portable JSON settings backup
 - [x] Connection Doctor for ADB/toolchain/authorization/transport diagnostics
 - [x] Windows installer + native Windows/Linux/macOS CI builds
-- [x] Release-candidate packages committed under `distribution/` for Windows, Linux and macOS
+- [x] Release-candidate packages published as CI workflow artifacts for Windows, Linux and macOS
+
+## In progress: wireless UX, release evidence and Logcat polish
+
+The accepted current batch is tracked in [`STATUS.md`](../STATUS.md) and
+[live execution issue #43](https://github.com/mrAibo/tvadb-hub/issues/43):
+
+- Wireless discovery/pairing/reconnect UX over the existing official ADB mDNS
+  path (backend already recognises `_adb._tcp`, `_adb-tls-pairing._tcp` and
+  `_adb-tls-connect._tcp`; the manual pairing UI is being finished);
+- release-evidence hardening (version + exact source-SHA publication gate, no
+  asset clobbering, `bun audit` dependency gate) and Dependabot update
+  automation;
+- a small Logcat polish package (autoscroll regression, explicit export
+  semantics, byte-budgeted retention).
+
+The guarded TV **custom launcher wizard** (PR #56) and Logcat 2.0 phase 2
+(PR #63) are already merged, and the release-readiness hardening from PR #61 is
+retained. None of them are upcoming work. Macros remain later.
 
 ## Next: files and backups
-
-For the accepted implementation sequence and actual completion state, see
-[`STATUS.md`](../STATUS.md) and
-[live execution issue #43](https://github.com/mrAibo/tvadb-hub/issues/43).
-Audit remediation precedes the next P3 product feature: the guarded,
-capability-aware TV custom launcher wizard. Macros remain later. The sections
-below are the wider product backlog, not a competing immediate priority list.
 
 - [ ] File preview for images and text
 - [ ] Folder sync with preview, include/exclude filters and conflict policy

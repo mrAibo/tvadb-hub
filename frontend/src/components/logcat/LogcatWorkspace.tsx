@@ -12,9 +12,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useLogcatStore } from '@/stores/useLogcatStore'
+import { useLogcatStore, formatLogcatBytes, resolveLogcatNotice } from '@/stores/useLogcatStore'
+import type { LogcatExportMode } from '@/stores/useLogcatStore'
 import { useLogcat } from '@/hooks/useLogcat'
 import { LogcatView } from '@/components/logcat/LogcatView'
 import { LogcatFilters } from '@/components/logcat/LogcatFilters'
@@ -22,6 +27,12 @@ import { cn } from '@/lib/utils'
 
 const isMac = navigator.platform.toUpperCase().includes('MAC')
 const modKey = isMac ? '\u2318' : 'Ctrl'
+
+const EXPORT_MODES: { mode: LogcatExportMode; label: string; hint: string }[] = [
+  { mode: 'all', label: 'All buffered lines', hint: 'Everything currently in the rolling buffer' },
+  { mode: 'filtered', label: 'Filtered lines', hint: 'Only lines matching the active filter' },
+  { mode: 'pinned', label: 'Pinned events', hint: 'Kept pins, even after the buffer was cleared' },
+]
 
 interface LogcatWorkspaceProps {
   embedded?: boolean
@@ -53,6 +64,21 @@ export function LogcatWorkspace({ embedded = false }: LogcatWorkspaceProps) {
   const pinnedOnly = useLogcatStore((state) => state.pinnedOnly)
   const setPinnedOnly = useLogcatStore((state) => state.setPinnedOnly)
   const clearPinned = useLogcatStore((state) => state.clearPinned)
+  const bufferBytes = useLogcatStore((state) => state.bufferBytes)
+  const pinnedBytes = useLogcatStore((state) => state.pinnedBytes)
+  const exportMode = useLogcatStore((state) => state.exportMode)
+  const setExportMode = useLogcatStore((state) => state.setExportMode)
+  const clearCounters = useLogcatStore((state) => state.clearCounters)
+  const retentionNotice = useLogcatStore((state) =>
+    resolveLogcatNotice({
+      droppedEntries: state.droppedEntries,
+      droppedBytes: state.droppedBytes,
+      evictedEntries: state.evictedEntries,
+      evictedBytes: state.evictedBytes,
+      evictedPinnedEntries: state.evictedPinnedEntries,
+      clippedEntries: state.clippedEntries,
+    }),
+  )
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
@@ -81,13 +107,34 @@ export function LogcatWorkspace({ embedded = false }: LogcatWorkspaceProps) {
                 size="sm"
                 variant="ghost"
                 className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
-                disabled={logCount === 0}
+                disabled={logCount === 0 && pinnedEntries.length === 0}
               >
                 <FileDown className="h-3.5 w-3.5" />
                 Export
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Export scope
+              </DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={exportMode}
+                onValueChange={(value) => setExportMode(value as LogcatExportMode)}
+              >
+                {EXPORT_MODES.map(({ mode, label, hint }) => (
+                  <DropdownMenuRadioItem
+                    key={mode}
+                    value={mode}
+                    className="text-xs"
+                    disabled={mode !== 'pinned' && logCount === 0}
+                    title={hint}
+                  >
+                    {label}
+                    {mode === 'pinned' && ` (${pinnedEntries.length})`}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={exportAsText} className="text-xs">
                 <ArrowDownToLine className="mr-2 h-3.5 w-3.5" />
                 Export as TXT
@@ -211,8 +258,37 @@ export function LogcatWorkspace({ embedded = false }: LogcatWorkspaceProps) {
               / {logCount.toLocaleString()}
             </span>
           </div>
+          <span
+            className="text-[10px] text-muted-foreground tabular-nums"
+            title="Serialized volume currently retained in the frontend buffer (payload size, not heap size)"
+          >
+            {formatLogcatBytes(bufferBytes)}
+          </span>
+          {pinnedEntries.length > 0 && (
+            <span
+              className="text-[10px] text-muted-foreground tabular-nums"
+              title={`Serialized volume held by ${pinnedEntries.length} pinned events, kept independently of the buffer`}
+            >
+              {pinnedEntries.length} pins · {formatLogcatBytes(pinnedBytes)}
+            </span>
+          )}
         </div>
       </div>
+
+      {retentionNotice && (
+        <div className="flex items-center justify-between gap-2 border-t border-border/40 bg-background px-3 py-1.5">
+          <span className="text-[10px] text-[var(--warning)]" role="status">
+            {retentionNotice}
+          </span>
+          <button
+            type="button"
+            className="shrink-0 text-[10px] text-muted-foreground hover:text-foreground"
+            onClick={clearCounters}
+          >
+            Reset counters
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="px-3 py-1.5 border-t border-border/40 text-xs text-destructive">

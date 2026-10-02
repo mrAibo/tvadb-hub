@@ -6,6 +6,7 @@ import {
   IconDeviceTv as DeviceTv,
   IconHistory as History,
   IconLoader2 as Loader2,
+  IconPlugConnected as PlugConnected,
   IconRefresh as RefreshCw,
   IconWifi as Wifi,
 } from '@tabler/icons-react'
@@ -21,6 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { WirelessConnectDialog } from '@/components/devices/WirelessConnectDialog'
 import { useDevices } from '@/hooks/useDevices'
 import {
   autoConnectWireless,
@@ -52,6 +54,9 @@ export function CurrentPlusTopBar() {
     selectDevice,
   } = useDevices()
   const [connectingKey, setConnectingKey] = useState<string | null>(null)
+  // The mDNS find/pair surface opens only on an explicit click: a plain device
+  // refresh must never pop a modal at the user.
+  const [wirelessOpen, setWirelessOpen] = useState(false)
 
   const rememberedQuery = useQuery({
     queryKey: ['wireless', 'remembered-devices'],
@@ -94,7 +99,13 @@ export function CurrentPlusTopBar() {
     }
   }
 
+  async function handleWirelessConnected() {
+    await refreshDevices()
+    await queryClient.invalidateQueries({ queryKey: ['wireless', 'remembered-devices'] })
+  }
+
   return (
+    <>
     <header className="shrink-0 px-6 pt-4">
       <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-border/60 bg-card/75 px-3.5 py-2 shadow-[var(--shadow-card)] backdrop-blur-xl">
         <button
@@ -225,15 +236,33 @@ export function CurrentPlusTopBar() {
 
         <button
           type="button"
+          onClick={() => setWirelessOpen(true)}
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border/60 px-2 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+          aria-label="Find or pair a wireless device"
+          title="Find / Pair device — scan ADB mDNS, or pair manually with IP, pairing port and code when your router blocks mDNS"
+        >
+          <PlugConnected className="h-3.5 w-3.5" />
+          <span className="hidden text-[11px] font-medium sm:inline">Find / Pair</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => void refreshDevices()}
           disabled={refreshing}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
           aria-label="Refresh devices"
-          title="Refresh devices"
+          title="Refresh connected devices (adb devices -l). This does not scan mDNS — use Find / Pair for new TVs."
         >
           <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
         </button>
       </div>
     </header>
+
+    <WirelessConnectDialog
+      open={wirelessOpen}
+      onOpenChange={setWirelessOpen}
+      onConnected={handleWirelessConnected}
+    />
+    </>
   )
 }

@@ -131,11 +131,15 @@ func (a *App) AutoConnectWireless(selector string) (device.WirelessConnectResult
 	return auditAction(a, "auto_connect_wireless", func() (device.WirelessConnectResult, error) {
 		result, err := a.wireSvc.AutoConnect(a.ctx, selector)
 		if err != nil {
+			// The adb connect itself failed: there is no connected device to
+			// report, so the error stays fatal.
 			return result, err
 		}
-		if err := a.rememberWirelessService(result.Service); err != nil {
-			return result, err
-		}
+		// adb already connected. Persisting the endpoint is best-effort bookkeeping
+		// for automatic reconnect: an ambiguous or unavailable memory write must not
+		// turn a successful connection into a CLI failure, and must never overwrite
+		// an existing durable identity.
+		result.Message = appendWirelessPersistenceWarning(result.Message, a.rememberWirelessService(result.Service))
 		return result, nil
 	})
 }
@@ -152,11 +156,27 @@ func (a *App) PairAndConnectWireless(selector string, code string) (device.Wirel
 		if err != nil {
 			return result, err
 		}
-		if err := a.rememberWirelessService(result.ConnectService); err != nil {
-			return result, err
-		}
+		// Pairing and the following connect already succeeded. A memory write that
+		// cannot identify the device (ambiguous host) is reported as a warning on the
+		// result instead of failing the whole operation.
+		result.ConnectMessage = appendWirelessPersistenceWarning(result.ConnectMessage, a.rememberWirelessService(result.ConnectService))
 		return result, nil
 	})
+}
+
+// appendWirelessPersistenceWarning keeps the adb command message intact and adds a
+// non-fatal persistence note when the remembered-device write did not happen. The
+// warning is carried on the existing result message fields, so no API changes are
+// needed and the caller can never mistake it for a failed connection.
+func appendWirelessPersistenceWarning(message string, memoryErr error) string {
+	if memoryErr == nil {
+		return message
+	}
+	warning := fmt.Sprintf("not remembered for automatic reconnect: %s", memoryErr.Error())
+	if strings.TrimSpace(message) == "" {
+		return warning
+	}
+	return message + " — " + warning
 }
 
 func (a *App) ConnectWireless(address string) (string, error) {
@@ -167,14 +187,68 @@ func (a *App) ConnectWireless(address string) (string, error) {
 
 func (a *App) EnableWirelessTCPIP(port string, serial string) (string, error) {
 	return auditAction(a, "enable_wireless_tcpip", func() (string, error) {
-		resolved := serial
-		if resolved == "" {
-			a.mu.Lock()
-			resolved = a.activeSerial
-			a.mu.Unlock()
+		// Switching a device into wireless mode mutates exactly one device: the
+		// caller must name it, and it must still be the selected ready ADB device.
+		// Never fall back to whatever happens to be active.
+		resolved, err := a.expectedActive(serial)
+		if err != nil {
+			return "", err
 		}
+
+		devices, err := a.devSvc.ListDevices(a.ctx)
+		if err != nil {
+			return "", err
+		}
+		if err := confirmedReadyADBTarget(resolved, devices); err != nil {
+			return "", err
+		}
+
 		return a.wireSvc.EnableTCPIP(a.ctx, resolved, port)
 	})
+}
+
+// confirmedReadyADBTarget proves the confirmed serial is the live, authorized,
+// ready ADB device before a wireless-mode mutation runs. The command itself is
+// pinned with -s, and the shared adb server is never killed.
+func confirmedReadyADBTarget(serial string, devices []device.Summary) error {
+	serial = strings.TrimSpace(serial)
+	if serial == "" {
+		return core.NewOperationError("enable_wireless_tcpip", "Confirmed device is required", "select and confirm an ADB device", false)
+	}
+
+	for _, candidate := range devices {
+		if candidate.Serial != serial {
+			continue
+		}
+		if candidate.Mode != device.ModeADB {
+			return core.NewOperationError(
+				"enable_wireless_tcpip",
+				"Wireless TCP/IP requires an ADB device",
+				fmt.Sprintf("%s is in %s mode", serial, candidate.Mode),
+				false,
+			)
+		}
+		switch candidate.State {
+		case device.StateReady:
+			return nil
+		case device.StateUnauthorized:
+			return core.NewOperationError(
+				"enable_wireless_tcpip",
+				"Device is not authorized",
+				fmt.Sprintf("%s is unauthorized; approve the debugging prompt on the TV first", serial),
+				false,
+			)
+		default:
+			return core.NewOperationError(
+				"enable_wireless_tcpip",
+				"Device is not ready",
+				fmt.Sprintf("%s is %s; reconnect it before switching to wireless mode", serial, candidate.State),
+				true,
+			)
+		}
+	}
+
+	return core.NewOperationError("enable_wireless_tcpip", "device not found", fmt.Sprintf("serial '%s' is not connected", serial), true)
 }
 
 func (a *App) DisconnectWireless(address string) (string, error) {

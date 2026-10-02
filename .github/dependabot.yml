@@ -1,0 +1,47 @@
+# Dependency update automation for DroidSphere.
+#
+# Chosen mechanism: GitHub Dependabot version updates. It is the officially
+# supported GitHub-native automation for all three ecosystems configured here
+# and it can consume the existing toolchain without replacing the package
+# manager:
+#   * `bun`            - Dependabot supports the current text `frontend/bun.lock`
+#                        (Bun >= 1.1.39, <https://bun.sh/docs/install/lockfile>);
+#                        the legacy binary `bun.lockb` is not used in this repo.
+#                        Dependabot has NO security-update support for the `bun`
+#                        ecosystem, so frontend vulnerabilities are gated instead
+#                        by `bun audit --audit-level=high` in the ci.yml
+#                        `frontend-check` job.
+#   * `gomod`          - keeps the existing Go module set current; the existing
+#                        `govulncheck ./...` CI step remains the vulnerability
+#                        gate for reachable Go code.
+#   * `github-actions` - keeps workflow actions current.
+#
+# `cooldown.default-days` is the minimum release age policy: no version update is
+# proposed until the release has soaked for 7 days, so a bad upstream release is
+# not pulled in immediately. Cooldowns apply to version updates only and never
+# block security updates.
+version: 2
+updates:
+  - package-ecosystem: "bun"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5

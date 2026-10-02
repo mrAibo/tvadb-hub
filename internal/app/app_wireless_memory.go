@@ -3,6 +3,7 @@ package app
 import (
 	"ADBKit/internal/core"
 	"ADBKit/internal/device"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -87,7 +88,7 @@ func (a *App) AutoReconnectRememberedWireless() (WirelessReconnectReport, error)
 			return report, nil
 		}
 
-		services, err := a.wireSvc.Discover(a.ctx)
+		services, err := a.wireSvc.DiscoverReady(a.ctx)
 		if err != nil {
 			return report, err
 		}
@@ -162,7 +163,15 @@ func (a *App) rememberWirelessService(service device.MDNSService) error {
 		a.cfg.RememberedWireless = []core.RememberedWirelessDevice{}
 	}
 
-	match := findRememberedWirelessMatch(a.cfg.RememberedWireless, service, info)
+	match, matchErr := findRememberedWirelessMatch(a.cfg.RememberedWireless, service, info)
+	if matchErr != nil {
+		return core.NewOperationError(
+			"remember_wireless_device",
+			"could not identify the remembered wireless device",
+			matchErr.Error(),
+			false,
+		)
+	}
 	var existing *core.RememberedWirelessDevice
 	if match >= 0 {
 		snapshot := a.cfg.RememberedWireless[match]
@@ -179,41 +188,99 @@ func (a *App) rememberWirelessService(service device.MDNSService) error {
 	return core.SaveConfig(a.dataDir, a.cfg)
 }
 
+// findRememberedWirelessMatch returns the index of the one remembered device a
+// freshly connected service belongs to. It never guesses: a host-only match is
+// accepted only when exactly one remembered entry can be that device and the new
+// observation does not contradict a durable hardware-serial identity.
 func findRememberedWirelessMatch(
 	entries []core.RememberedWirelessDevice,
 	service device.MDNSService,
 	info *device.Info,
-) int {
+) (int, error) {
 	hardwareSerial := ""
 	if info != nil {
 		hardwareSerial = strings.TrimSpace(info.HardwareSerial)
 	}
 
 	if hardwareSerial != "" {
+		matches := make([]int, 0, 1)
 		for i, entry := range entries {
-			if entry.HardwareSerial != "" &&
-				strings.EqualFold(entry.HardwareSerial, hardwareSerial) {
-				return i
+			if entry.HardwareSerial != "" && strings.EqualFold(entry.HardwareSerial, hardwareSerial) {
+				matches = append(matches, i)
 			}
 		}
-	}
-
-	for i, entry := range entries {
-		sameInstance := service.InstanceName != "" &&
-			entry.InstanceName != "" &&
-			strings.EqualFold(entry.InstanceName, service.InstanceName)
-		if sameInstance {
-			return i
+		switch len(matches) {
+		case 1:
+			return matches[0], nil
+		case 0:
+			// Fall through to weaker identities.
+		default:
+			return -1, fmt.Errorf("multiple remembered wireless devices share hardware serial %s", hardwareSerial)
 		}
 	}
 
-	for i, entry := range entries {
-		if entry.Host != "" && strings.EqualFold(entry.Host, service.Host) {
-			return i
+	// Pairing and connect advertisements may carry different instance names, so an
+	// instance name is used only when it actually matches.
+	if instance := strings.TrimSpace(service.InstanceName); instance != "" {
+		matches := make([]int, 0, 1)
+		for i, entry := range entries {
+			if entry.InstanceName == "" || !strings.EqualFold(entry.InstanceName, instance) {
+				continue
+			}
+			if conflictsWithSerial(entry, hardwareSerial) {
+				continue
+			}
+			matches = append(matches, i)
+		}
+		switch len(matches) {
+		case 1:
+			return matches[0], nil
+		case 0:
+			// Fall through to the host.
+		default:
+			return -1, fmt.Errorf("multiple remembered wireless devices share the mDNS instance name %s", instance)
 		}
 	}
 
-	return -1
+	host := strings.TrimSpace(service.Host)
+	if host == "" {
+		return -1, nil
+	}
+
+	candidates := make([]int, 0, 1)
+	for i, entry := range entries {
+		if !strings.EqualFold(strings.TrimSpace(entry.Host), host) {
+			continue
+		}
+		if conflictsWithSerial(entry, hardwareSerial) {
+			continue
+		}
+		// An observation without a hardware serial must not overwrite a durable
+		// serial identity that may belong to a different device on this address.
+		if hardwareSerial == "" && strings.TrimSpace(entry.HardwareSerial) != "" {
+			continue
+		}
+		candidates = append(candidates, i)
+	}
+
+	switch len(candidates) {
+	case 1:
+		return candidates[0], nil
+	case 0:
+		return -1, nil
+	default:
+		return -1, fmt.Errorf("multiple remembered wireless devices were seen at %s; choose one before reconnecting", host)
+	}
+}
+
+// conflictsWithSerial reports whether a remembered entry's durable hardware serial
+// contradicts the serial observed for the current service.
+func conflictsWithSerial(entry core.RememberedWirelessDevice, hardwareSerial string) bool {
+	if hardwareSerial == "" {
+		return false
+	}
+	entrySerial := strings.TrimSpace(entry.HardwareSerial)
+	return entrySerial != "" && !strings.EqualFold(entrySerial, hardwareSerial)
 }
 
 func buildRememberedWirelessEntry(
@@ -280,32 +347,37 @@ func buildRememberedWirelessEntry(
 	return entry
 }
 
+// resolveRememberedWirelessService maps one remembered TV to its current connect
+// endpoint. Pairing and connect advertisements may carry different instance names,
+// so an instance match is a preference, not a requirement. A host-only fallback is
+// accepted only when exactly one connect (or legacy) endpoint is advertised for
+// that host: two different endpoints must never be resolved by picking the first.
 func resolveRememberedWirelessService(
 	services []device.MDNSService,
 	entry core.RememberedWirelessDevice,
 ) (device.MDNSService, bool) {
-	var hostFallback *device.MDNSService
-	for i := range services {
-		service := services[i]
-		if service.Kind != device.MDNSServiceConnect && service.Kind != device.MDNSServiceLegacy {
-			continue
-		}
-
-		if entry.InstanceName != "" &&
-			strings.EqualFold(service.InstanceName, entry.InstanceName) {
-			return service, true
-		}
-		if entry.Host != "" && strings.EqualFold(service.Host, entry.Host) {
-			candidate := service
-			if hostFallback == nil ||
-				(hostFallback.Kind == device.MDNSServiceLegacy &&
-				 candidate.Kind == device.MDNSServiceConnect) {
-				hostFallback = &candidate
+	if instance := strings.TrimSpace(entry.InstanceName); instance != "" {
+		byInstance := make([]device.MDNSService, 0, 1)
+		for _, service := range services {
+			if strings.EqualFold(service.InstanceName, instance) {
+				byInstance = append(byInstance, service)
 			}
 		}
+		if service, ok := device.PickConnectEndpoint(byInstance); ok {
+			return service, true
+		}
 	}
-	if hostFallback != nil {
-		return *hostFallback, true
+
+	host := strings.TrimSpace(entry.Host)
+	if host == "" {
+		return device.MDNSService{}, false
 	}
-	return device.MDNSService{}, false
+
+	byHost := make([]device.MDNSService, 0, 2)
+	for _, service := range services {
+		if strings.EqualFold(service.Host, host) {
+			byHost = append(byHost, service)
+		}
+	}
+	return device.PickConnectEndpoint(byHost)
 }

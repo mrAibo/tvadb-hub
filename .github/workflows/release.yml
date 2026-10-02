@@ -57,6 +57,8 @@ jobs:
           PUBLISH_REQUESTED: ${{ inputs.publish }}
           PHYSICAL_DEVICE_VALIDATED_INPUT: ${{ inputs.physical_device_validated }}
           PHYSICAL_DEVICE_VALIDATED_VERSION: ${{ vars.PHYSICAL_DEVICE_VALIDATED_VERSION }}
+          PHYSICAL_DEVICE_VALIDATED_SHA: ${{ vars.PHYSICAL_DEVICE_VALIDATED_SHA }}
+          CHECKOUT_SHA: ${{ github.sha }}
         run: |
           $makeLine = Select-String -Path Makefile -Pattern '^VERSION :=\s*(\d+\.\d+\.\d+)\s*$'
           if (-not $makeLine) {
@@ -87,20 +89,26 @@ jobs:
             throw "Tag '$($env:REF_NAME)' does not match project version '$tag'."
           }
 
-          $publishing = ($env:EVENT_NAME -eq "push") -or ($env:PUBLISH_REQUESTED -eq "true")
-          if ($publishing) {
-            if ($env:PHYSICAL_DEVICE_VALIDATED_VERSION -ne $version) {
-              throw "Publishing $tag requires repository variable PHYSICAL_DEVICE_VALIDATED_VERSION='$version'. Current value: '$($env:PHYSICAL_DEVICE_VALIDATED_VERSION)'."
-            }
+          # Publication gate: version AND exact validated source SHA, fail-closed.
+          # The policy lives in a pure helper covered by
+          # scripts/new-release-authorization-helper/tests so workflow behaviour
+          # and tests cannot drift apart. An unpublished candidate build needs no
+          # gate variables.
+          . (Join-Path $env:GITHUB_WORKSPACE 'scripts/new-release-authorization-helper/Resolve-ReleaseAuthorization.ps1')
+          $authorization = Resolve-ReleaseAuthorization `
+            -EventName $env:EVENT_NAME `
+            -RefName $env:REF_NAME `
+            -PublishRequested $env:PUBLISH_REQUESTED `
+            -PhysicalDeviceValidatedInput $env:PHYSICAL_DEVICE_VALIDATED_INPUT `
+            -ValidatedVersion $env:PHYSICAL_DEVICE_VALIDATED_VERSION `
+            -ValidatedSha $env:PHYSICAL_DEVICE_VALIDATED_SHA `
+            -ProjectVersion $version `
+            -CheckoutSha $env:CHECKOUT_SHA
 
-            if ($env:EVENT_NAME -eq "workflow_dispatch" -and
-                $env:PHYSICAL_DEVICE_VALIDATED_INPUT -ne "true") {
-              throw "Manual publishing additionally requires physical_device_validated=true."
-            }
-          }
+          Write-Host "publishing=$($authorization.Publishing) authorizedSource=$($authorization.AuthorizedSha)"
 
-          "version=$version" >> $env:GITHUB_OUTPUT
-          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$($authorization.Version)" >> $env:GITHUB_OUTPUT
+          "tag=$($authorization.Tag)" >> $env:GITHUB_OUTPUT
 
       - name: Install Wails CLI
         shell: pwsh
@@ -244,12 +252,13 @@ jobs:
             "bin\BUILD_PROVENANCE-windows-release.json"
           )
 
-          gh release view $env:RELEASE_TAG *> $null
+          gh release view $env:RELEASE_TAG --json tagName *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $env:RELEASE_TAG @assets --clobber
-            if ($LASTEXITCODE -ne 0) { throw "Failed to upload release assets." }
+            # Policy: published bits are never replaced by this workflow. A run
+            # that finds the release already present fails closed instead of
+            # silently overwriting assets with a fresh rebuild.
+            throw "Release '$env:RELEASE_TAG' already exists. This workflow never replaces published assets; delete the release deliberately, or publish a new version, if a replacement is truly intended."
           }
-          else {
-            gh release create $env:RELEASE_TAG @assets --target $env:GITHUB_SHA --title "DroidSphere $env:RELEASE_TAG" --generate-notes
-            if ($LASTEXITCODE -ne 0) { throw "Failed to create GitHub Release." }
-          }
+
+          gh release create $env:RELEASE_TAG @assets --target $env:GITHUB_SHA --title "DroidSphere $env:RELEASE_TAG" --generate-notes
+          if ($LASTEXITCODE -ne 0) { throw "Failed to create GitHub Release." }

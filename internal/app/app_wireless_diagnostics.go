@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"sort"
 	"strings"
 	"time"
 )
@@ -79,7 +78,7 @@ func (a *App) GetWirelessDiagnostics(selector string) WirelessDiagnosticsReport 
 	})
 	report.addCheck(adbVersionDiagnostic(binaryStatus.Adb.Version))
 
-	services, err := a.wireSvc.Discover(a.ctx)
+	services, err := a.wireSvc.DiscoverReady(a.ctx)
 	if err != nil {
 		report.addCheck(WirelessDiagnosticCheck{
 			ID:             "mdns",
@@ -91,7 +90,7 @@ func (a *App) GetWirelessDiagnostics(selector string) WirelessDiagnosticsReport 
 		return report
 	}
 	report.Services = services
-	report.Devices = groupDiagnosticDevices(services)
+	report.Devices = device.GroupMDNSServices(services)
 
 	if len(services) == 0 {
 		report.addCheck(WirelessDiagnosticCheck{
@@ -268,68 +267,6 @@ func adbVersionDiagnostic(version string) WirelessDiagnosticCheck {
 		check.Recommendation = "Wireless pairing is supported, but this Platform Tools release is old. Update it before troubleshooting mDNS or TLS pairing problems."
 	}
 	return check
-}
-
-func groupDiagnosticDevices(services []device.MDNSService) []device.DiscoveredWirelessDevice {
-	// Reuse the public service grouping through a local pure equivalent because
-	// the device package intentionally keeps its grouping helper unexported.
-	type acc struct {
-		device    device.DiscoveredWirelessDevice
-		instances map[string]struct{}
-	}
-	groups := map[string]*acc{}
-	for _, service := range services {
-		key := strings.ToLower(service.Host)
-		group := groups[key]
-		if group == nil {
-			group = &acc{
-				device: device.DiscoveredWirelessDevice{Host: service.Host},
-				instances: map[string]struct{}{},
-			}
-			groups[key] = group
-		}
-		if service.InstanceName != "" {
-			group.instances[service.InstanceName] = struct{}{}
-		}
-		switch service.Kind {
-		case device.MDNSServicePairing:
-			if group.device.PairingAddress == "" {
-				group.device.PairingAddress = service.Address
-			}
-		case device.MDNSServiceConnect:
-			if group.device.ConnectAddress == "" {
-				group.device.ConnectAddress = service.Address
-			}
-			group.device.SecureConnect = true
-		case device.MDNSServiceLegacy:
-			if group.device.LegacyAddress == "" {
-				group.device.LegacyAddress = service.Address
-			}
-		}
-	}
-	result := make([]device.DiscoveredWirelessDevice, 0, len(groups))
-	for _, group := range groups {
-		for instance := range group.instances {
-			group.device.InstanceNames = append(group.device.InstanceNames, instance)
-		}
-		sort.Strings(group.device.InstanceNames)
-		switch {
-		case group.device.ConnectAddress != "":
-			group.device.PreferredAddress = group.device.ConnectAddress
-		case group.device.LegacyAddress != "":
-			group.device.PreferredAddress = group.device.LegacyAddress
-		case group.device.PairingAddress != "":
-			group.device.PreferredAddress = group.device.PairingAddress
-		}
-		if len(group.device.InstanceNames) > 0 {
-			group.device.DiscoveryKey = group.device.InstanceNames[0]
-		} else {
-			group.device.DiscoveryKey = group.device.Host
-		}
-		result = append(result, group.device)
-	}
-	sort.Slice(result, func(i, j int) bool { return result[i].Host < result[j].Host })
-	return result
 }
 
 func resolveDiagnosticDevice(devices []device.DiscoveredWirelessDevice, selector string) (device.DiscoveredWirelessDevice, error) {

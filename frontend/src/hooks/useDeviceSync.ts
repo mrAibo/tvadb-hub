@@ -14,6 +14,7 @@ const DEFAULT_DEVICE_POLL_SECONDS = 8
 const WIRELESS_RECONNECT_INTERVAL = 20000
 
 let syncPromise: Promise<void> | null = null
+let freshPending = false
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Failed to sync devices'
@@ -96,16 +97,52 @@ async function syncDeviceState(isBackgroundRefresh: boolean) {
   }
 }
 
-export function refreshDeviceState(isBackgroundRefresh = true): Promise<void> {
-  if (syncPromise) {
+export interface RefreshDeviceStateOptions {
+  /**
+   * Guarantee a read that starts after this call, instead of joining a refresh
+   * that was already in flight. Use it after a command that changes what
+   * `adb devices` reports (pair/connect): an older in-flight refresh resolves with
+   * a pre-command snapshot and would otherwise be mistaken for the new truth.
+   * At most one extra read is performed, and only when a refresh is in flight.
+   */
+  fresh?: boolean
+}
+
+export function refreshDeviceState(
+  isBackgroundRefresh = true,
+  options: RefreshDeviceStateOptions = {},
+): Promise<void> {
+  // Concurrent fresh demands share one follow-up read instead of chaining reads.
+  if (options.fresh && syncPromise) {
+    if (freshPending) return syncPromise
+    const inFlight = syncPromise
+    const startFresh = () => {
+      freshPending = false
+      return runDeviceSync(isBackgroundRefresh, true)
+    }
+    const next = inFlight.then(startFresh, startFresh)
+    freshPending = true
+    syncPromise = next
+    return next
+  }
+  return runDeviceSync(isBackgroundRefresh, options.fresh === true)
+}
+
+function runDeviceSync(isBackgroundRefresh: boolean, forceFresh: boolean): Promise<void> {
+  if (syncPromise && !forceFresh) {
     return syncPromise
   }
 
-  syncPromise = syncDeviceState(isBackgroundRefresh).finally(() => {
-    syncPromise = null
+  const next = syncDeviceState(isBackgroundRefresh).finally(() => {
+    // Only the current owner clears the shared slot: a forced fresh read is
+    // awaited by its own caller and must not truncate a newer refresh.
+    if (syncPromise === next) {
+      syncPromise = null
+      freshPending = false
+    }
   })
-
-  return syncPromise
+  syncPromise = next
+  return next
 }
 
 export function useDeviceSync() {

@@ -24,7 +24,158 @@ const (
 	logcatBatchInterval    = 75 * time.Millisecond
 	logcatBatchMaxEntries  = 128
 	logcatBatchChannelSize = logcatBatchMaxEntries * 4
+
+	// Byte-volume ceilings for the logcat pipeline. The entry count alone
+	// (512 queued + 128 batched) bounds nothing useful because a single line may
+	// be up to 1 MiB (core.maxCapturedOutput), so the queue is additionally
+	// bounded by UTF-8 string-content bytes, including metadata. A producer reserves
+	// bytes before enqueueing and the batcher releases them as it receives, so
+	// retained bytes never exceed the budget; backpressure (blocking the adb
+	// output copier) is preserved rather than replaced by dropping entries.
+	logcatQueueMaxBytes = 4 << 20
+	logcatBatchMaxBytes = 256 << 10
 )
+
+// logcatEntryBytes counts UTF-8 string content, including metadata. Raw and
+// Message may share storage, so this is conservative for string data, not an
+// exact heap or JSON-wire size (JSON escaping and fixed field overhead differ).
+// Entries stay immutable between reservation and release.
+func logcatEntryBytes(entry LogcatEntry) int {
+	return len(entry.ID) + len(entry.Serial) + len(entry.Date) + len(entry.Time) +
+		len(entry.PID) + len(entry.TID) + len(entry.ProcessName) + len(entry.Level) +
+		len(entry.Tag) + len(entry.Message) + len(entry.Raw) + len(entry.Timestamp)
+}
+
+// logcatByteQueue is a byte-credit wrapper around the entry channel. Credits are
+// reserved atomically under mu; a producer that cannot fit an entry waits for a
+// release or for cancellation/stop, so concurrent producers cannot partially
+// acquire a reservation.
+type logcatByteQueue struct {
+	entries chan LogcatEntry
+	limit   int
+
+	mu       sync.Mutex
+	inFlight int
+	stopping *atomic.Bool
+	waiterID int
+	waiters  map[int]chan struct{}
+}
+
+func newLogcatByteQueue(entries chan LogcatEntry, stop *atomic.Bool, limit int) *logcatByteQueue {
+	return &logcatByteQueue{
+		entries:  entries,
+		limit:    limit,
+		stopping: stop,
+		waiters:  make(map[int]chan struct{}),
+	}
+}
+
+// reserve admits one entry of size bytes. ok=false means either the queue is
+// stopping/cancelled, or the entry itself is too large to ever fit (tooLarge).
+func (q *logcatByteQueue) reserve(ctx context.Context, size int) (ok, tooLarge bool) {
+	if q.stopping.Load() || ctx.Err() != nil {
+		return false, false
+	}
+	if size > q.limit {
+		return false, true
+	}
+	for {
+		q.mu.Lock()
+		if q.stopping.Load() || ctx.Err() != nil {
+			q.mu.Unlock()
+			return false, false
+		}
+		if q.inFlight+size <= q.limit {
+			q.inFlight += size
+			q.mu.Unlock()
+			return true, false
+		}
+		q.mu.Unlock()
+
+		if !q.waitForRoom(ctx, size) {
+			return false, false
+		}
+	}
+}
+
+// waitForRoom blocks until a credit is released or ctx/stop makes progress
+// impossible. It never holds mu while waiting.
+func (q *logcatByteQueue) waitForRoom(ctx context.Context, size int) bool {
+	q.mu.Lock()
+	if q.stopping.Load() || ctx.Err() != nil {
+		q.mu.Unlock()
+		return false
+	}
+	// A release may precede registration; recheck under the same lock to avoid
+	// waiting forever for a notification that already happened.
+	if q.inFlight+size <= q.limit {
+		q.mu.Unlock()
+		return true
+	}
+	ch := make(chan struct{})
+	q.waiterID++
+	id := q.waiterID
+	q.waiters[id] = ch
+	q.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+	case <-ch:
+	}
+	q.cancelWaiter(id)
+	return !q.stopping.Load() && ctx.Err() == nil
+}
+
+func (q *logcatByteQueue) cancelWaiter(id int) {
+	q.mu.Lock()
+	if ch, ok := q.waiters[id]; ok {
+		delete(q.waiters, id)
+		close(ch)
+	}
+	q.mu.Unlock()
+}
+
+// release returns size bytes to the budget and wakes every waiter. It is called
+// exactly once per admitted entry, when the consumer receives it.
+func (q *logcatByteQueue) release(size int) {
+	q.mu.Lock()
+	q.inFlight -= size
+	q.mu.Unlock()
+	q.wakeWaiters()
+}
+
+func (q *logcatByteQueue) wakeWaiters() {
+	q.mu.Lock()
+	for id, ch := range q.waiters {
+		delete(q.waiters, id)
+		close(ch)
+	}
+	q.mu.Unlock()
+}
+
+// send reserves and enqueues one entry. It returns false when the entry was not
+// admitted: the queue is stopping/cancelled (drop, already shutting down), the
+// context is done, or the single entry exceeds the whole queue budget
+// (tooLarge, reported as a stream error instead of waiting forever or silently
+// discarding the line).
+func (q *logcatByteQueue) send(entry LogcatEntry, ctx context.Context) (sent, tooLarge bool) {
+	size := logcatEntryBytes(entry)
+	ok, tooLarge := q.reserve(ctx, size)
+	if !ok {
+		return false, tooLarge
+	}
+	if q.stopping.Load() {
+		q.release(size)
+		return false, false
+	}
+	select {
+	case q.entries <- entry:
+		return true, false
+	case <-ctx.Done():
+		q.release(size)
+		return false, false
+	}
+}
 
 var logcatPattern = regexp.MustCompile(`^(\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+(.+?):\s?(.*)$`)
 
@@ -37,10 +188,10 @@ type LogcatEntry struct {
 	TID         string `json:"tid"`
 	ProcessName string `json:"processName,omitempty"`
 	Level       string `json:"level"`
-	Tag       string `json:"tag"`
-	Message   string `json:"message"`
-	Raw       string `json:"raw"`
-	Timestamp string `json:"timestamp"`
+	Tag         string `json:"tag"`
+	Message     string `json:"message"`
+	Raw         string `json:"raw"`
+	Timestamp   string `json:"timestamp"`
 }
 
 type LogcatStatusEvent struct {
@@ -49,19 +200,49 @@ type LogcatStatusEvent struct {
 }
 
 type logcatStream struct {
-	serial    string
-	cmd       *exec.Cmd
-	stdout    *core.ProcessLineWriter
-	stderr    *core.ProcessLineWriter
-	entries   chan LogcatEntry
-	batchDone chan struct{}
-	finished  chan struct{}
-	cancel    context.CancelFunc
-	ctx          context.Context
-	once         sync.Once
-	stopping     atomic.Bool
-	processNames *processNameCache
+	serial        string
+	cmd           *exec.Cmd
+	stdout        *core.ProcessLineWriter
+	stderr        *core.ProcessLineWriter
+	entries       chan LogcatEntry
+	queue         *logcatByteQueue
+	batchDone     chan struct{}
+	finished      chan struct{}
+	cancel        context.CancelFunc
+	ctx           context.Context
+	once          sync.Once
+	stopping      atomic.Bool
+	fatalMu       sync.Mutex
+	fatalErr      error
+	processNames  *processNameCache
 	processCancel context.CancelFunc
+}
+
+// send enqueues one parsed entry under the queue byte budget. A nil fatal error
+// result means the entry was admitted; while the stream is stopping or its
+// context is cancelled the entry is simply dropped, which is the existing
+// shutdown semantic.
+func (stream *logcatStream) send(entry LogcatEntry) error {
+	sent, tooLarge := stream.queue.send(entry, stream.ctx)
+	if sent || !tooLarge {
+		return nil
+	}
+	err := fmt.Errorf(
+		"logcat entry of %d bytes exceeds the %d byte queue budget",
+		logcatEntryBytes(entry), stream.queue.limit,
+	)
+	stream.fatalMu.Lock()
+	if stream.fatalErr == nil {
+		stream.fatalErr = err
+	}
+	stream.fatalMu.Unlock()
+	if stream.cancel != nil {
+		stream.cancel() // Stop the actual logcat command, not only its ps poller.
+	}
+	if stream.processCancel != nil {
+		stream.processCancel()
+	}
+	return err
 }
 
 type LogcatService struct {
@@ -146,24 +327,28 @@ func (s *LogcatService) startCommand(
 	processCancel context.CancelFunc,
 ) (*logcatStream, error) {
 	stream := &logcatStream{
-		serial:    serial,
-		cmd:       cmd,
-		entries:   make(chan LogcatEntry, logcatBatchChannelSize),
-		batchDone: make(chan struct{}),
-		finished:  make(chan struct{}),
+		serial:        serial,
+		cmd:           cmd,
+		entries:       make(chan LogcatEntry, logcatBatchChannelSize),
+		batchDone:     make(chan struct{}),
+		finished:      make(chan struct{}),
 		cancel:        cancel,
 		ctx:           ctx,
 		processNames:  processNames,
 		processCancel: processCancel,
 	}
+	stream.queue = newLogcatByteQueue(stream.entries, &stream.stopping, logcatQueueMaxBytes)
 	lineWriter := func(isError bool) *core.ProcessLineWriter {
 		return core.NewProcessLineWriter(func(line string) {
 			entry := parseLogcatEntry(serial, line)
-			entry.ProcessName = stream.processNames.get(entry.PID)
+			entry.ProcessName = strings.Clone(stream.processNames.get(entry.PID))
 			if isError && entry.Tag == "" {
 				entry.Level = "W"
 			}
-			stream.entries <- entry
+			// An entry beyond the whole queue budget can never be admitted, so
+			// it fails the stream explicitly (existing error path) rather than
+			// blocking forever or silently dropping the line.
+			_ = stream.send(entry)
 		}, cancel)
 	}
 	stream.stdout, stream.stderr = lineWriter(false), lineWriter(true)
@@ -237,7 +422,15 @@ func (s *LogcatService) waitForStreamExit(stream *logcatStream) {
 	stream.stdout.Flush()
 	stream.stderr.Flush()
 	readErr := errors.Join(stream.stdout.ReadError(), stream.stderr.ReadError())
-	if readErr != nil {
+	stream.fatalMu.Lock()
+	fatalErr := stream.fatalErr
+	stream.fatalMu.Unlock()
+	if fatalErr != nil {
+		// A single over-budget entry aborted the stream; keep that diagnostic
+		// instead of the generic reader error.
+		err = fatalErr
+		stream.stopping.Store(true)
+	} else if readErr != nil {
 		err = fmt.Errorf("logcat output reader failed: %w", readErr)
 	} else if stream.ctx.Err() != nil {
 		stream.stopping.Store(true)
@@ -258,12 +451,21 @@ func (s *LogcatService) closeStream(stream *logcatStream, status string, streamE
 		stream.stopping.Store(true)
 
 		if streamErr != nil && !intentionalStop {
-			stream.entries <- LogcatEntry{
+			// Terminal diagnostic after Wait joined the output copiers, when
+			// every byte credit is already released. It uses a non-blocking
+			// direct enqueue because the queue itself is stopping by now; the
+			// full channel is the only failure mode and is already covered by
+			// the emitted "error" status, so the queue can never block here.
+			entry := LogcatEntry{
 				ID:      uuid.NewString(),
 				Serial:  stream.serial,
 				Level:   "E",
 				Message: fmt.Sprintf("logcat stream ended: %s", streamErr.Error()),
 				Raw:     streamErr.Error(),
+			}
+			select {
+			case stream.entries <- entry:
+			default:
 			}
 			status = "error"
 		} else if intentionalStop {
@@ -303,15 +505,23 @@ func (s *LogcatService) emitLogcatBatches(stream *logcatStream) {
 		stream.entries,
 		logcatBatchInterval,
 		logcatBatchMaxEntries,
+		logcatBatchMaxBytes,
 		s.emitBatch,
+		stream.queue,
 	)
 }
 
+// runLogcatBatcher drains immutable batches bounded by entry count and string
+// content volume. Flush before crossing maxBytes; a single larger entry is emitted
+// alone and remains limited by the queue budget. JSON escaping/field overhead is
+// not included in these content bytes. Each received entry returns its credits.
 func runLogcatBatcher(
 	entries <-chan LogcatEntry,
 	flushInterval time.Duration,
 	maxEntries int,
+	maxBytes int,
 	emit func([]LogcatEntry),
+	queue *logcatByteQueue,
 ) {
 	if flushInterval <= 0 {
 		flushInterval = logcatBatchInterval
@@ -319,11 +529,15 @@ func runLogcatBatcher(
 	if maxEntries <= 0 {
 		maxEntries = logcatBatchMaxEntries
 	}
+	if maxBytes <= 0 {
+		maxBytes = logcatBatchMaxBytes
+	}
 
 	ticker := time.NewTicker(flushInterval)
 	defer ticker.Stop()
 
-	batch := make([]LogcatEntry, 0, maxEntries)
+	batch := make([]LogcatEntry, 0, min(maxEntries, 32))
+	batchBytes := 0
 	flush := func() {
 		if len(batch) == 0 {
 			return
@@ -334,6 +548,7 @@ func runLogcatBatcher(
 		ready := append([]LogcatEntry(nil), batch...)
 		emit(ready)
 		batch = batch[:0]
+		batchBytes = 0
 	}
 
 	for {
@@ -343,8 +558,16 @@ func runLogcatBatcher(
 				flush()
 				return
 			}
+			if queue != nil {
+				queue.release(logcatEntryBytes(entry))
+			}
 
+			size := logcatEntryBytes(entry)
+			if len(batch) > 0 && (len(batch) >= maxEntries || batchBytes+size > maxBytes) {
+				flush()
+			}
 			batch = append(batch, entry)
+			batchBytes += size
 			if len(batch) >= maxEntries {
 				flush()
 			}
@@ -397,7 +620,7 @@ func buildLogcatFilterSpec(levels string, tagFilter string) string {
 }
 
 func parseLogcatEntry(serial string, rawLine string) LogcatEntry {
-	trimmedLine := strings.TrimRight(rawLine, "\r\n")
+	trimmedLine := strings.Clone(strings.TrimRight(rawLine, "\r\n"))
 	entry := LogcatEntry{
 		ID:      uuid.NewString(),
 		Serial:  serial,

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { LogcatEntry } from '@/lib/types'
-import { useLogcatStore } from '@/stores/useLogcatStore'
+import { useLogcatStore, resolveLogcatExport } from '@/stores/useLogcatStore'
 import { useDeviceStore } from '@/stores/useDeviceStore'
 import {
   startLogcat,
@@ -72,43 +72,35 @@ export function useLogcat() {
     toast.info('Logcat cleared')
   }, [clearLogs])
 
-  const exportAsText = useCallback(async () => {
-    const logs = useLogcatStore.getState().logs
-    const serial = streamingSerialRef.current
+  /**
+   * Export honours the explicit All / Filtered / Pinned selection. The source is
+   * resolved from live store state, so a pinned export still works after the
+   * rolling buffer has been cleared.
+   */
+  const runExport = useCallback(async (format: 'text' | 'json') => {
+    const state = useLogcatStore.getState()
+    const resolution = resolveLogcatExport({ ...state, streamingSerial: streamingSerialRef.current }, format)
 
-    if (logs.length === 0) {
-      toast.error('No logs to export')
+    if (!resolution.export) {
+      toast.error(resolution.error ?? 'Nothing to export')
       return
     }
 
-    const content = logs.map((entry) => entry.raw).join('\n')
-    const filename = `logcat-${serial || 'export'}-${Date.now()}.txt`
     try {
-      await saveLogcatToFile(content, filename)
-      toast.success(`Exported ${logs.length} log entries`)
+      await saveLogcatToFile(resolution.export.content, resolution.export.filename)
+      toast.success(`Exported ${resolution.export.entries.length} log entries`)
     } catch {
       toast.error('Export cancelled or failed')
     }
   }, [])
+
+  const exportAsText = useCallback(async () => {
+    await runExport('text')
+  }, [runExport])
 
   const exportAsJson = useCallback(async () => {
-    const logs = useLogcatStore.getState().logs
-    const serial = streamingSerialRef.current
-
-    if (logs.length === 0) {
-      toast.error('No logs to export')
-      return
-    }
-
-    const content = JSON.stringify(logs, null, 2)
-    const filename = `logcat-${serial || 'export'}-${Date.now()}.json`
-    try {
-      await saveLogcatToFile(content, filename)
-      toast.success(`Exported ${logs.length} log entries`)
-    } catch {
-      toast.error('Export cancelled or failed')
-    }
-  }, [])
+    await runExport('json')
+  }, [runExport])
 
   useEffect(() => {
     const unsubscribeBatch = onLogcatBatch((entries: LogcatEntry[]) => {

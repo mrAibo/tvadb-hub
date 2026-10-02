@@ -90,6 +90,43 @@ func (s *WirelessService) Discover(ctx context.Context) ([]MDNSService, error) {
 	return parseMDNSServices(result.Stdout), nil
 }
 
+const (
+	mdnsReadyAttempts = 3
+	mdnsReadyDelay    = 400 * time.Millisecond
+)
+
+// DiscoverReady is Discover with a bounded readiness retry: the first
+// `adb mdns services` call can legitimately return an empty list before the ADB
+// mDNS daemon has published its records (for example right after the Android 12
+// pairing screen opens). A real discovery error is returned immediately instead of
+// being retried or flattened into an empty result.
+func (s *WirelessService) DiscoverReady(ctx context.Context) ([]MDNSService, error) {
+	return discoverWithReadinessRetry(ctx, s.Discover)
+}
+
+func discoverWithReadinessRetry(ctx context.Context, discover func(context.Context) ([]MDNSService, error)) ([]MDNSService, error) {
+	for attempt := 1; ; attempt++ {
+		services, err := discover(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if len(services) > 0 || attempt >= mdnsReadyAttempts {
+			return services, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, core.NewOperationError(
+				"discover_wireless",
+				"wireless ADB discovery was cancelled",
+				ctx.Err().Error(),
+				true,
+			)
+		case <-time.After(mdnsReadyDelay):
+		}
+	}
+}
+
 // AutoConnect discovers the current dynamic ADB endpoint and connects to it.
 // selector may be an mDNS instance name, a host/IP, or an exact host:port.
 // When selector is empty, auto-connect is allowed only when discovery can
@@ -240,23 +277,42 @@ func parseMDNSServices(output string) []MDNSService {
 			continue
 		}
 
-		instanceName := fields[0]
-		serviceName := fields[1]
-		address := fields[len(fields)-1]
-
-		kind, secure, ok := classifyMDNSService(serviceName)
-		if !ok {
+		// Canonical adb output is "<instance> <service type> <host:port>". Locate
+		// the service type instead of trusting a fixed column so an instance name
+		// that contains spaces is still handled, and never invent a name or an
+		// endpoint that adb did not print.
+		serviceIndex := -1
+		var kind MDNSServiceKind
+		var secure bool
+		for i := 1; i < len(fields); i++ {
+			if classified, isSecure, ok := classifyMDNSService(fields[i]); ok {
+				serviceIndex = i
+				kind = classified
+				secure = isSecure
+				break
+			}
+		}
+		if serviceIndex < 1 {
 			continue
 		}
 
-		host, port, ok := splitMDNSEndpoint(address)
-		if !ok {
+		address := ""
+		host, port := "", ""
+		for i := serviceIndex + 1; i < len(fields); i++ {
+			if parsedHost, parsedPort, ok := splitMDNSEndpoint(fields[i]); ok {
+				address = fields[i]
+				host = parsedHost
+				port = parsedPort
+				break
+			}
+		}
+		if address == "" {
 			continue
 		}
 
 		services = append(services, MDNSService{
-			InstanceName: instanceName,
-			ServiceName:  serviceName,
+			InstanceName: strings.Join(fields[:serviceIndex], " "),
+			ServiceName:  fields[serviceIndex],
 			Kind:         kind,
 			Address:      address,
 			Host:         host,
@@ -282,7 +338,10 @@ func parseMDNSServices(output string) []MDNSService {
 }
 
 func classifyMDNSService(serviceName string) (MDNSServiceKind, bool, bool) {
-	switch strings.TrimSpace(serviceName) {
+	// Service types are case-insensitive and some adb/platform-tools builds print
+	// them with the canonical trailing root dot ("_adb-tls-connect._tcp.").
+	normalized := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(serviceName)), ".")
+	switch normalized {
 	case mdnsPairingName:
 		return MDNSServicePairing, true, true
 	case mdnsConnectName:
@@ -316,7 +375,12 @@ func splitMDNSEndpoint(address string) (string, string, bool) {
 		return "", "", false
 	}
 
-	return strings.Trim(host, "[]"), port, true
+	host = strings.Trim(host, "[]")
+	if !validWirelessHost(host) {
+		return "", "", false
+	}
+
+	return host, port, true
 }
 
 func validTCPPort(port string) bool {
@@ -345,15 +409,96 @@ func resolvePairingService(services []MDNSService, selector string) (MDNSService
 }
 
 func resolveConnectForPairing(services []MDNSService, pairing MDNSService) (MDNSService, error) {
-	if pairing.InstanceName != "" {
-		if service, err := resolveConnectService(services, pairing.InstanceName); err == nil {
+	// The connect advertisement of the same device can use a different mDNS
+	// instance name than the pairing advertisement, so an instance-name match is
+	// never required. Prefer the pairing host, then fall back to the instance name,
+	// and only accept a candidate when it is unambiguous.
+	if pairing.Host != "" {
+		byHost := filterMDNSServices(services, func(service MDNSService) bool {
+			return strings.EqualFold(service.Host, pairing.Host)
+		})
+		if service, ok := PickConnectEndpoint(byHost); ok {
 			return service, nil
 		}
 	}
-	if pairing.Host != "" {
-		return resolveConnectService(services, pairing.Host)
+	if pairing.InstanceName != "" {
+		byInstance := filterMDNSServices(services, func(service MDNSService) bool {
+			return strings.EqualFold(service.InstanceName, pairing.InstanceName)
+		})
+		if service, ok := PickConnectEndpoint(byInstance); ok {
+			return service, nil
+		}
 	}
-	return MDNSService{}, fmt.Errorf("paired device has no usable discovery identity")
+	return MDNSService{}, fmt.Errorf("paired device has no unambiguous connect advertisement yet")
+}
+
+// PickConnectEndpoint returns the secure TLS connect endpoint when exactly one is
+// advertised, otherwise a single legacy endpoint.
+//
+// Ambiguity is counted over distinct endpoints, not over advertisement records: a
+// multihomed device (several interfaces) can advertise the same canonical
+// host:port more than once, in mixed case, and that is still one endpoint, so it
+// must not hide the device forever. Two different connect ports on one host remain
+// ambiguous: choosing the first could target another device, so the caller must
+// rescan instead of connecting arbitrarily. TLS connect is preferred over the
+// legacy _adb._tcp endpoint.
+func PickConnectEndpoint(candidates []MDNSService) (MDNSService, bool) {
+	for _, service := range candidates {
+		if service.Kind == MDNSServiceConnect {
+			// Ambiguous TLS advertisements must not downgrade to a legacy endpoint.
+			return selectConnectEndpoint(candidates, MDNSServiceConnect)
+		}
+	}
+	return selectConnectEndpoint(candidates, MDNSServiceLegacy)
+}
+
+// selectConnectEndpoint resolves exactly one distinct endpoint of one kind,
+// ignoring duplicate advertisements of that same endpoint.
+func selectConnectEndpoint(candidates []MDNSService, kind MDNSServiceKind) (MDNSService, bool) {
+	distinct := 0
+	chosen := -1
+	seen := make(map[string]struct{}, len(candidates))
+	for i := range candidates {
+		if candidates[i].Kind != kind {
+			continue
+		}
+		key := canonicalMDNSEndpoint(candidates[i])
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		distinct++
+		if chosen < 0 {
+			chosen = i
+		}
+	}
+
+	if distinct != 1 || chosen < 0 {
+		return MDNSService{}, false
+	}
+	return candidates[chosen], true
+}
+
+// canonicalMDNSEndpoint is the dedupe identity of one advertised endpoint:
+// host and port, case-insensitive, independent of instance name, service kind and
+// advertisement count. Without a parsed host and port the address is the identity.
+func canonicalMDNSEndpoint(service MDNSService) string {
+	host := strings.ToLower(strings.Trim(strings.TrimSpace(service.Host), "[]"))
+	port := strings.TrimSpace(service.Port)
+	if host == "" || port == "" {
+		return strings.ToLower(strings.TrimSpace(service.Address))
+	}
+	return net.JoinHostPort(host, port)
+}
+
+func filterMDNSServices(services []MDNSService, keep func(MDNSService) bool) []MDNSService {
+	filtered := make([]MDNSService, 0, len(services))
+	for _, service := range services {
+		if keep(service) {
+			filtered = append(filtered, service)
+		}
+	}
+	return filtered
 }
 
 func resolveMDNSService(candidates []MDNSService, selector string, preferSecureConnect bool) (MDNSService, error) {
@@ -375,31 +520,43 @@ func resolveMDNSService(candidates []MDNSService, selector string, preferSecureC
 		candidates = filtered
 	}
 
-	if preferSecureConnect {
-		sort.SliceStable(candidates, func(i, j int) bool {
-			return mdnsKindPriority(candidates[i].Kind) < mdnsKindPriority(candidates[j].Kind)
-		})
-	}
-
-	if selector != "" {
-		// A selector can legitimately match both modern TLS and legacy ADB on
-		// the same host. In that case the secure endpoint wins.
-		hosts := uniqueServiceHosts(candidates)
-		if len(hosts) == 1 {
-			return candidates[0], nil
-		}
-		return MDNSService{}, fmt.Errorf("selector %q matches multiple device hosts", selector)
-	}
-
+	// A selector can name an exact address, an exact instance name, or a whole
+	// host. Only the last case can legitimately match several endpoints of one
+	// device (TLS plus legacy), so a selector that spans hosts is refused.
 	hosts := uniqueServiceHosts(candidates)
 	if len(hosts) > 1 {
+		if selector != "" {
+			return MDNSService{}, fmt.Errorf("selector %q matches multiple device hosts", selector)
+		}
 		return MDNSService{}, fmt.Errorf(
 			"multiple wireless ADB devices were discovered (%s); choose a device first",
 			strings.Join(hosts, ", "),
 		)
 	}
 
-	return candidates[0], nil
+	if !preferSecureConnect {
+		// Pairing: every matching advertisement must still describe exactly one
+		// distinct pairing endpoint. Duplicate records of that same endpoint are
+		// allowed; two distinct pairing ports are never resolved by picking one.
+		if service, ok := selectConnectEndpoint(candidates, MDNSServicePairing); ok {
+			return service, nil
+		}
+		return MDNSService{}, fmt.Errorf(
+			"multiple distinct pairing endpoints were advertised for %s; pair with the exact host:port shown on the device",
+			hosts[0],
+		)
+	}
+
+	// Connect: the TLS endpoint wins, but only when it is unique. An ambiguous
+	// TLS advertisement is refused instead of silently falling back to the legacy
+	// _adb._tcp endpoint or to the first record adb happened to print.
+	if service, ok := PickConnectEndpoint(candidates); ok {
+		return service, nil
+	}
+	return MDNSService{}, fmt.Errorf(
+		"multiple distinct wireless ADB endpoints were advertised for %s; connect with the exact host:port shown on the device",
+		hosts[0],
+	)
 }
 
 func matchesMDNSSelector(service MDNSService, selector string) bool {

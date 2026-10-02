@@ -53,14 +53,13 @@ func (s *WirelessService) EnableTCPIP(ctx context.Context, serial string, port s
 	if trimmedPort == "" {
 		trimmedPort = "5555"
 	}
-	portValue, portErr := strconv.Atoi(trimmedPort)
-	if portErr != nil || portValue < 1 || portValue > 65535 {
+	if _, portErr := parseWirelessPort(trimmedPort); portErr != nil {
 		return "", core.NewOperationError("enable_wireless_tcpip", "TCP/IP port is invalid", "port must be between 1 and 65535", false)
 	}
 
 	result, err := core.RunCommand(ctx, core.ExecRequest{
 		Command: s.getBinPath().Adb,
-		Args:    []string{"-s", trimmedSerial, "tcpip", trimmedPort},
+		Args:    enableTCPIPArgs(trimmedSerial, trimmedPort),
 		Timeout: 10e9,
 	})
 	if err != nil {
@@ -75,6 +74,12 @@ func (s *WirelessService) EnableTCPIP(ctx context.Context, serial string, port s
 		message = fmt.Sprintf("ADB restarted in TCP/IP mode on port %s", trimmedPort)
 	}
 	return message, nil
+}
+
+// enableTCPIPArgs pins the confirmed serial with -s so switching a device into
+// wireless TCP/IP mode can never retarget whichever device adb selects first.
+func enableTCPIPArgs(serial string, port string) []string {
+	return []string{"-s", serial, "tcpip", port}
 }
 
 func (s *WirelessService) Disconnect(ctx context.Context, address string) (string, error) {
@@ -115,28 +120,44 @@ func (s *WirelessService) Pair(ctx context.Context, address string, code string)
 	if endpointErr != nil {
 		return "", core.NewOperationError("pair_wireless", "wireless address is invalid", endpointErr.Error(), false)
 	}
-	trimmedCode := strings.TrimSpace(code)
-	if !isSixDigitPairingCode(trimmedCode) {
+	// The pairing code is an exact six-character ASCII PIN: leading zeros are
+	// significant and surrounding whitespace is not silently accepted.
+	if !isSixDigitPairingCode(code) {
 		return "", core.NewOperationError("pair_wireless", "pairing code is invalid", "pairing code must contain exactly six digits", false)
 	}
 
 	result, err := core.RunCommand(ctx, core.ExecRequest{
 		Command: s.getBinPath().Adb,
-		Args:    []string{"pair", trimmedAddress, trimmedCode},
+		Args:    pairArgs(trimmedAddress, code),
 		Timeout: 15e9,
 	})
 	if err != nil {
-		return "", core.NewOperationError("pair_wireless", "failed to pair wireless device", err.Error(), true)
+		return "", core.NewOperationError("pair_wireless", "failed to pair wireless device", redactPairingCode(err.Error(), code), true)
 	}
 	if result.ExitCode != 0 {
-		return "", core.NewOperationError("pair_wireless", "wireless pairing failed", strings.TrimSpace(result.Stderr), true)
+		return "", core.NewOperationError("pair_wireless", "wireless pairing failed", redactPairingCode(strings.TrimSpace(result.Stderr), code), true)
 	}
 
-	message := extractFirstOutputLine(result.Stdout)
+	message := redactPairingCode(extractFirstOutputLine(result.Stdout), code)
 	if message == "" {
 		message = fmt.Sprintf("Paired with %s", trimmedAddress)
 	}
 	return message, nil
+}
+
+// redactPairingCode keeps a one-time pairing code out of returned errors, audit
+// details and messages: adb output and process errors can echo the original argv.
+func redactPairingCode(detail string, code string) string {
+	if detail == "" || code == "" {
+		return detail
+	}
+	return strings.ReplaceAll(detail, code, "******")
+}
+
+// pairArgs keeps the six-character code byte-exact in argv, so leading zeros are
+// preserved and the code is never reformatted or parsed as a number.
+func pairArgs(address string, code string) []string {
+	return []string{"pair", address, code}
 }
 
 func extractFirstOutputLine(output string) string {
@@ -160,16 +181,98 @@ func validateWirelessEndpoint(value string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("address must use host:port format: %w", err)
 	}
-	host = strings.TrimSpace(strings.Trim(host, "[]"))
-	if host == "" || strings.ContainsAny(host, "/\\") {
-		return "", fmt.Errorf("host is invalid")
+	host = strings.Trim(strings.TrimSpace(host), "[]")
+	if !validWirelessHost(host) {
+		return "", fmt.Errorf("host must be an IP address or an ASCII DNS name")
 	}
-	portValue, err := strconv.Atoi(port)
-	if err != nil || portValue < 1 || portValue > 65535 {
-		return "", fmt.Errorf("port must be between 1 and 65535")
+	portValue, err := parseWirelessPort(port)
+	if err != nil {
+		return "", err
 	}
 
-	return net.JoinHostPort(host, strconv.Itoa(portValue)), nil
+	return net.JoinHostPort(strings.TrimSuffix(host, "."), strconv.Itoa(portValue)), nil
+}
+
+// validWirelessHost admits an IPv4/IPv6 literal (an optional interface zone is
+// allowed) or an ASCII DNS hostname. mDNS instance names, TXT values and other
+// free text are not endpoints and must not reach adb's argv.
+func validWirelessHost(host string) bool {
+	host = strings.TrimSpace(host)
+	if host == "" || strings.ContainsAny(host, "/\\ \t\x00\r\n") {
+		return false
+	}
+
+	if zone := strings.IndexByte(host, '%'); zone >= 0 {
+		if !validInterfaceZone(host[zone+1:]) {
+			return false
+		}
+		host = host[:zone]
+	}
+
+	if net.ParseIP(host) != nil {
+		return true
+	}
+	return validASCIIDNSName(host)
+}
+
+func validInterfaceZone(zone string) bool {
+	if zone == "" {
+		return false
+	}
+	for i := 0; i < len(zone); i++ {
+		c := zone[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// validASCIIDNSName accepts a conventional hostname: ASCII only, dot-separated
+// labels of 1-63 characters using letters, digits and inner hyphens.
+func validASCIIDNSName(name string) bool {
+	name = strings.TrimSuffix(name, ".")
+	if name == "" || len(name) > 253 {
+		return false
+	}
+	for i := 0; i < len(name); i++ {
+		if name[i] > 0x7f {
+			return false
+		}
+	}
+	for _, label := range strings.Split(name, ".") {
+		if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for i := 0; i < len(label); i++ {
+			c := label[i]
+			if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' {
+				continue
+			}
+			return false
+		}
+	}
+	return true
+}
+
+// parseWirelessPort accepts only decimal digits, so sign-prefixed or padded values
+// cannot slip past as a valid TCP port.
+func parseWirelessPort(port string) (int, error) {
+	invalid := fmt.Errorf("port must be between 1 and 65535")
+	if port == "" || len(port) > 5 {
+		return 0, invalid
+	}
+	for i := 0; i < len(port); i++ {
+		if port[i] < '0' || port[i] > '9' {
+			return 0, invalid
+		}
+	}
+	value, err := strconv.Atoi(port)
+	if err != nil || value < 1 || value > 65535 {
+		return 0, invalid
+	}
+	return value, nil
 }
 
 func isSixDigitPairingCode(code string) bool {
