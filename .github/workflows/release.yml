@@ -227,7 +227,7 @@ jobs:
         run: bun scripts/write-build-provenance.ts windows-release "bin/DroidSphere-$env:VERSION-windows-amd64.exe" "bin/DroidSphere-$env:VERSION-windows-amd64-installer.exe"
 
       - name: Upload release build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: droidsphere-${{ steps.version.outputs.version }}-windows-amd64
           path: |

@@ -44,7 +44,7 @@ jobs:
           VERSION="$(awk '/^VERSION :=/ {print $3; exit}' Makefile)"
           bun scripts/write-build-provenance.ts windows "bin/DroidSphere-$VERSION-windows-amd64.exe" "bin/DroidSphere-$VERSION-windows-amd64-installer.exe"
       - name: Upload Windows distribution
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: droidsphere-dist-windows
           path: |
@@ -100,7 +100,7 @@ jobs:
           VERSION="$(awk '/^VERSION :=/ {print $3; exit}' Makefile)"
           bun scripts/write-build-provenance.ts linux "bin/DroidSphere-$VERSION-linux-amd64.AppImage" "bin/DroidSphere-$VERSION-linux-amd64.deb"
       - name: Upload Linux distribution
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: droidsphere-dist-linux
           path: |
@@ -141,7 +141,7 @@ jobs:
           VERSION="$(awk '/^VERSION :=/ {print $3; exit}' Makefile)"
           bun scripts/write-build-provenance.ts macos "bin/DroidSphere-$VERSION-macos-universal.zip"
       - name: Upload macOS distribution
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: droidsphere-dist-macos
           path: |
@@ -184,7 +184,7 @@ jobs:
           echo "Distribution contents:"
           find distribution -maxdepth 2 -type f -printf '%p %s bytes\n' | sort
       - name: Upload complete distribution
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: droidsphere-complete-distribution
           path: distribution/
