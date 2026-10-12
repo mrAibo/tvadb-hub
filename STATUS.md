@@ -1,6 +1,6 @@
 # DroidSphere status
 
-Date: 2026-10-02.
+Date: 2026-10-12. Status reconciled against `main` and its completed GitHub Actions run.
 
 Stable historical implementation detail remains in
 [DROIDSPHERE_HANDOFF_2026-09-30_P3.md](DROIDSPHERE_HANDOFF_2026-09-30_P3.md).
@@ -13,52 +13,11 @@ current batch is none of the last three.
 
 ## Latest verified application baseline
 
-- `main` checkpoint `68c6cc62667494bcce1a4e747f0cbf05783287c8`: merge of PR #63
-  (`feat/logcat-phase2`), which sits on PR #61
-  (`chore/release-readiness-status`) and PR #60 (`phase0/stability-candidate`).
-- Post-merge CI run
-  [36934452447](https://github.com/mrAibo/tvadb-hub/actions/runs/36934452447)
-  passed all six repository jobs: `frontend-check`, `go-test`,
-  `windows-internal-tests`, `windows-build`, `linux-build` and `macos-build`.
-  This is the verified baseline for `68c6cc6`, **before** the current batch diff.
-- At the PR #60 checkpoint (run
-  [36874540492](https://github.com/mrAibo/tvadb-hub/actions/runs/36874540492))
-  the Windows raw-byte witness checked 34 tracked generated/toolchain-sensitive
-  paths and reported `mismatched=0`.
-- PR #56 (guarded TV custom launcher wizard), PR #60, PR #61 and PR #63 are
-  merged and are **implemented + unit/CI verified**. Do not re-implement the
-  completed Logcat lifecycle/batching, Logcat 2.0 phase 2 (crash/ANR filters,
-  saved filters, app/PID filtering, pinned events), transfers, Safe Tuning,
-  device-target safety, Launcher Wizard, scrcpy lifecycle/presets or destructive
-  Fastboot consent packages.
-
-## Current batch — IN PROGRESS, not verified
-
-The wireless discovery/pairing, release-evidence and Logcat-polish batch from
-[TVADB_BATCH_2026-10-02.md](TVADB_BATCH_2026-10-02.md) is in progress. Work in
-this tree is **not** part of the `68c6cc6` baseline, has **no green CI run** and
-must not be reported as complete or CI-verified until a post-merge run exists.
-
-- **B1 wireless discovery/pairing UX (other workers, in progress).** The backend
-  already recognises all three official ADB service types — `_adb._tcp`,
-  `_adb-tls-pairing._tcp` and `_adb-tls-connect._tcp` — and PairAndConnect already
-  performs a bounded rediscovery of the connect service. The manual pairing UI
-  and the target-bound `tcpip` consent flow are still being finished, so the
-  end-to-end workflow is not done.
-- Do not conflate two different actions: the Connection Bar **Refresh** calls
-  `refreshDevices` (`adb devices -l`), which is *not* mDNS discovery of new
-  unpaired candidates; wireless discovery is a separate path. On the reported
-  Sony Bravia 7 / XR70 case (Google TV, Android 12) the TV's pairing window must
-  stay open while the code is entered, and the pairing port differs from the
-  connect port. The cause of that specific hardware failure is **not** declared
-  established without runtime evidence.
-- **B2 release evidence + dependency monitoring (this package).** Implemented and
-  locally tested; the workflow/diff has not run in remote CI yet.
-- **B3 Logcat polish (other workers, in progress)** in the same tree.
-- No hardware validation has been performed for this batch: it is source-level
-  work only.
-- Independent verification (B4) and physical validation of a frozen candidate
-  (B5) are still ahead.
+- Current `main` checkpoint **`b3a2dc1a932b20afd5c3efba33c8f30d04a42e0a`** (2026-10-02), after the wireless/release/Logcat-polish integration commit.
+- Separate post-integration `main` CI run [36990976089](https://github.com/mrAibo/tvadb-hub/actions/runs/36990976089): **success, all six jobs** — `frontend-check`, `go-test`, `windows-internal-tests`, `windows-build`, `linux-build` and `macos-build`. This applies to the exact commit above. It does not establish physical-device validation or release publication.
+- Earlier PR #63 (Logcat 2.0 phase 2), PR #61 (release readiness), PR #60 (stability) and PR #56 (guarded TV launcher) are all merged. Their features must not be re-implemented.
+- The 2026-10-02 wireless discovery/pairing, release-evidence, and Logcat-polish batch (B1/B2/B3) is now **implemented + unit/CI verified** on the above `main`, rather than in progress. See the local historical batch record `TVADB_BATCH_2026-10-02.md` in the engineering workspace. Hardware gate B5 and administrator gate A1 are **not** complete.
+- A passing CI run verifies automated checks for this source SHA; it is **not** evidence that a specific Windows installer, running application, Android device, or firmware has passed end-to-end testing.
 
 ## Release-readiness hardening (PR #61 retained)
 
@@ -90,17 +49,10 @@ must not be reported as complete or CI-verified until a post-merge run exists.
   artifact hashes must be retained with the validation notes, and a rebuild from
   the same source must not be described as physically tested.
 
-### Known open release findings
+### Dependency and publication findings
 
-- This batch updates only the compatible `brace-expansion` lock entry from
-  **5.0.9 to 5.0.12**. With pinned Bun 1.4.2, `bun audit --audit-level=high`
-  passes locally; full audit still reports **3 moderate** transitive findings
-  in `fast-uri` and `ip-address` via `shadcn` tooling, below the high gate.
-  The lock update is in scope; remote CI for this diff is still pending.
-- The new workflow diff is **not executed**: `release.yml` publication,
-  `distribution.yml`, the dependency-update bot and remote CI all require
-  Actions runs and are pending, not verified. No tag, release, workflow dispatch
-  or GitHub settings write has been performed.
+- The compatible `brace-expansion` update from 5.0.9 to 5.0.12 and the `bun audit --audit-level=high` gate are on current `main` and its CI passed. The prior local full audit reported three moderate development-tooling transitive findings (`fast-uri` and `ip-address`); re-evaluate on later dependency changes.
+- The release/distribution policy has automated checks, but **no production publishing workflow, signed release, notarization, or physical-device validation is claimed** by these tests. A real publish remains an explicit later decision.
 
 ## Remaining release gates
 
@@ -112,8 +64,7 @@ must not be reported as complete or CI-verified until a post-merge run exists.
    does not expose branch-protection writes. Required-check enforcement remains an
    administrator action tracked explicitly in
    [issue #62](https://github.com/mrAibo/tvadb-hub/issues/62).
-3. **Remote CI for the current batch diff.** Pending; no green run exists yet for
-   the in-progress wireless/release/Logcat diff.
+3. **Remote CI for the 2026-10-02 source batch: complete.** Exact-SHA main CI [36990976089](https://github.com/mrAibo/tvadb-hub/actions/runs/36990976089) passed 6/6. Hardware validation remains pending.
 4. **Publication/signing.** No GitHub Release, tag deployment or notarized macOS
    distribution is claimed by this status file. Authenticode signing remains
    optional and secret-dependent.
@@ -121,9 +72,9 @@ must not be reported as complete or CI-verified until a post-merge run exists.
    the official ADB CLI until repeatable same-endpoint measurements across
    supported hosts/transports justify a change.
 
-## Next product work after the current batch
+## Next product work after the verified batch
 
-The wider backlog remains in [docs/ROADMAP.md](docs/ROADMAP.md): file preview,
+The wider backlog remains in [docs/ROADMAP.md](docs/ROADMAP.md): file preview (next read-only product package),
 folder sync/conflict policy, transfer history/resume, APK backup/restore,
 Permission/AppOps inspection, device report export, device-side recording and
 later automation/distribution work. Logcat 2.0 phase 2 (PR #63) and the guarded
