@@ -20,7 +20,7 @@ jobs:
           bun-version: '1.4.2'
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26.7'
+          go-version: '1.26.9'
       - name: Validate pinned toolchain
         run: bun scripts/check-toolchain.ts
       - name: Install Wails CLI
@@ -62,7 +62,7 @@ jobs:
           bun-version: '1.4.2'
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26.7'
+          go-version: '1.26.9'
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
@@ -118,7 +118,7 @@ jobs:
           bun-version: '1.4.2'
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26.7'
+          go-version: '1.26.9'
       - name: Verify Xcode Command Line Tools
         run: xcode-select -p
       - name: Install Wails CLI
