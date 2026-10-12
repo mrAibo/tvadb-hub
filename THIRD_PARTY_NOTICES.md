@@ -27,6 +27,14 @@ Copyright (c) 2025 seun-novodev
 
 Source: https://github.com/seun-novodev/android-tv-debloat-toolkit
 
+## shadcn CSS
+
+Copyright (c) 2023 shadcn
+
+Source: https://github.com/shadcn-ui/ui
+
+The MIT-licensed stylesheet from shadcn 4.21.0 is preserved in frontend/src/shadcn-ejected.css.
+
 ## MIT License text for the sources above
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

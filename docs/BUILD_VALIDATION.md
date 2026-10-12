@@ -5,7 +5,7 @@ then explicitly checks test roots under a strict config. The old root
 `tsc --noEmit` with `files: []` did not check referenced source. Development
 builds now use project mode too. No blanket compiler suppressions were added.
 
-build/toolchain.json records Go 1.26.7, Bun 1.4.2, Wails v3.0.0-beta.20 and
+build/toolchain.json records Go 1.26.9, Bun 1.4.2, Wails v3.0.0-beta.20 and
 NSIS 3.12.0. CI/release/distribution workflows pin these versions. Wails CLI,
 Go module and frontend runtime agree; frozen dependencies are retained.
 check-toolchain.ts rejects drift or missing pins. Windows uses shared NSIS
