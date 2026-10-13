@@ -51,7 +51,7 @@ retained. None of them are upcoming work. Macros remain later.
 
 ## Next: files and backups (after source stabilization)
 
-- [ ] File preview for images and text
+- [x] Bounded read-only image/text preview in host and Android file panes (PR #80; hardware validation pending)
 - [ ] Folder sync with preview, include/exclude filters and conflict policy
 - [ ] Transfer queue with retry/resume history
 - [ ] App backup/restore for base + split APK sets
