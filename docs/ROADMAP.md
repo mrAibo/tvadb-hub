@@ -29,25 +29,27 @@ devices.
 - [x] Windows installer + native Windows/Linux/macOS CI builds
 - [x] Release-candidate packages published as CI workflow artifacts for Windows, Linux and macOS
 
-## In progress: wireless UX, release evidence and Logcat polish
+## Completed source batch: wireless UX, release evidence and Logcat polish
 
-The accepted current batch is tracked in [`STATUS.md`](../STATUS.md) and
+The source-verified October 2 batch is tracked in [`STATUS.md`](../STATUS.md) and
 [live execution issue #43](https://github.com/mrAibo/tvadb-hub/issues/43):
 
 - Wireless discovery/pairing/reconnect UX over the existing official ADB mDNS
   path (backend already recognises `_adb._tcp`, `_adb-tls-pairing._tcp` and
-  `_adb-tls-connect._tcp`; the manual pairing UI is being finished);
+  `_adb-tls-connect._tcp`; manual pairing UI integrated);
 - release-evidence hardening (version + exact source-SHA publication gate, no
   asset clobbering, `bun audit` dependency gate) and Dependabot update
   automation;
 - a small Logcat polish package (autoscroll regression, explicit export
   semantics, byte-budgeted retention).
 
+Batch baseline: `b3a2dc1a932b20afd5c3efba33c8f30d04a42e0a`; all six CI jobs passed in [main run 36990976089](https://github.com/mrAibo/tvadb-hub/actions/runs/36990976089). Physical Android/TV acceptance and release publication are separate pending gates. This source batch is not an active implementation task.
+
 The guarded TV **custom launcher wizard** (PR #56) and Logcat 2.0 phase 2
 (PR #63) are already merged, and the release-readiness hardening from PR #61 is
 retained. None of them are upcoming work. Macros remain later.
 
-## Next: files and backups
+## Next: files and backups (after source stabilization)
 
 - [ ] File preview for images and text
 - [ ] Folder sync with preview, include/exclude filters and conflict policy
