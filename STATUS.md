@@ -1,4 +1,11 @@
 # DroidSphere status
+## Windows 0.1.1 RC1 staging (2026-10-13)
+
+- **Staged Windows test binaries:** `distribution/windows/rc-0.1.1-faa9c28/` (portable `.exe`, NSIS installer, original provenance JSON and SHA-256 sums); previous root Windows packages preserved as historical artifacts.
+- **Exact binary source:** `faa9c28d6c5eb254c6471d17c8fa984bb8363f92`, source version `0.1.1`, clean CI build [38394525217](https://github.com/mrAibo/tvadb-hub/actions/runs/38394525217), **all six jobs passed**.
+- **Hardware / package acceptance:** NOT YET VALIDATED. Execute [issue #19](https://github.com/mrAibo/tvadb-hub/issues/19) against these exact artifact hashes, store private test evidence, then authorize publication only for the validated source SHA.
+- **Repository merge protection:** administrator action under [issue #62](https://github.com/mrAibo/tvadb-hub/issues/62), pending until verified; separate from the six passing CI jobs.
+- **Publication:** no official GitHub Release / release tag has been created for this test candidate.
 
 Date: 2026-10-13. Source status reconciled against merged PR #80 and its full PR CI.
 
