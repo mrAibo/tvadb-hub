@@ -8,6 +8,7 @@ export {
 export type {
     Entry,
     HostFileSystemInfo,
+    PreviewResult,
     SdCard,
     StorageInfo,
     TransferBatchResult,

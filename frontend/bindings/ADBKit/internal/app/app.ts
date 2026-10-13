@@ -535,6 +535,20 @@ export function PreflightLauncher(expectedSerial: string): $CancellablePromise<l
     return $Call.ByID(3786023866, expectedSerial);
 }
 
+/**
+ * PreviewLocalFile reads one small regular host file without modifying it.
+ */
+export function PreviewLocalFile(localPath: string): $CancellablePromise<file$0.PreviewResult> {
+    return $Call.ByID(3738915218, localPath);
+}
+
+/**
+ * PreviewRemoteFileForDevice pins the ADB target for the entire read-only preview.
+ */
+export function PreviewRemoteFileForDevice(expectedSerial: string, remotePath: string): $CancellablePromise<file$0.PreviewResult> {
+    return $Call.ByID(669357622, expectedSerial, remotePath);
+}
+
 export function PullFile(remotePath: string, localPath: string): $CancellablePromise<string> {
     return $Call.ByID(2408197358, remotePath, localPath);
 }
