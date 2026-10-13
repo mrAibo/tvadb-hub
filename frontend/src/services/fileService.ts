@@ -187,3 +187,16 @@ export async function getLocalParentPath(localPath: string): Promise<string> {
   const raw = await WailsCall.ByName('ADBKit/internal/app.App.GetLocalParentPath', localPath)
   return String(raw ?? localPath)
 }
+
+/** Bounded, read-only preview of a regular file on the host. */
+export function previewLocalFile(path: string): Promise<import('@/lib/types').FilePreviewResult> {
+  return WailsCall.ByName('ADBKit/internal/app.App.PreviewLocalFile', path) as Promise<import('@/lib/types').FilePreviewResult>
+}
+
+/** Always pin remote reads to the exact device confirmed by the caller. */
+export function previewRemoteFileForDevice(serial: string, path: string): Promise<import('@/lib/types').FilePreviewResult> {
+  return WailsCall.ByName(
+    'ADBKit/internal/app.App.PreviewRemoteFileForDevice',
+    confirmedSerial('preview_file', serial), path,
+  ) as Promise<import('@/lib/types').FilePreviewResult>
+}

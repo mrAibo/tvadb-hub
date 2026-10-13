@@ -37,6 +37,7 @@ type Service struct {
 	nextOperationID         uint64
 	runStreaming            func(context.Context, core.StreamingExecRequest) (*core.ExecResult, error)
 	runCommand              func(context.Context, core.ExecRequest) (*core.ExecResult, error)
+	readPreviewRemote       func(context.Context, string, string, string) ([]byte, error)
 	getTransferCompression  func() string
 	getTransferVerification func() bool
 	compressionCache        map[string]adbCompressionCapabilities

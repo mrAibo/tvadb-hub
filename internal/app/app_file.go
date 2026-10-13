@@ -162,3 +162,20 @@ func (a *App) ListLocalFiles(localPath string, showHidden bool) ([]file.Entry, e
 func (a *App) GetLocalParentPath(localPath string) string {
 	return a.fileSvc.GetLocalParentPath(localPath)
 }
+
+// PreviewLocalFile reads one small regular host file without modifying it.
+func (a *App) PreviewLocalFile(localPath string) (file.PreviewResult, error) {
+	return auditAction(a, "preview_local_file", func() (file.PreviewResult, error) {
+		return a.fileSvc.PreviewLocalFile(localPath)
+	})
+}
+
+// PreviewRemoteFileForDevice pins the ADB target for the entire read-only preview.
+func (a *App) PreviewRemoteFileForDevice(expectedSerial string, remotePath string) (file.PreviewResult, error) {
+	if err := requireTransferTarget(expectedSerial); err != nil {
+		return file.PreviewResult{}, err
+	}
+	return auditAction(a, "preview_remote_file", func() (file.PreviewResult, error) {
+		return a.fileSvc.PreviewRemoteFileForDevice(a.ctx, expectedSerial, remotePath)
+	})
+}

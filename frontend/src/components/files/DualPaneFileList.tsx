@@ -2,6 +2,7 @@ import {
   IconFile as FileIcon,
   IconFolder as Folder,
   IconLink as Link,
+  IconEye as Eye,
 } from '@tabler/icons-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
@@ -14,6 +15,7 @@ interface DualPaneFileListProps {
   emptyLabel: string
   onToggle: (path: string) => void
   onOpenDirectory: (file: FileEntry) => void
+  onPreview?: (file: FileEntry) => void
 }
 
 function iconFor(file: FileEntry) {
@@ -29,6 +31,7 @@ export function DualPaneFileList({
   emptyLabel,
   onToggle,
   onOpenDirectory,
+  onPreview,
 }: DualPaneFileListProps) {
   if (loading) {
     return (
@@ -71,18 +74,25 @@ export function DualPaneFileList({
                 onCheckedChange={() => onToggle(file.path)}
                 aria-label={`Select ${file.name}`}
               />
-              <button
-                type="button"
-                onClick={() => file.type === 'directory' && onOpenDirectory(file)}
-                className={cn(
-                  'flex min-w-0 items-center gap-2 text-left',
-                  file.type === 'directory' ? 'cursor-pointer hover:text-primary' : 'cursor-default',
+              <div className="flex min-w-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => file.type === 'directory' && onOpenDirectory(file)}
+                  className={cn(
+                    'flex min-w-0 flex-1 items-center gap-2 text-left',
+                    file.type === 'directory' ? 'cursor-pointer hover:text-primary' : 'cursor-default',
+                  )}
+                  title={file.path}
+                >
+                  <Icon className={cn('h-3.5 w-3.5 shrink-0', file.type === 'directory' ? 'text-primary' : 'text-muted-foreground')} />
+                  <span className="truncate font-medium">{file.name}</span>
+                </button>
+                {onPreview && file.type === 'file' && /\.(txt|md|log|csv|json|xml|yaml|yml|ini|conf|cfg|properties|go|ts|tsx|js|jsx|py|sh|css|html|htm|png|jpe?g|gif|webp)$/i.test(file.name) && (
+                  <button type="button" onClick={() => onPreview(file)} title={`Preview ${file.name}`} aria-label={`Preview ${file.name}`} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-primary">
+                    <Eye className="h-3.5 w-3.5" />
+                  </button>
                 )}
-                title={file.path}
-              >
-                <Icon className={cn('h-3.5 w-3.5 shrink-0', file.type === 'directory' ? 'text-primary' : 'text-muted-foreground')} />
-                <span className="truncate font-medium">{file.name}</span>
-              </button>
+              </div>
               <span className="truncate text-right font-mono text-[9px] text-muted-foreground">
                 {file.sizeHuman}
               </span>
