@@ -1,6 +1,6 @@
 # DroidSphere status
 
-Date: 2026-10-12. Status reconciled against `main` and its completed GitHub Actions run.
+Date: 2026-10-13. Source status reconciled against merged PR #80 and its full PR CI.
 
 Stable historical implementation detail remains in
 [DROIDSPHERE_HANDOFF_2026-09-30_P3.md](DROIDSPHERE_HANDOFF_2026-09-30_P3.md).
@@ -8,13 +8,15 @@ The live execution record is [issue #43](https://github.com/mrAibo/tvadb-hub/iss
 
 Fact labels used below: **implemented** (source merged), **unit/CI verified**
 (automated evidence exists for that exact commit), **hardware validated** (a real
-device passed the checklist) and **published** (release assets are public). The
-current batch is none of the last three.
+device passed the checklist) and **published** (release assets are public). The current source features are implemented and CI-verified; real hardware validation
+and publication remain separate pending gates.
 
-## Latest verified application baseline
+## Verified source checkpoints
 
-- Current `main` checkpoint **`b3a2dc1a932b20afd5c3efba33c8f30d04a42e0a`** (2026-10-02), after the wireless/release/Logcat-polish integration commit.
-- Separate post-integration `main` CI run [36990976089](https://github.com/mrAibo/tvadb-hub/actions/runs/36990976089): **success, all six jobs** — `frontend-check`, `go-test`, `windows-internal-tests`, `windows-build`, `linux-build` and `macos-build`. This applies to the exact commit above. It does not establish physical-device validation or release publication.
+- Latest merged source at this status edit: **`7bb2f66b7639c2f1fdb3fcf321f311219ef0e5a6`** (PR #80, bounded read-only host/Android text and image file previews). Feature-head CI [38392192797](https://github.com/mrAibo/tvadb-hub/actions/runs/38392192797) completed **success 6/6**, including generated binding provenance on Windows. A distinct post-merge `main` CI run [38393151131](https://github.com/mrAibo/tvadb-hub/actions/runs/38393151131) was started; consult the linked run and [issue #43](https://github.com/mrAibo/tvadb-hub/issues/43) for its final result. This is not physical device acceptance.
+- Previous `main` baseline `5a96704a403da931c2628114af921abc0a526b3c` (status PR #78): separate post-merge CI [38390535831](https://github.com/mrAibo/tvadb-hub/actions/runs/38390535831) **success 6/6**.
+- Security PR #79 merged as `c3da9348c96f36cc4b74f2cd828de3e9b8344245`: vulnerable frontend transitive packages removed/upgraded, Go pin upgraded to 1.26.9, full post-merge `main` CI [38271678252](https://github.com/mrAibo/tvadb-hub/actions/runs/38271678252) **success 6/6**.
+- Earlier October 2 wireless/release/Logcat-polish baseline: `b3a2dc1a932b20afd5c3efba33c8f30d04a42e0a`, separate post-integration `main` CI [36990976089](https://github.com/mrAibo/tvadb-hub/actions/runs/36990976089) **success 6/6**.
 - Earlier PR #63 (Logcat 2.0 phase 2), PR #61 (release readiness), PR #60 (stability) and PR #56 (guarded TV launcher) are all merged. Their features must not be re-implemented.
 - The 2026-10-02 wireless discovery/pairing, release-evidence, and Logcat-polish batch (B1/B2/B3) is now **implemented + unit/CI verified** on the above `main`, rather than in progress. See the local historical batch record `TVADB_BATCH_2026-10-02.md` in the engineering workspace. Hardware gate B5 and administrator gate A1 are **not** complete.
 - A passing CI run verifies automated checks for this source SHA; it is **not** evidence that a specific Windows installer, running application, Android device, or firmware has passed end-to-end testing.
@@ -51,7 +53,7 @@ current batch is none of the last three.
 
 ### Dependency and publication findings
 
-- The compatible `brace-expansion` update from 5.0.9 to 5.0.12 and the `bun audit --audit-level=high` gate are on current `main` and its CI passed. The prior local full audit reported three moderate development-tooling transitive findings (`fast-uri` and `ip-address`); re-evaluate on later dependency changes.
+- PR #79 removed the unused vulnerable `shadcn` CLI dependency, retained its MIT-licensed CSS, upgraded `source-map-js` to 1.2.2 and pinned Go 1.26.9 to fix the reachable standard-library advisories. Both `bun audit --audit-level=high` and `govulncheck ./...` remain enabled. Future vulnerability advisories may require additional fixes; re-evaluate on later dependency changes.
 - The release/distribution policy has automated checks, but **no production publishing workflow, signed release, notarization, or physical-device validation is claimed** by these tests. A real publish remains an explicit later decision.
 
 ## Remaining release gates
@@ -74,8 +76,7 @@ current batch is none of the last three.
 
 ## Next product work after the verified batch
 
-The wider backlog remains in [docs/ROADMAP.md](docs/ROADMAP.md): file preview (next read-only product package),
-folder sync/conflict policy, transfer history/resume, APK backup/restore,
+The wider backlog remains in [docs/ROADMAP.md](docs/ROADMAP.md): read-only file preview is source-complete via PR #80 (hardware unvalidated). Next is folder sync with a dry-run/conflict policy, transfer history/resume and APK backup/restore,
 Permission/AppOps inspection, device report export, device-side recording and
 later automation/distribution work. Logcat 2.0 phase 2 (PR #63) and the guarded
 custom launcher wizard (PR #56) are already completed and are not upcoming work.
