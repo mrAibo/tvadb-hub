@@ -19,6 +19,18 @@ export interface HostFileSystemInfo {
     "os": string;
 }
 
+export interface PreviewResult {
+    "source": string;
+    "serial"?: string;
+    "path": string;
+    "name": string;
+    "kind": string;
+    "mimeType": string;
+    "text"?: string;
+    "imageDataUrl"?: string;
+    "bytes": number;
+}
+
 /**
  * SdCard describes a removable storage volume reported by the device, either
  * the emulated internal SD card (`/sdcard`) or a physical external SD card

@@ -311,6 +311,18 @@ export interface FileEntry {
 
 
 
+export interface FilePreviewResult {
+  source: 'local' | 'device'
+  serial?: string
+  path: string
+  name: string
+  kind: 'image' | 'text'
+  mimeType: string
+  text?: string
+  imageDataUrl?: string
+  bytes: number
+}
+
 export interface HostFileSystemInfo {
   home: string
   roots: string[]

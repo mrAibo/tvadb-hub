@@ -18,6 +18,7 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { StorageBar } from '@/components/files/StorageBar'
 import { DualPaneFileList } from '@/components/files/DualPaneFileList'
+import { FilePreviewDialog } from '@/components/files/FilePreviewDialog'
 import { FileActionDialogs } from '@/components/files/FileActionDialogs'
 import { TransferProgressOverlay } from '@/components/files/TransferProgressOverlay'
 import { UnblockPathDialog } from '@/components/files/UnblockPathDialog'
@@ -30,10 +31,13 @@ import {
   getLocalParentPath,
   getStorageInfoForDevice,
   listLocalFiles,
+  previewLocalFile,
+  previewRemoteFileForDevice,
   unblockPathForDevice,
 } from '@/services/fileService'
 import type {
   FileEntry,
+  FilePreviewResult,
   HostFileSystemInfo,
   StorageInfo,
   UnblockResult,
@@ -96,6 +100,10 @@ export default function FilesPage() {
   const [transferBusy, setTransferBusy] = useState<'push' | 'pull' | null>(null)
   const [unblockResult, setUnblockResult] = useState<UnblockResult | null>(null)
   const [isUnblockDialogOpen, setIsUnblockDialogOpen] = useState(false)
+  const [previewTarget, setPreviewTarget] = useState<{ file: FileEntry; source: 'local' | 'device'; serial: string } | null>(null)
+  const [previewResult, setPreviewResult] = useState<FilePreviewResult | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
 
   const loadLocal = useCallback(async (targetPath: string, showHidden = localShowHidden) => {
     setLocalLoading(true)
@@ -146,6 +154,37 @@ export default function FilesPage() {
   useEffect(() => {
     setRemoteDraft(fe.currentPath)
   }, [fe.currentPath])
+
+  // A preview is bound to its initial device. Changing devices closes it, and
+  // the request lifecycle below ignores stale results on unmount or close.
+  useEffect(() => {
+    setPreviewTarget(null)
+  }, [activeSerial])
+
+  useEffect(() => {
+    if (!previewTarget) {
+      setPreviewResult(null)
+      setPreviewError(null)
+      return
+    }
+    let cancelled = false
+    setPreviewResult(null)
+    setPreviewError(null)
+    setPreviewLoading(true)
+    const request = previewTarget.source === 'local'
+      ? previewLocalFile(previewTarget.file.path)
+      : previewRemoteFileForDevice(previewTarget.serial, previewTarget.file.path)
+    void request.then((result) => {
+      if (cancelled) return
+      if (previewTarget.source === 'device' && useDeviceStore.getState().activeSerial !== previewTarget.serial) return
+      setPreviewResult(result)
+    }).catch((error) => {
+      if (!cancelled) setPreviewError(error instanceof Error ? error.message : String(error))
+    }).finally(() => {
+      if (!cancelled) setPreviewLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [previewTarget])
 
   useEffect(() => {
     if (!activeSerial) {
@@ -389,6 +428,7 @@ export default function FilesPage() {
             emptyLabel={localSearch ? 'No matching local files.' : 'This local folder is empty.'}
             onToggle={toggleLocal}
             onOpenDirectory={(file) => void loadLocal(file.path)}
+            onPreview={(file) => setPreviewTarget({ file, source: 'local', serial: activeSerial })}
           />
         </Card>
 
@@ -552,6 +592,7 @@ export default function FilesPage() {
             emptyLabel={fe.searchTerm ? 'No matching Android files.' : 'This Android folder is empty.'}
             onToggle={fe.toggleFileSelection}
             onOpenDirectory={fe.openDirectory}
+            onPreview={(file) => setPreviewTarget({ file, source: 'device', serial: activeSerial })}
           />
         </Card>
       </div>
@@ -625,6 +666,16 @@ export default function FilesPage() {
           onCancel={fe.cancelTransfer}
         />
       )}
+
+      <FilePreviewDialog
+        open={previewTarget !== null}
+        onOpenChange={(open) => { if (!open) setPreviewTarget(null) }}
+        filename={previewTarget?.file.name ?? ''}
+        location={previewTarget?.source === 'local' ? 'This computer' : `Android: ${previewTarget?.serial ?? ''}`}
+        loading={previewLoading}
+        result={previewResult}
+        error={previewError}
+      />
 
       <UnblockPathDialog
         result={unblockResult}
