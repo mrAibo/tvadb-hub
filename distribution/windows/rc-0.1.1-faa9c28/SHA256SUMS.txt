@@ -1,0 +1,3 @@
+efb4d615948ed2e6e32bfa361c1912772d34aed08c05174ce423122e7fc92185  BUILD_PROVENANCE-windows.json
+1e7901180496961083df9bd9f6a3dc06003b9f734b6150812f29618197cc1c0c  DroidSphere-0.1.1-windows-amd64.exe
+eaa076007432c4c15a3babceacd23c00b73b8ad1365c2c53ebbae0560f392e46  DroidSphere-0.1.1-windows-amd64-installer.exe

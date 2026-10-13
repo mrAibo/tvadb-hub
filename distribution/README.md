@@ -9,6 +9,32 @@ manifests; do not guess or backfill their source SHA. New builds publish
 BUILD_PROVENANCE-<platform>.json with exact checkout SHA, dirty status, workflow
 run, tool versions and SHA-256 digests.
 
+## Latest Windows test candidate: 0.1.1 RC1 (2026-10-13)
+
+The newest Windows binaries are retained separately under
+[`windows/rc-0.1.1-faa9c28/`](windows/rc-0.1.1-faa9c28/):
+
+- `DroidSphere-0.1.1-windows-amd64.exe` — portable Windows x64 program.
+- `DroidSphere-0.1.1-windows-amd64-installer.exe` — Windows x64 NSIS installer.
+- `BUILD_PROVENANCE-windows.json` — unmodified CI-generated source/build/hash metadata.
+- `SHA256SUMS.txt` — checksums for the two executables and provenance JSON.
+
+These exact files are from clean source commit
+`faa9c28d6c5eb254c6471d17c8fa984bb8363f92`, GitHub Actions
+[main CI run 38394525217](https://github.com/mrAibo/tvadb-hub/actions/runs/38394525217)
+(success: all six jobs). Source version is `0.1.1`; RC1 is a test-candidate label
+for this specific artifact set, not a new app version or a published GitHub Release.
+Names inside the provenance JSON are unchanged from the original CI artifact.
+
+The two older 0.1.1 Windows files directly in `windows/` are preserved as
+historical packages; they do **not** contain this candidate's source features.
+Do not confuse them with the nested `rc-0.1.1-faa9c28/` files.
+
+This candidate has **not** yet passed physical Android/TV validation, full
+Windows portable/installer interaction tests, or publication authorization.
+See [`docs/PHYSICAL_DEVICE_VALIDATION.md`](../docs/PHYSICAL_DEVICE_VALIDATION.md)
+and [release gate issue #19](https://github.com/mrAibo/tvadb-hub/issues/19).
+Do not promote this candidate to a public release until that gate is satisfied.
 ## Windows
 
 - `windows/DroidSphere-<version>-windows-amd64.exe` — portable executable.

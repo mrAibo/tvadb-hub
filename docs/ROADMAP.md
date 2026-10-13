@@ -49,6 +49,12 @@ The guarded TV **custom launcher wizard** (PR #56) and Logcat 2.0 phase 2
 (PR #63) are already merged, and the release-readiness hardening from PR #61 is
 retained. None of them are upcoming work. Macros remain later.
 
+## Release candidate validation (before adding major features)
+
+- [x] Freeze and retain a source-identifiable Windows 0.1.1 RC1 test candidate from `faa9c28d` in `distribution/windows/rc-0.1.1-faa9c28/`, with provenance and SHA-256 sums.
+- [ ] Complete physical Android/TV and Windows portable/NSIS end-to-end checks on the **exact candidate artifact hashes** (issue #19).
+- [ ] Enforce six mandatory CI checks and pull requests on protected `main` (admin issue #62).
+- [ ] Authorize and publish the exact hardware-validated source/candidate; do not use a new build as evidence of a previous binary test.
 ## Next: files and backups (after source stabilization)
 
 - [x] Bounded read-only image/text preview in host and Android file panes (PR #80; hardware validation pending)
