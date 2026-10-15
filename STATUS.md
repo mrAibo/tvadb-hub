@@ -1,4 +1,12 @@
 # DroidSphere status
+
+## macOS 0.1.1 RC1 package staging (2026-10-15)
+
+- Native macOS universal (arm64 + x86_64) ad-hoc signed `.app` ZIP is staged in `distribution/macos/rc-0.1.1-c11c9eb/` with source provenance and SHA256 checksums; prior macOS ZIP preserved.
+- Exact original source commit: `c11c9ebeb2b2047fc1b7ed96755a88238dc484bc`. This is a Mac test candidate, not Apple notarization, real-hardware validation, or public release.
+- Windows RC1 candidate under `distribution/windows/rc-0.1.1-faa9c28/` is unchanged, with its different original source SHA.
+- Physical Android/TV validation gate [#19](https://github.com/mrAibo/tvadb-hub/issues/19) remains open.
+
 ## Windows 0.1.1 RC1 staging (2026-10-13)
 
 - **Staged Windows test binaries:** `distribution/windows/rc-0.1.1-faa9c28/` (portable `.exe`, NSIS installer, original provenance JSON and SHA-256 sums); previous root Windows packages preserved as historical artifacts.

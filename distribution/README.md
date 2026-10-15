@@ -35,6 +35,26 @@ Windows portable/installer interaction tests, or publication authorization.
 See [`docs/PHYSICAL_DEVICE_VALIDATION.md`](../docs/PHYSICAL_DEVICE_VALIDATION.md)
 and [release gate issue #19](https://github.com/mrAibo/tvadb-hub/issues/19).
 Do not promote this candidate to a public release until that gate is satisfied.
+## Latest macOS test candidate: 0.1.1 RC1 (2026-10-15)
+
+Native universal `DroidSphere.app` for **Apple Silicon arm64 and Intel x86_64**
+is available at [`macos/rc-0.1.1-c11c9eb/`](macos/rc-0.1.1-c11c9eb/):
+
+- `DroidSphere-0.1.1-macos-universal.zip` — ad-hoc signed .app bundle
+- `BUILD_PROVENANCE-macos.json` — macOS CI provenance with exact source SHA
+- `SHA256SUMS.txt` — package and provenance checksums
+
+The source is the clean `main` commit
+`c11c9ebeb2b2047fc1b7ed96755a88238dc484bc`; the macOS
+build verifies both `arm64` and `x86_64` architectures and checks the
+ad-hoc signature. The older zip directly in `macos/` is preserved as a
+historical artifact and must not be confused with this candidate.
+
+**Not notarized by Apple; not a public Release or hardware-validated.**
+On macOS, Gatekeeper may require Control-click → Open. Avoid disabling
+system-wide security controls. Physical Android/TV compatibility is
+still pending [release gate #19](https://github.com/mrAibo/tvadb-hub/issues/19).
+
 ## Windows
 
 - `windows/DroidSphere-<version>-windows-amd64.exe` — portable executable.

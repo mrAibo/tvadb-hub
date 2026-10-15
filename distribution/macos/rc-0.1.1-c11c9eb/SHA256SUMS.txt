@@ -1,0 +1,2 @@
+6640a7921a127563889805f04f7b584d8c383c8bb65d8c95a705b9ad4ba30826  BUILD_PROVENANCE-macos.json
+2208bf478b8bad9453ff098f0bfe1a48ec3634d399bbcc14e817a85d4f2fe311  DroidSphere-0.1.1-macos-universal.zip
