@@ -63,7 +63,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bun scripts/write-build-provenance.ts macos bin/DroidSphere-0.1.1-macos-universal.zip
+          env -u GITHUB_SHA bun scripts/write-build-provenance.ts macos bin/DroidSphere-0.1.1-macos-universal.zip
           bun -e 'const p=await Bun.file("bin/BUILD_PROVENANCE-macos.json").json(); if(p.sourceDirty || p.sourceRevision!=="c11c9ebeb2b2047fc1b7ed96755a88238dc484bc") throw new Error("Unsafe or changed source provenance: "+JSON.stringify(p))'
           mkdir -p "$RUNNER_TEMP/droidsphere-macos-rc1"
           cp bin/DroidSphere-0.1.1-macos-universal.zip bin/BUILD_PROVENANCE-macos.json "$RUNNER_TEMP/droidsphere-macos-rc1/"
