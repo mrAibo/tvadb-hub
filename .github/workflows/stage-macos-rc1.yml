@@ -53,7 +53,7 @@ jobs:
           set -euo pipefail
           wails3 task darwin:package:universal
           lipo -info bin/DroidSphere.app/Contents/MacOS/DroidSphere
-          lipo -verify_arch x86_64 arm64 bin/DroidSphere.app/Contents/MacOS/DroidSphere
+          lipo bin/DroidSphere.app/Contents/MacOS/DroidSphere -verify_arch x86_64 arm64
           codesign --verify --deep --strict --verbose=2 bin/DroidSphere.app
           ditto -c -k --sequesterRsrc --keepParent bin/DroidSphere.app bin/DroidSphere-0.1.1-macos-universal.zip
           unzip -l bin/DroidSphere-0.1.1-macos-universal.zip | grep 'DroidSphere.app/Contents/MacOS/DroidSphere'
