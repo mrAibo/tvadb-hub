@@ -51,6 +51,9 @@ retained. None of them are upcoming work. Macros remain later.
 
 ## Release candidate validation (before adding major features)
 
+- [x] Stage a universal macOS Intel + Apple Silicon `.app` ZIP test candidate with source SHA and hashes under `distribution/macos/rc-0.1.1-c11c9eb/`.
+- [ ] Apple Developer ID signing + notarization for smooth public macOS distribution (ad-hoc signature only on candidate).
+
 - [x] Freeze and retain a source-identifiable Windows 0.1.1 RC1 test candidate from `faa9c28d` in `distribution/windows/rc-0.1.1-faa9c28/`, with provenance and SHA-256 sums.
 - [ ] Complete physical Android/TV and Windows portable/NSIS end-to-end checks on the **exact candidate artifact hashes** (issue #19).
 - [ ] Enforce six mandatory CI checks and pull requests on protected `main` (admin issue #62).

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "c11c9ebeb2b2047fc1b7ed96755a88238dc484bc",
+  "sourceDirty": false,
+  "sourceStatusRaw": "",
+  "platform": "macos",
+  "generatedAt": "2026-10-15T16:06:34.504Z",
+  "workflowRun": "38765669060",
+  "workflowAttempt": "1",
+  "toolchainPins": {
+    "go": "1.26.9",
+    "bun": "1.4.2",
+    "wails": "v3.0.0-beta.20",
+    "nsis": "3.12.0"
+  },
+  "tools": {
+    "go": "go version go1.26.9 darwin/arm64",
+    "bun": "1.4.2",
+    "wails": "v3.0.0-beta.20"
+  },
+  "artifacts": [
+    {
+      "name": "DroidSphere-0.1.1-macos-universal.zip",
+      "sha256": "2208bf478b8bad9453ff098f0bfe1a48ec3634d399bbcc14e817a85d4f2fe311"
+    }
+  ]
+}
