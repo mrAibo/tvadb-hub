@@ -1,0 +1,172 @@
+name: Temporary macOS RC1 package staging
+
+on:
+  push:
+    branches:
+      - release/macos-rc1-c11c9eb-20261015
+    paths:
+      - .github/workflows/stage-macos-rc1.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: droidsphere-macos-rc1-stage
+  cancel-in-progress: false
+
+jobs:
+  stage-macos:
+    if: github.repository == 'mrAibo/tvadb-hub'
+    runs-on: macos-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout staging branch and record trigger
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Capture staging ref, pin exact known-good source
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "STAGING_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          git switch --detach c11c9ebeb2b2047fc1b7ed96755a88238dc484bc
+          test "$(git rev-parse HEAD)" = "c11c9ebeb2b2047fc1b7ed96755a88238dc484bc"
+          test "$(awk '/^VERSION :=/ { print $3; exit }' Makefile)" = "0.1.1"
+          test -z "$(git status --porcelain --untracked-files=no)"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.9'
+      - name: Verify Xcode Command Line Tools
+        run: xcode-select -p
+      - name: Install pinned Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.20
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+      - name: Build native Intel and Apple Silicon .app
+        shell: bash
+        run: |
+          set -euo pipefail
+          wails3 task darwin:package:universal
+          lipo -info bin/DroidSphere.app/Contents/MacOS/DroidSphere
+          lipo -verify_arch x86_64 arm64 bin/DroidSphere.app/Contents/MacOS/DroidSphere
+          codesign --verify --deep --strict --verbose=2 bin/DroidSphere.app
+          ditto -c -k --sequesterRsrc --keepParent bin/DroidSphere.app bin/DroidSphere-0.1.1-macos-universal.zip
+          unzip -l bin/DroidSphere-0.1.1-macos-universal.zip | grep 'DroidSphere.app/Contents/MacOS/DroidSphere'
+      - name: Record original source revision and artifact hash
+        env:
+          GITHUB_SHA: c11c9ebeb2b2047fc1b7ed96755a88238dc484bc
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun scripts/write-build-provenance.ts macos bin/DroidSphere-0.1.1-macos-universal.zip
+          bun -e 'const p=await Bun.file("bin/BUILD_PROVENANCE-macos.json").json(); if(p.sourceDirty || p.sourceRevision!=="c11c9ebeb2b2047fc1b7ed96755a88238dc484bc") throw new Error("Unsafe or changed source provenance: "+JSON.stringify(p))'
+          mkdir -p "$RUNNER_TEMP/droidsphere-macos-rc1"
+          cp bin/DroidSphere-0.1.1-macos-universal.zip bin/BUILD_PROVENANCE-macos.json "$RUNNER_TEMP/droidsphere-macos-rc1/"
+      - name: Upload independent CI evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: droidsphere-macos-0.1.1-rc1-universal
+          path: |
+            bin/DroidSphere-0.1.1-macos-universal.zip
+            bin/BUILD_PROVENANCE-macos.json
+          if-no-files-found: error
+      - name: Stage macOS candidate and reproducible SHA-256 records
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard c11c9ebeb2b2047fc1b7ed96755a88238dc484bc
+          git switch -C release/macos-rc1-c11c9eb-20261015 "$STAGING_COMMIT"
+          test "$(git rev-parse HEAD)" = "$STAGING_COMMIT"
+          dest="distribution/macos/rc-0.1.1-c11c9eb"
+          mkdir -p "$dest"
+          cp "$RUNNER_TEMP/droidsphere-macos-rc1/DroidSphere-0.1.1-macos-universal.zip" "$dest/"
+          cp "$RUNNER_TEMP/droidsphere-macos-rc1/BUILD_PROVENANCE-macos.json" "$dest/"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          root = Path(".")
+          base = "c11c9ebeb2b2047fc1b7ed96755a88238dc484bc"
+          folder = root / "distribution/macos/rc-0.1.1-c11c9eb"
+          meta = json.loads((folder / "BUILD_PROVENANCE-macos.json").read_text())
+          assert meta["sourceRevision"] == base and not meta["sourceDirty"]
+          assert meta["platform"] == "macos"
+          assert len(meta["artifacts"]) == 1
+          for record in meta["artifacts"]:
+              pkg = folder / record["name"]
+              assert pkg.is_file()
+              assert hashlib.sha256(pkg.read_bytes()).hexdigest() == record["sha256"]
+          candidate_files = sorted(x for x in folder.iterdir() if x.is_file() and x.name != "SHA256SUMS.txt")
+          (folder / "SHA256SUMS.txt").write_text(
+              "".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n" for p in candidate_files)
+          )
+
+          readme = root / "distribution/README.md"
+          old = readme.read_text()
+          mark = "## Windows\n"
+          assert mark in old and "## Latest macOS test candidate" not in old
+          extra = """## Latest macOS test candidate: 0.1.1 RC1 (2026-10-15)
+
+          Native universal `DroidSphere.app` for **Apple Silicon arm64 and Intel x86_64**
+          is available at [`macos/rc-0.1.1-c11c9eb/`](macos/rc-0.1.1-c11c9eb/):
+
+          - `DroidSphere-0.1.1-macos-universal.zip` — ad-hoc signed .app bundle
+          - `BUILD_PROVENANCE-macos.json` — macOS CI provenance with exact source SHA
+          - `SHA256SUMS.txt` — package and provenance checksums
+
+          The source is the clean `main` commit
+          `c11c9ebeb2b2047fc1b7ed96755a88238dc484bc`; the macOS
+          build verifies both `arm64` and `x86_64` architectures and checks the
+          ad-hoc signature. The older zip directly in `macos/` is preserved as a
+          historical artifact and must not be confused with this candidate.
+
+          **Not notarized by Apple; not a public Release or hardware-validated.**
+          On macOS, Gatekeeper may require Control-click → Open. Avoid disabling
+          system-wide security controls. Physical Android/TV compatibility is
+          still pending [release gate #19](https://github.com/mrAibo/tvadb-hub/issues/19).
+
+          """
+          readme.write_text(old.replace(mark, extra + mark, 1))
+
+          status = root / "STATUS.md"
+          old = status.read_text()
+          mark = "# DroidSphere status\n"
+          assert mark in old
+          extra = """
+          ## macOS 0.1.1 RC1 package staging (2026-10-15)
+
+          - Native macOS universal (arm64 + x86_64) ad-hoc signed `.app` ZIP is staged in `distribution/macos/rc-0.1.1-c11c9eb/` with source provenance and SHA256 checksums; prior macOS ZIP preserved.
+          - Exact original source commit: `c11c9ebeb2b2047fc1b7ed96755a88238dc484bc`. This is a Mac test candidate, not Apple notarization, real-hardware validation, or public release.
+          - Windows RC1 candidate under `distribution/windows/rc-0.1.1-faa9c28/` is unchanged, with its different original source SHA.
+          - Physical Android/TV validation gate [#19](https://github.com/mrAibo/tvadb-hub/issues/19) remains open.
+
+          """
+          status.write_text(old.replace(mark, mark + extra, 1))
+
+          roadmap = root / "docs/ROADMAP.md"
+          old = roadmap.read_text()
+          mark = "## Release candidate validation (before adding major features)\n"
+          assert mark in old
+          roadmap.write_text(old.replace(mark, mark + """
+          - [x] Stage a universal macOS Intel + Apple Silicon `.app` ZIP test candidate with source SHA and hashes under `distribution/macos/rc-0.1.1-c11c9eb/`.
+          - [ ] Apple Developer ID signing + notarization for smooth public macOS distribution (ad-hoc signature only on candidate).
+          """, 1))
+
+          dist = root / "distribution"
+          paths = sorted((p for p in dist.rglob("*") if p.is_file() and p.name != "SHA256SUMS.txt"), key=lambda p: p.as_posix())
+          (dist / "SHA256SUMS.txt").write_text(
+              "".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.as_posix()}\n" for p in paths)
+          )
+          print(f"Staged candidate from {base}, checksummed {len(paths)} distribution files")
+          PY
+          git add STATUS.md docs/ROADMAP.md distribution/README.md distribution/SHA256SUMS.txt "$dest/BUILD_PROVENANCE-macos.json" "$dest/SHA256SUMS.txt"
+          git add -f "$dest/DroidSphere-0.1.1-macos-universal.zip"
+          git diff --cached --check
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'release(rc): stage verified universal macOS 0.1.1 RC1 app bundle'
+          git push origin HEAD:refs/heads/release/macos-rc1-c11c9eb-20261015
